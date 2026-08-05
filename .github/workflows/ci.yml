@@ -27,10 +27,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # No `||` fallback here on purpose. The first version of this file used
+      # `pip install -e ".[dev]" || pip install -e . pytest`. The `dev` extra did
+      # not exist, so pip warned and exited 0, the fallback never ran, and every
+      # job failed with "No module named pytest". A step that appears to succeed
+      # while doing nothing is the exact failure this project exists to catch.
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]" || python -m pip install -e . pytest
+          python -m pip install -e ".[dev]"
+
+      - name: Confirm pytest is actually installed
+        run: python -m pytest --version
 
       - name: Test
         run: python -m pytest

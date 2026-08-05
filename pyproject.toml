@@ -22,6 +22,9 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
 [project.urls]
 Homepage = "https://github.com/Cshearer210/agentattest"
 Issues = "https://github.com/Cshearer210/agentattest/issues"
