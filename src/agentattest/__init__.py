@@ -6,11 +6,21 @@
     Case     -- one selftest fixture and its expected verdict.
     Finding  -- one problem a gate found.
 
-    Harness  -- (Phase 3) registered checks that assert against LIVE STATE rather
-                than source. A check returning None reports UNKNOWN, never a pass.
+    gates.UnbackedClaims -- flags completion claims with no evidence nearby.
+
+    hooks.stop_hook          -- refuse a turn that claims done without proof.
+    hooks.pre_tool_use_hook  -- refuse a tool call that breaks an invariant.
+
+    Harness  -- checks that assert against LIVE STATE rather than source code.
+                A check returning None reports UNKNOWN and never counts as a pass.
 """
 
 from agentattest.core import Case, Finding, Gate, SelftestError
+from agentattest.harness import BROKE, OK, UNKNOWN, Harness, Result
 
-__version__ = "0.1.0"
-__all__ = ["Case", "Finding", "Gate", "SelftestError", "__version__"]
+__version__ = "0.2.0"
+__all__ = [
+    "Case", "Finding", "Gate", "SelftestError",
+    "Harness", "Result", "OK", "BROKE", "UNKNOWN",
+    "__version__",
+]
