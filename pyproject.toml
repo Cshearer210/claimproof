@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentattest"
+version = "0.0.1"
+description = "Agents claim work is done that isn't. This makes them prove it."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Christopher Shearer", email = "cshearer210@gmail.com" }]
+keywords = ["agents", "llm", "evals", "reliability", "guardrails", "attestation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Cshearer210/agentattest"
+Issues = "https://github.com/Cshearer210/agentattest/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentattest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

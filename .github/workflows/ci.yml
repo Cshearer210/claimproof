@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # Both operating systems on purpose. The worst defect this library exists to
+    # catch was a checker whose paths only existed on Linux: on Windows it scanned
+    # nothing, reported CLEAN, and exited 0 for months. A single-OS matrix would
+    # not have caught it.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" || python -m pip install -e . pytest
+
+      - name: Test
+        run: python -m pytest
