@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Build the wheel, install it into a clean environment, and run everything from
+a directory where the source tree is not importable.
+
+This is what CI's `installed` job does, runnable locally before you push. It
+exists because every other test in this repo runs against the SOURCE TREE, and a
+package can pass all of them while being broken on `pip install`: the wheel is
+built by different rules than the repo layout, so a file present locally can be
+absent from the distribution and nothing local notices.
+
+    python tools/verify_wheel.py
+
+Exit 0 only if the installed package imports, behaves, ships py.typed, reopens a
+stale claim, and passes the whole suite from outside the tree.
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+FAILURES: list[str] = []
+
+
+def step(label: str, cmd: list[str], cwd: Path | None = None,
+         expect: int = 0, env: dict | None = None) -> subprocess.CompletedProcess:
+    r = subprocess.run(cmd, cwd=str(cwd or REPO), capture_output=True, text=True,
+                       timeout=900, env=env)
+    ok = r.returncode == expect
+    print(f"  {'ok   ' if ok else 'FAIL '} {label}"
+          f"{'' if ok else f'  (exit {r.returncode}, wanted {expect})'}")
+    if not ok:
+        FAILURES.append(label)
+        print((r.stdout or "")[-2000:])
+        print((r.stderr or "")[-2000:], file=sys.stderr)
+    return r
+
+
+def main() -> int:
+    print(f"agentattest wheel verification, {sys.version.split()[0]}\n")
+
+    dist = REPO / "dist"
+    before = set(dist.glob("*.whl")) if dist.is_dir() else set()
+
+    step("build sdist and wheel", [sys.executable, "-m", "build"])
+    wheels = sorted(set(dist.glob("*.whl")) - before) or sorted(dist.glob("*.whl"))
+    if not wheels:
+        print("  FAIL  no wheel was produced")
+        return 1
+    wheel = max(wheels, key=lambda p: p.stat().st_mtime)
+    print(f"        using {wheel.name}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        room = Path(tmp)
+        venv = room / "venv"
+        elsewhere = room / "elsewhere"
+        elsewhere.mkdir()
+
+        step("create a clean virtual environment", [sys.executable, "-m", "venv", str(venv)])
+        py = venv / ("Scripts" if os.name == "nt" else "bin") / (
+            "python.exe" if os.name == "nt" else "python")
+
+        step("install the wheel and pytest into it",
+             [str(py), "-m", "pip", "install", "--quiet", str(wheel), "pytest>=8"])
+
+        step("public API is reachable and behaving from outside the source tree",
+             [str(py), "-c", (
+                 "import agentattest;"
+                 "assert 'site-packages' in agentattest.__file__, agentattest.__file__;"
+                 "from agentattest import Gate, Case, Finding, Harness, SelftestError;"
+                 "from agentattest import ClaimBasis, Evidence, Status, BasisError;"
+                 "from agentattest.gates import UnbackedClaims;"
+                 "from agentattest.hooks import stop_hook, pre_tool_use_hook;"
+                 "g = UnbackedClaims(); assert g.verify();"
+                 "assert g.check('It works.'), 'failed to flag an unbacked claim';"
+                 "assert g.check('It works. exit=0') == [], 'false positive';"
+                 "assert ClaimBasis.selftest(echo=False), 'ClaimBasis cannot prove itself';"
+                 "print('ok')")],
+             cwd=elsewhere)
+
+        step("py.typed ships, or downstream type checking silently does nothing",
+             [str(py), "-c", (
+                 "import importlib.util, pathlib;"
+                 "spec = importlib.util.find_spec('agentattest');"
+                 "p = pathlib.Path(spec.origin).parent / 'py.typed';"
+                 "assert p.exists(), 'py.typed missing from the installed package';"
+                 "print(p)")],
+             cwd=elsewhere)
+
+        step("the advertised demo command runs", [str(py), "-m", "agentattest.demo"],
+             cwd=elsewhere)
+        step("python -m agentattest runs", [str(py), "-m", "agentattest"], cwd=elsewhere)
+
+        # The new feature, end to end, through the CLI a reader would use.
+        (elsewhere / "proof.txt").write_text("green\n", encoding="utf-8")
+        step("the installed CLI records a claim",
+             [str(py), "-m", "agentattest.basis", "--store", "c.json",
+              "--record", "the suite passes", "--evidence", "proof.txt"], cwd=elsewhere)
+        step("...and reports it holding",
+             [str(py), "-m", "agentattest.basis", "--store", "c.json"], cwd=elsewhere)
+        (elsewhere / "proof.txt").write_text("red\n", encoding="utf-8")
+        step("...and REOPENS it once the evidence changes, exit 1",
+             [str(py), "-m", "agentattest.basis", "--store", "c.json"],
+             cwd=elsewhere, expect=1)
+
+        shutil.copytree(REPO / "tests", elsewhere / "tests")
+        step("the whole suite passes against the INSTALLED package",
+             [str(py), "-m", "pytest", "tests"], cwd=elsewhere)
+
+    print()
+    if FAILURES:
+        print(f"{len(FAILURES)} step(s) FAILED: " + "; ".join(FAILURES))
+        return 1
+    print("The wheel installs and works from a clean environment.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -136,6 +136,76 @@ UNKNOWN is not a pass. It means the check could not tell.
 must never produce the same output, because that is exactly how a broken check goes unnoticed for
 months. A check that raises is UNKNOWN too, never OK.
 
+## The claim was true when you made it. Is it still?
+
+Everything above asks whether a claim has evidence **now**. Nothing asks the question underneath
+it: *the evidence you cited has since changed, so is the claim still true?*
+
+You close "auth refactor done" pointing at two files. Three weeks later both have been rewritten,
+the claim still reads as finished, and nothing anywhere reopened it. It was never a lie. It went
+stale in silence, which is worse, because a lie has an author and this has none.
+
+```python
+from agentattest.basis import ClaimBasis
+
+basis = ClaimBasis("claims.json")
+basis.record("auth refactor done", evidence=["src/auth.py", "tests/test_auth.py"])
+
+# ... three weeks of ordinary work later ...
+
+raise SystemExit(basis.run())
+```
+
+```
+REOPENED  auth-refactor-done
+          closed 2026-08-06T17:11:49Z on "auth refactor done", but 1 of 2 piece(s)
+          of evidence changed since (src/auth.py), so it is UNVERIFIED until re-measured
+
+1 claim(s) checked: 0 holding, 1 REOPENED, 0 unknown
+```
+
+**REOPENED is not "false".** It is *unverified*: re-measure it. Re-measuring costs seconds. A false
+"done" that nobody revisits costs a great deal more, and the fix for unknown is to go and look.
+
+There is a second way an old claim rots, and it is the one nobody instruments. Give the basis a
+`scope` — the *places you look*, as distinct from the evidence you cite — and it is discovered on
+every run rather than written down:
+
+```python
+basis = ClaimBasis("claims.json", scope=lambda: [s.name for s in Path("sources").iterdir()])
+basis.record("no open item is older than March", evidence=["report.json"])
+```
+
+Wire in a source next month and every claim recorded before it existed reopens **on its own**. The
+measurement was honest; it was taken against two sources and there are now three. A hand-written
+list of sources would have to be edited by the same person who would have had to remember — which
+is the thing that already failed.
+
+Evidence and scope are treated differently on purpose:
+
+| | vanishes | appears |
+|---|---|---|
+| **evidence** (what you cited) | REOPENED — the proof cannot be re-read | n/a |
+| **scope** (where you looked) | noted, **not** reopened | REOPENED — you never looked there |
+
+Somewhere you no longer look cannot hold evidence the claim missed. Reopening on it would cry
+wolf, and a checker that cries wolf gets switched off, which is how the one real alarm gets
+ignored.
+
+Three more rules it will not bend on, each of which is a way of quietly reporting success:
+
+- **Fingerprints are content, never timestamps.** A checkout rewrites files without changing them.
+- **Recording a claim against a file that does not exist raises.** Storing it would put a claim in
+  the record that nothing can ever re-verify.
+- **An empty store exits 2, not 0.** Nothing being watched looks identical to nothing having
+  expired.
+
+It drops into the live-state harness, so the whole thing is one exit code:
+
+```python
+h.check("claims", "Every closed claim still rests on the evidence it cited")(basis.as_check())
+```
+
 ## Why this exists
 
 A content quality gate in a production system defaulted to passing everything once its API budget
@@ -162,7 +232,7 @@ Python 3.10+. No runtime dependencies.
 
 ## Examples you can copy
 
-Three runnable files in [examples/](examples/):
+Four runnable files in [examples/](examples/):
 
 - **[stop_hook.py](examples/stop_hook.py)** is a complete hook. Copy it, point your runtime at it,
   done. Includes the `settings.json` block for Claude Code and a one-line way to try it with no
@@ -172,6 +242,9 @@ Three runnable files in [examples/](examples/):
   review and approves everything.
 - **[live_checks.py](examples/live_checks.py)** runs checks against your actual machine, including
   two that deliberately report UNKNOWN.
+- **[claim_basis.py](examples/claim_basis.py)** builds a throwaway project, closes a claim against
+  real files, then does the two ordinary things that make an old claim false and shows it reopen
+  itself both times.
 
 ## Contributing
 
