@@ -1,14 +1,15 @@
 # Examples
 
-Four files, each runnable on its own. Start with whichever matches what you want.
+Five files, each runnable on its own. Start with whichever matches what you want.
 
 ```bash
 pip install agentattest
 
-python stop_hook.py    # paste JSON on stdin, see a turn refused
-python custom_gate.py  # write your own gate, and watch a broken one get rejected
-python live_checks.py  # checks that look at your actual machine
-python claim_basis.py  # watch a claim that was true go stale on its own
+python stop_hook.py       # paste JSON on stdin, see a turn refused
+python custom_gate.py     # write your own gate, and watch a broken one get rejected
+python live_checks.py     # checks that look at your actual machine
+python claim_basis.py     # watch a claim that was true go stale on its own
+python coverage_ledger.py # the same audit reported two ways, one of them honest
 ```
 
 ## stop_hook.py
@@ -126,3 +127,43 @@ because the scope is discovered on every run rather than written down.
 
 Neither reopen means the claim was wrong. It was honestly true, measured against everything
 visible at the time, and it went stale in silence. `REOPENED` means re-measure.
+
+## coverage_ledger.py
+
+One project, one trivial audit, run twice.
+
+```
+PASS 1 -- the report almost every tool prints
+
+  4 files checked, 0 problems
+
+Reads as: the project is fine.
+Means   : the 2 directories I thought of are fine.
+
+PASS 2 -- the same audit, with the denominator attached
+
+COVERAGE  directories
+  DISCOVERED  : 6
+  EXAMINED    : 4   (2 ok, 1 BROKE, 1 unknown)
+  SKIPPED     : 2   (every one with a reason; 0 with no measurement)
+  UNACCOUNTED : 0
+
+  4 of 6 directories examined.
+
+BROKE:
+  docs
+         missing a header: index.md
+
+OUT OF SCOPE -- measured anyway, so a wrong call is visible:
+             240  .cache
+                  why: vendor or regenerable, not written here
+```
+
+The first pass reported zero problems and exited 0. The second found a real one, in a directory
+the first never opened, and exited 1. The defect is not hidden anywhere clever — it is simply
+outside the list of places somebody wrote down once.
+
+Two details worth stealing even if you never use this class. The exclusions carry their size, so
+calling something a cache is a claim you can check rather than a label nobody questions. And
+`scripts/` reports **could not tell** rather than passing: the audit only reads Python, and saying
+so is the difference between four directories examined and three examined plus one guess.

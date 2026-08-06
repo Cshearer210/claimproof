@@ -206,6 +206,81 @@ It drops into the live-state harness, so the whole thing is one exit code:
 h.check("claims", "Every closed claim still rests on the evidence it cited")(basis.as_check())
 ```
 
+## "22 nodes, 0 broken" is not a result
+
+It reads as *the system is healthy*. It means *the 22 I chose are healthy*. Those are different
+sentences, and nothing in that output tells you which one you are looking at.
+
+The measured version: one tool discovered 685,507 files. Another written the same day walked its
+own hand-typed list of places to look, opened 57,100, and that was reported as "every file." The
+gap was 628,407 files and **nothing could notice**, because a scan of 4 roots prints the same
+shape of output as a scan of 40.
+
+```python
+from agentattest import Coverage
+
+cov = Coverage("nodes", discover=list_all_nodes)   # a callable, not a list
+
+for node in cov.population():
+    if node.startswith("legacy-"):
+        cov.skip(node, "retired in 2024", measured=0)
+        continue
+    cov.examine(node, *health_of(node))
+
+raise SystemExit(cov.run())
+```
+
+```
+COVERAGE  nodes
+  DISCOVERED  : 7
+  EXAMINED    : 2   (2 ok, 0 BROKE, 0 unknown)
+  SKIPPED     : 0   (every one with a reason; 0 with no measurement)
+  UNACCOUNTED : 5
+
+  2 of 7 nodes examined.
+  5 were never looked at and never skipped, so nothing here is a clean bill of health.
+```
+
+**Exit 2, not 0.** Unexamined is not the same as fine, and the exit code refuses to let one read
+as the other. Four rules make that structural rather than something you remember to mention:
+
+- **The population is discovered, never typed.** `discover` must be a callable — passing a list is
+  refused — so the population is re-established every run and something that appears next month is
+  in scope without anyone remembering it.
+- **No exclusion without a measurement.** *"it's a cache"* is a guess; *"606 files"* is a finding.
+  A `skip()` with no `measured=` reports UNKNOWN. `measured=0` is a measurement; omitting it is not.
+- **Reconcile, and print it.** examined + skipped + unaccounted == discovered, asserted every run.
+- **Persist and diff.** `save()` and `diff()` report NEW, GONE and GREW, so a member that appears
+  next month surfaces itself instead of waiting to be stumbled on.
+
+The other half of the same problem is the code that decides what to look at, and that one is
+catchable before it lands:
+
+```python
+from agentattest.gates import TypedScope
+from agentattest.hooks import gate_invariant, pre_tool_use_hook
+
+pre_tool_use_hook(payload, [gate_invariant(TypedScope())])
+```
+
+```
+Tool call refused: it would violate a declared invariant.
+  x typed-scope in scan.py: line 1: 2 absolute paths on one line is a hand-written
+    population, not a discovered one  (roots = ["/srv/a", "/opt/b"])
+```
+
+`TypedScope` fires on exactly two shapes — two or more absolute paths on one line, or one on a
+line that names a scope (`roots`, `scan_dirs`, `search_paths`). A single path assigned to a
+singular name is correct and normal and is left alone, as are comments and docstrings. That
+narrowness is the point: an earlier version of this idea matched `ROOT` as well and flagged 94
+files whose only content was one correct constant. **A gate that cries wolf gets switched off,
+which is worse than not having it.** An exemption is allowed with `# noscope: <reason>` written on
+the line, so an exception is a visible decision rather than an oversight.
+
+**The honest limit**, since the whole argument here is about not overclaiming: this stops a tool
+*silently* narrowing its own scope and forces the fraction into every report. It cannot prove your
+`discover` function is complete. Nothing can.
+
 ## Why this exists
 
 A content quality gate in a production system defaulted to passing everything once its API budget
@@ -232,7 +307,7 @@ Python 3.10+. No runtime dependencies.
 
 ## Examples you can copy
 
-Four runnable files in [examples/](examples/):
+Five runnable files in [examples/](examples/):
 
 - **[stop_hook.py](examples/stop_hook.py)** is a complete hook. Copy it, point your runtime at it,
   done. Includes the `settings.json` block for Claude Code and a one-line way to try it with no
@@ -245,6 +320,9 @@ Four runnable files in [examples/](examples/):
 - **[claim_basis.py](examples/claim_basis.py)** builds a throwaway project, closes a claim against
   real files, then does the two ordinary things that make an old claim false and shows it reopen
   itself both times.
+- **[coverage_ledger.py](examples/coverage_ledger.py)** runs the same trivial audit twice over one
+  project. The first pass reports `0 problems` and exits 0. The second finds a real defect in a
+  directory the first never opened.
 
 ## Contributing
 

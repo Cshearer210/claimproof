@@ -7,9 +7,17 @@
     Finding  -- one problem a gate found.
 
     gates.UnbackedClaims -- flags completion claims with no evidence nearby.
+    gates.TypedScope     -- flags source that decides its own population from a
+                            hardcoded list of paths, so "I scanned everything"
+                            means whatever the author happened to remember.
 
     hooks.stop_hook          -- refuse a turn that claims done without proof.
     hooks.pre_tool_use_hook  -- refuse a tool call that breaks an invariant.
+
+    Coverage -- a count is not a result until it says what it did not look at.
+                "22 nodes, 0 broken" reads as the system being healthy and means
+                the 22 that were chosen are healthy. Anything discovered and then
+                neither examined nor skipped-with-a-measured-reason is UNKNOWN.
 
     Harness  -- checks that assert against LIVE STATE rather than source code.
                 A check returning None reports UNKNOWN and never counts as a pass.
@@ -28,12 +36,14 @@
 
 from agentattest.basis import BasisError, Claim, ClaimBasis, Evidence, Status
 from agentattest.core import Case, Finding, Gate, SelftestError
+from agentattest.coverage import Coverage, CoverageError, Diff, Entry
 from agentattest.harness import BROKE, OK, UNKNOWN, Harness, Result
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     "Case", "Finding", "Gate", "SelftestError",
     "Harness", "Result", "OK", "BROKE", "UNKNOWN",
     "BasisError", "Claim", "ClaimBasis", "Evidence", "Status",
+    "Coverage", "CoverageError", "Diff", "Entry",
     "__version__",
 ]

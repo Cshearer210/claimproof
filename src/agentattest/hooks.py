@@ -17,7 +17,13 @@ from typing import Callable, Iterable, Sequence
 
 from agentattest.core import Finding, Gate
 
-__all__ = ["BLOCK", "ALLOW", "stop_hook", "pre_tool_use_hook", "run_stop_hook"]
+__all__ = ["BLOCK", "ALLOW", "stop_hook", "pre_tool_use_hook", "gate_invariant",
+           "run_stop_hook"]
+
+#: Tools whose payload carries text about to be written to a file.
+WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit", "write_file", "edit_file")
+#: Payload keys those tools use for the text itself.
+CONTENT_FIELDS = ("content", "new_string", "new_source", "text", "contents")
 
 #: Exit codes. 2 blocks the action and shows stderr to the agent.
 BLOCK = 2
@@ -82,6 +88,63 @@ def pre_tool_use_hook(
 
     body = "\n".join(f"  x {r}" for r in reasons)
     return BLOCK, f"Tool call refused: it would violate a declared invariant.\n{body}"
+
+
+def gate_invariant(
+    gate: Gate,
+    tools: Sequence[str] = WRITE_TOOLS,
+    fields: Sequence[str] = CONTENT_FIELDS,
+    strict: bool = False,
+) -> Callable[[str, dict], str | None]:
+    """Turn a `Gate` into an invariant that inspects what is about to be WRITTEN.
+
+    `stop_hook` reads what an agent is about to say. This reads what it is about
+    to save, which is the difference between catching a bad pattern in review and
+    never letting it land::
+
+        from agentattest.gates import TypedScope
+        from agentattest.hooks import pre_tool_use_hook, gate_invariant
+
+        code, message = pre_tool_use_hook(payload, [gate_invariant(TypedScope())])
+
+    The gate is verified before it is trusted, so a gate that can no longer catch
+    its own must-fail case raises here rather than quietly allowing every write.
+
+    **It fails OPEN when a targeted tool carries no recognisable content field.**
+    That is a deliberate trade and it is the wrong default for some people, so
+    `strict=True` refuses instead. The reasoning for the default: a pre-write hook
+    that blocks on everything it cannot parse gets removed within the day, and a
+    removed hook protects nothing. `strict=True` is right when you control the
+    payload shape and would rather be stopped than guessed at.
+    """
+    wanted = {t.lower() for t in tools}
+
+    def _invariant(tool: str, tool_input: dict) -> str | None:
+        if (tool or "").lower() not in wanted:
+            return None
+
+        chunks = [str(tool_input[f]) for f in fields
+                  if isinstance(tool_input, dict) and tool_input.get(f)]
+        if not chunks:
+            if strict:
+                return (f"{gate.name}: {tool} carried no inspectable content, so "
+                        f"this write could not be checked. Refusing rather than "
+                        f"assuming it is fine.")
+            return None
+
+        findings = gate.check("\n".join(chunks))   # check() verifies the gate first
+        if not findings:
+            return None
+
+        where = ""
+        if isinstance(tool_input, dict):
+            where = str(tool_input.get("file_path") or tool_input.get("path") or "")
+        head = f"{gate.name} in {where}" if where else gate.name
+        detail = "; ".join(str(f) for f in findings[:3])
+        more = f" (+{len(findings) - 3} more)" if len(findings) > 3 else ""
+        return f"{head}: {detail}{more}"
+
+    return _invariant
 
 
 def run_stop_hook(gates: Iterable[Gate], stream=None) -> int:

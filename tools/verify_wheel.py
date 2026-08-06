@@ -25,6 +25,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 FAILURES: list[str] = []
 
+# Fixtures for the TypedScope check below, assembled rather than written out, so
+# this file does not itself carry the pattern its own gate exists to refuse.
+_MOUNTS = ("a", "b")
+BAD_SCOPE = "roots = [" + ", ".join(repr("/srv/" + n) for n in _MOUNTS) + "]"  # noscope: fixture text for the gate's own check
+GOOD_PATH = "LOGFILE = " + repr("/var/log/app.log")
+
 
 def step(label: str, cmd: list[str], cwd: Path | None = None,
          expect: int = 0, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -73,14 +79,22 @@ def main() -> int:
                  "assert 'site-packages' in agentattest.__file__, agentattest.__file__;"
                  "from agentattest import Gate, Case, Finding, Harness, SelftestError;"
                  "from agentattest import ClaimBasis, Evidence, Status, BasisError;"
-                 "from agentattest.gates import UnbackedClaims;"
-                 "from agentattest.hooks import stop_hook, pre_tool_use_hook;"
+                 "from agentattest import Coverage, CoverageError, Diff, Entry;"
+                 "from agentattest.gates import UnbackedClaims, TypedScope;"
+                 "from agentattest.hooks import stop_hook, pre_tool_use_hook, gate_invariant;"
                  "g = UnbackedClaims(); assert g.verify();"
                  "assert g.check('It works.'), 'failed to flag an unbacked claim';"
                  "assert g.check('It works. exit=0') == [], 'false positive';"
                  "assert ClaimBasis.selftest(echo=False), 'ClaimBasis cannot prove itself';"
+                 "assert Coverage.selftest(echo=False), 'Coverage cannot prove itself';"
+                 "t = TypedScope(); assert t.verify();"
+                 f"assert t.check({BAD_SCOPE!r}), 'TypedScope missed a typed population';"  # noscope: fixture for the gate's own check
+                 f"assert t.check({GOOD_PATH!r}) == [], 'TypedScope cried wolf';"
                  "print('ok')")],
              cwd=elsewhere)
+
+        step("a partial scan must not exit 0 from the installed package",
+             [str(py), "-m", "agentattest.coverage"], cwd=elsewhere, expect=2)
 
         step("py.typed ships, or downstream type checking silently does nothing",
              [str(py), "-c", (

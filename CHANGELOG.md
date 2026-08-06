@@ -3,6 +3,52 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0]
+
+`"22 nodes, 0 broken"` reads as *the system is healthy* and means *the 22 I chose are healthy*.
+This release makes the denominator structural instead of something you remember to mention.
+
+### Added
+- `Coverage`, `CoverageError`, `Entry`, `Diff`. The population comes from a **callable** and a
+  list is refused, so it is re-established every run. Everything discovered is either examined or
+  skipped with a measured reason; anything else is UNACCOUNTED and exits 2. Reconciliation
+  (examined + skipped + unaccounted == discovered) is asserted and printed, and every report
+  states the fraction. `save()` / `diff()` report NEW, GONE and GREW.
+- `gates.TypedScope`, the static half: source that decides its own population from a hardcoded
+  list of paths. Fires on two shapes only — two or more absolute paths on one line, or one on a
+  line that names a scope. A single path assigned to a singular name is correct and is left alone.
+  `# noscope: <reason>` exempts a line, which this gate's own must-fail fixtures use.
+- `hooks.gate_invariant()`, which turns any `Gate` into a pre-tool-use invariant that inspects
+  what is about to be **written**. Without it a `Gate` could not reach `pre_tool_use_hook` at all
+  without a hand-written shim, which was a real gap found by writing the test for it.
+- `examples/coverage_ledger.py`, and a test that runs it as a subprocess.
+
+### Decisions worth stating
+- **An exclusion with no measurement is UNKNOWN, not a pass.** "It's a cache" is a guess and
+  "606 files" is a finding; from the outside the two look identical. `measured=0` is a
+  measurement, omitting it is not.
+- **The denominator is fixed for a run.** A population that grows halfway through cannot make a
+  report internally inconsistent; `population(refresh=True)` picks up the change deliberately.
+- **An empty population raises.** "0 of 0 examined" reads as a clean result and proves nothing.
+- **Diffing against a baseline that does not exist raises.** No baseline is not the same as
+  nothing having changed.
+- **`gate_invariant` fails OPEN** when a write carries no inspectable content, because a pre-write
+  hook that blocks everything it cannot parse gets removed within the day. `strict=True` refuses
+  instead, for people who control the payload shape.
+- `TypedScope` is deliberately narrow. An earlier version of this idea also matched `ROOT` and
+  flagged 94 files whose only content was one correct constant. A gate that cries wolf gets
+  switched off, which is worse than not having it.
+
+### Verified rather than assumed
+103 tests before, **155 after**. `TypedScope` was run over every Python file in the repo before
+being wired in: 22 files read, 0 false alarms, and it is clean over the library's own source
+(a test now asserts that across every module, with the count). Each new rule was then removed on
+purpose and the suite went red every time.
+
+The version-agreement test added in 0.5.0 immediately earned its keep: `__init__.py` was bumped to
+0.6.0 while `pyproject.toml` still said 0.5.0, and the suite caught it rather than a user finding
+a wheel whose metadata disagreed with its code.
+
 ## [0.5.0]
 
 Everything before this asked whether a claim has evidence **now**. This release asks the question

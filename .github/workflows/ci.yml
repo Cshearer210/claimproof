@@ -98,15 +98,30 @@ jobs:
           assert 'site-packages' in agentattest.__file__, agentattest.__file__
           from agentattest import Gate, Case, Finding, Harness, SelftestError
           from agentattest import ClaimBasis, Evidence, Status, BasisError
-          from agentattest.gates import UnbackedClaims
-          from agentattest.hooks import stop_hook, pre_tool_use_hook
+          from agentattest import Coverage, CoverageError, Diff, Entry
+          from agentattest.gates import UnbackedClaims, TypedScope
+          from agentattest.hooks import stop_hook, pre_tool_use_hook, gate_invariant
           g = UnbackedClaims()
           assert g.verify()
           assert g.check('It works.'), 'installed package failed to flag an unbacked claim'
           assert g.check('It works. exit=0') == [], 'installed package false-positived'
           assert ClaimBasis.selftest(echo=False), 'installed ClaimBasis cannot prove itself'
+          assert Coverage.selftest(echo=False), 'installed Coverage cannot prove itself'
+          t = TypedScope(); assert t.verify()
+          assert t.check('roots = [\"/srv/a\", \"/opt/b\"]'), 'TypedScope missed a typed population'
+          assert t.check('LOGFILE = \"/var/log/app.log\"') == [], 'TypedScope false-positived'
           print('installed package: public API reachable and behaving')
           "
+
+      - name: A partial scan must not exit 0 from the installed package
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/elsewhere"
+          if "$CLEANPY" -m agentattest.coverage; then
+            echo "FAIL: 2 of 7 examined with 0 broken exited 0"
+            exit 1
+          fi
+          echo "installed package refused to call a partial scan clean"
 
       - name: The installed ClaimBasis must still catch a claim going stale
         shell: bash
