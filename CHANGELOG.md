@@ -22,8 +22,14 @@ making sure the thing people actually install works, which is a different questi
   arbitrary and excluded users for no reason.
 
 ### Fixed
-- `py.typed` was not declared in the build config, so it would not have shipped in the wheel even
-  once the file existed.
+- Nothing. The `py.typed` entry above was a genuinely missing file, not a broken config.
+
+  A first draft of this changelog claimed the file also needed declaring in the build config or it
+  would not ship. That was asserted without testing and it is **false**: hatchling includes
+  `py.typed` automatically because it lives inside the package directory. Verified by removing the
+  declaration, rebuilding, and confirming the wheel still contained it. The declaration was dead
+  config and has been removed. CI asserts the file is present in the *installed* package, which is
+  the check that actually protects this.
 
 ## [0.3.0]
 

@@ -33,9 +33,6 @@ Issues = "https://github.com/Cshearer210/agentattest/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentattest"]
 
-# py.typed must be listed or hatchling leaves it out of the wheel and every
-# downstream type checker silently ignores this package.
-artifacts = ["src/agentattest/py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
