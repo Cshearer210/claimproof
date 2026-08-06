@@ -18,7 +18,7 @@
 from agentattest.core import Case, Finding, Gate, SelftestError
 from agentattest.harness import BROKE, OK, UNKNOWN, Harness, Result
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "Case", "Finding", "Gate", "SelftestError",
     "Harness", "Result", "OK", "BROKE", "UNKNOWN",
