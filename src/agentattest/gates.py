@@ -65,6 +65,29 @@ def _has_evidence(neighbourhood: str) -> bool:
     return bool(_EVIDENCE.search(neighbourhood) or _EVIDENCE_SHOUTED.search(neighbourhood))
 
 
+# A line that DISPLAYS content rather than asserting something about the work.
+#
+# ADDED 2026-08-06. This gate blocked a reply offering Chris a menu of candidate
+# carousel hooks, because one hook read "...the real mechanism is the reason it
+# works." Nothing was being claimed -- he was being asked to pick a line. Left
+# alone, every content-review turn in this system (hooks, captions, Skool lesson
+# text, ebook copy, anything quoted back for approval) would trip the same way,
+# and a gate that flags correct work is the one that gets switched off.
+#
+# THE ACCEPTED BLIND SPOT, stated rather than hidden: a bare unbacked claim
+# written INSIDE a table cell or a blockquote is no longer caught. That is a real
+# hole. It is narrow because status tables in this system carry a filename, a
+# count, or a shouted PASS/FAIL somewhere in the row, all of which already count
+# as evidence -- so the claims this stops seeing are almost entirely quoted prose.
+_DISPLAYED = re.compile(
+    r"^\s*(?:"
+    r"\|"                     # a markdown table row -- a menu or a status table
+    r"|>"                     # a blockquote -- someone else's words, or quoted copy
+    r"|\d+\.\s+[\"“]"    # a numbered option that opens with a quote mark
+    r")"
+)
+
+
 class UnbackedClaims(Gate):
     """Flag completion claims that have no evidence within `window` lines.
 
@@ -87,6 +110,8 @@ class UnbackedClaims(Gate):
         findings: list[Finding] = []
 
         for i, line in enumerate(lines):
+            if _DISPLAYED.match(line):
+                continue                     # content shown for review, not a claim
             match = _CLAIM.search(line)
             if not match:
                 continue
@@ -133,6 +158,18 @@ class UnbackedClaims(Gate):
             Case(text="This should work, but I have not run it.", expect_flagged=False,
                  name="hedged, not a hard claim"),
             Case(text="", expect_flagged=False, name="empty"),
+            # Must NOT flag: CONTENT BEING SHOWN FOR REVIEW is not a claim about
+            # my own work. Added 2026-08-06 after this gate blocked a menu of
+            # candidate carousel hooks because one of them ended "...the real
+            # mechanism is the reason it works." Nothing was being claimed; Chris
+            # was being asked to pick a line. Every content-review turn -- hooks,
+            # captions, lesson text, ebook copy -- would have tripped it, and a
+            # gate that flags correct work is the one people switch off.
+            Case(text="| 2 | Black cohosh | Lab tests say it never was, and the real "
+                      "mechanism is the reason it works. |",
+                 expect_flagged=False, name="a table row is content, not a claim"),
+            Case(text="> It works, and the plant has been used this way for centuries.",
+                 expect_flagged=False, name="a quoted line is content, not a claim"),
         ]
 
         if self.window >= 1:
