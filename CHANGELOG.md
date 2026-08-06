@@ -3,6 +3,46 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0]
+
+Everything before this asked whether a claim has evidence **now**. This release asks the question
+underneath it: the evidence you cited has since changed, so is the claim still true?
+
+### Added
+- `ClaimBasis`, `Claim`, `Evidence`, `Status`, `BasisError`, and the `python -m agentattest.basis`
+  command. Record what a completion claim was measured against; `recheck()` reopens it when the
+  evidence moves. `REOPENED` means *unverified*, never *false*.
+- A `scope` callable, discovered on every run rather than written down. A source appearing next
+  month reopens every claim recorded before it existed, with nobody having to remember that a new
+  place to look changes old answers.
+- `ClaimBasis.as_check()`, so claim staleness is one more check inside an existing `Harness`.
+- `examples/claim_basis.py`, and a test that runs it as a subprocess the way a reader would.
+- `tests/test_scaffold.py` now asserts the installed package metadata agrees with `__version__`.
+  A wheel whose metadata disagrees with the code installs a lie; this caught the stale editable
+  install during development, before the wheel was ever built.
+
+### Decisions worth stating, because each is a way of quietly reporting success
+- **Fingerprints are content, never timestamps.** A checkout rewrites files without changing them,
+  and a checker that reopens every claim after a checkout is switched off within a week.
+- **Evidence vanishing reopens a claim; a scope entry vanishing does not.** Somewhere you no
+  longer look cannot hold evidence the claim missed.
+- **Recording a claim against a file that does not exist raises** rather than storing it. A stored
+  claim with absent evidence can never be re-verified.
+- **An empty store exits 2, not 0.** Nothing being watched looks identical to nothing having
+  expired.
+- **Evidence that cannot be judged reports UNKNOWN**, matching `Harness`. Non-file evidence with
+  no current value supplied never counts as holding.
+- **A corrupt store raises** rather than starting from empty, which would report every claim as
+  holding.
+- The claim verdicts (`HOLDS` / `REOPENED` / `UNKNOWN` / `RETIRED`) stay in `agentattest.basis`
+  and are deliberately **not** re-exported at the top level, where `UNKNOWN` already means the
+  `Harness` display verdict. A test asserts they have not silently collided.
+
+### Verified rather than assumed
+64 tests before, **103 after**. Each of the five rules above was then removed on purpose and the
+suite went red every time — 11, 4, 3, 4 and 3 failures respectively — and returned to 103 passed
+when restored. A suite that is green before and after a change has not tested the change.
+
 ## [0.4.0]
 
 Everything before this released and tested only from the source tree. This release is about

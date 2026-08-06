@@ -1,6 +1,6 @@
 # Examples
 
-Three files, each runnable on its own. Start with whichever matches what you want.
+Four files, each runnable on its own. Start with whichever matches what you want.
 
 ```bash
 pip install agentattest
@@ -8,6 +8,7 @@ pip install agentattest
 python stop_hook.py    # paste JSON on stdin, see a turn refused
 python custom_gate.py  # write your own gate, and watch a broken one get rejected
 python live_checks.py  # checks that look at your actual machine
+python claim_basis.py  # watch a claim that was true go stale on its own
 ```
 
 ## stop_hook.py
@@ -89,3 +90,39 @@ code is 2 rather than 0 because there is something we wanted to know and do not.
 
 That distinction is the one worth taking away. Returning `False` for "no GPU driver installed"
 would be a lie. Returning `True` would be worse.
+
+## claim_basis.py
+
+The one that took the longest to see. Everything else here asks whether a claim has evidence
+*now*. This asks whether the evidence a claim was closed on is still the evidence it was closed
+on.
+
+It builds a throwaway project in a temp directory, closes "auth refactor done" against two real
+files, and then does two entirely ordinary things.
+
+```
+Nothing has moved yet
+---------------------
+HOLDS     auth-refactor
+          same 2 piece(s) of evidence as when it was closed
+
+Someone edited src/auth.py three weeks later
+--------------------------------------------
+REOPENED  auth-refactor
+          closed 2026-08-06T17:11:49Z on "auth refactor done", but 1 of 2 piece(s) of
+          evidence changed since (src/auth.py), so it is UNVERIFIED until re-measured
+
+The project gained a directory the claim never looked at
+--------------------------------------------------------
+REOPENED  auth-refactor
+          closed 2026-08-06T17:11:49Z on "auth refactor done", but 1 source(s) it never
+          looked at now exist (migrations), so it is UNVERIFIED until re-measured
+```
+
+The second reopen is the interesting one. Nothing about the claim changed and no evidence moved.
+The project simply gained somewhere to look that the claim never looked at, so the measurement
+behind it is no longer complete. Nobody had to remember that a new source changes old answers,
+because the scope is discovered on every run rather than written down.
+
+Neither reopen means the claim was wrong. It was honestly true, measured against everything
+visible at the time, and it went stale in silence. `REOPENED` means re-measure.

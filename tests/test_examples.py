@@ -59,3 +59,20 @@ def test_live_checks_example_exits_2_because_some_checks_cannot_tell():
     assert r.returncode == 2, r.stdout
     assert "UNKNOWN is not a pass" in r.stdout
     assert "??" in r.stdout
+
+
+def test_claim_basis_example_shows_a_claim_going_stale_both_ways():
+    r = run("claim_basis.py")
+    assert r.returncode == 1, r.stdout + r.stderr
+
+    # It must actually hold first. An example that reopens from the very start
+    # demonstrates a broken checker rather than a stale claim.
+    assert "HOLDS" in r.stdout
+
+    # Both routes to staleness, not just the easy one.
+    assert "1 of 2 piece(s) of evidence changed since (src/auth.py)" in r.stdout
+    assert "it never looked at now exist (migrations)" in r.stdout
+
+    # The prose promises the old basis is kept. Assert the output agrees, because
+    # a demo whose narration contradicts its output is worse than no demo.
+    assert "1 superseded version on record" in r.stdout

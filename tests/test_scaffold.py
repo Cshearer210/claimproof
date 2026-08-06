@@ -15,3 +15,34 @@ def test_package_imports_and_reports_a_version():
 def test_version_is_not_a_placeholder():
     # Catches the classic "shipped with version unset" mistake.
     assert agentattest.__version__ not in ("", "0.0.0", "unknown")
+
+
+def test_the_version_in_the_package_matches_the_one_being_built():
+    """A wheel whose metadata disagrees with `__version__` installs a lie.
+
+    Skipped when the package metadata is unavailable (running straight from a
+    source tree that was never installed), rather than passing on absence.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        installed = version("agentattest")
+    except PackageNotFoundError:  # pragma: no cover - only when not installed
+        import pytest
+        pytest.skip("agentattest is not installed, so there is no metadata to compare")
+
+    assert installed == agentattest.__version__
+
+
+def test_two_names_for_unknown_do_not_silently_collide():
+    """`UNKNOWN` means the Harness display verdict at the top level.
+
+    The claim verdicts are kept in `agentattest.basis` on purpose. If a later
+    change re-exports them here, one name starts meaning two things and every
+    `from agentattest import UNKNOWN` silently changes value.
+    """
+    from agentattest import basis
+
+    assert agentattest.UNKNOWN == "??"
+    assert basis.UNKNOWN == "UNKNOWN"
+    assert "HOLDS" not in agentattest.__all__
