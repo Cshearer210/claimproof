@@ -160,6 +160,19 @@ pip install agentattest
 
 Python 3.10+. No runtime dependencies.
 
+## Examples you can copy
+
+Three runnable files in [examples/](examples/):
+
+- **[stop_hook.py](examples/stop_hook.py)** is a complete hook. Copy it, point your runtime at it,
+  done. Includes the `settings.json` block for Claude Code and a one-line way to try it with no
+  agent involved.
+- **[custom_gate.py](examples/custom_gate.py)** shows how to write your own, and more usefully what
+  a broken one looks like: a gate whose bug is `startswith` where it should be `in`, which passes
+  review and approves everything.
+- **[live_checks.py](examples/live_checks.py)** runs checks against your actual machine, including
+  two that deliberately report UNKNOWN.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: if you report a case this gets wrong,
