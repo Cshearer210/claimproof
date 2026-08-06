@@ -12,11 +12,12 @@ jobs:
     # catch was a checker whose paths only existed on Linux: on Windows it scanned
     # nothing, reported CLEAN, and exited 0 for months. A single-OS matrix would
     # not have caught it.
+    name: test ${{ matrix.os }} py${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     runs-on: ${{ matrix.os }}
 
@@ -42,3 +43,91 @@ jobs:
 
       - name: Test
         run: python -m pytest
+
+  # The job that matters most to anyone who installs this.
+  #
+  # Everything above tests the SOURCE TREE. A package can pass every one of those
+  # and still be broken on `pip install`, because the wheel is built by different
+  # rules than the repo layout: a missing py.typed, a package left out of the
+  # build config, a data file present locally and absent from the distribution.
+  # Those failures only ever appear on someone else's machine.
+  #
+  # So this builds the real artifacts, installs the WHEEL into a clean
+  # environment, and runs the suite from a directory where the source tree is not
+  # importable. If this passes, `pip install agentattest` works.
+  installed:
+    name: wheel installs and works from clean env (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Install the wheel into a clean environment
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/clean"
+          if [ -f "$RUNNER_TEMP/clean/bin/python" ]; then
+            PY="$RUNNER_TEMP/clean/bin/python"
+          else
+            PY="$RUNNER_TEMP/clean/Scripts/python.exe"
+          fi
+          echo "CLEANPY=$PY" >> "$GITHUB_ENV"
+          "$PY" -m pip install --upgrade pip pytest
+          "$PY" -m pip install dist/*.whl
+
+      - name: Import and run from OUTSIDE the source tree
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/elsewhere"
+          cd "$RUNNER_TEMP/elsewhere"
+          "$CLEANPY" -c "
+          import agentattest
+          assert 'site-packages' in agentattest.__file__, agentattest.__file__
+          from agentattest import Gate, Case, Finding, Harness, SelftestError
+          from agentattest.gates import UnbackedClaims
+          from agentattest.hooks import stop_hook, pre_tool_use_hook
+          g = UnbackedClaims()
+          assert g.verify()
+          assert g.check('It works.'), 'installed package failed to flag an unbacked claim'
+          assert g.check('It works. exit=0') == [], 'installed package false-positived'
+          print('installed package: public API reachable and behaving')
+          "
+
+      - name: The advertised demo command must work
+        shell: bash
+        run: cd "$RUNNER_TEMP/elsewhere" && "$CLEANPY" -m agentattest.demo
+
+      - name: python -m agentattest must work too
+        shell: bash
+        run: cd "$RUNNER_TEMP/elsewhere" && "$CLEANPY" -m agentattest
+
+      - name: py.typed must ship, or downstream type checking silently does nothing
+        shell: bash
+        run: |
+          "$CLEANPY" -c "
+          import importlib.util, pathlib
+          spec = importlib.util.find_spec('agentattest')
+          p = pathlib.Path(spec.origin).parent / 'py.typed'
+          assert p.exists(), 'py.typed missing from the installed package'
+          print('py.typed ships:', p)
+          "
+
+      - name: Run the test suite against the INSTALLED package
+        shell: bash
+        run: |
+          cp -r tests "$RUNNER_TEMP/elsewhere/tests"
+          cd "$RUNNER_TEMP/elsewhere"
+          "$CLEANPY" -m pytest tests -q

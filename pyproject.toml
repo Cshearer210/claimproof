@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentattest"
-version = "0.3.0"
+version = "0.4.0"
 description = "Agents claim work is done that isn't. This makes them prove it."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Christopher Shearer", email = "cshearer210@gmail.com" }]
@@ -15,6 +15,7 @@ keywords = ["agents", "llm", "evals", "reliability", "guardrails", "attestation"
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -31,6 +32,10 @@ Issues = "https://github.com/Cshearer210/agentattest/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentattest"]
+
+# py.typed must be listed or hatchling leaves it out of the wheel and every
+# downstream type checker silently ignores this package.
+artifacts = ["src/agentattest/py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

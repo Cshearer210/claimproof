@@ -1,5 +1,10 @@
 # agentattest
 
+[![CI](https://github.com/Cshearer210/agentattest/actions/workflows/ci.yml/badge.svg)](https://github.com/Cshearer210/agentattest/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/agentattest.svg)](https://pypi.org/project/agentattest/)
+[![Python](https://img.shields.io/pypi/pyversions/agentattest.svg)](https://pypi.org/project/agentattest/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 AI coding agents routinely report work as finished when it isn't. Not by lying, but because a
 fluent summary and a correct one feel identical from the inside, and nothing in the loop is
 checking. `agentattest` makes an agent prove it, at the runtime layer, before its turn can end.
@@ -153,8 +158,17 @@ have caught the second one.
 pip install agentattest
 ```
 
-Python 3.11+. No runtime dependencies.
+Python 3.10+. No runtime dependencies.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: if you report a case this gets wrong,
+paste the exact string. It usually becomes a test fixture verbatim.
+
+The one rule that is not negotiable is that a gate must be able to fail and you must prove it.
+That applies to changes here as much as to gates you write with it.
 
 ## License
 
-MIT
+MIT. See [CHANGELOG.md](CHANGELOG.md) for what changed and [SECURITY.md](SECURITY.md) for what
+this does and does not protect against.
