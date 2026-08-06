@@ -99,7 +99,7 @@ jobs:
           from agentattest import Gate, Case, Finding, Harness, SelftestError
           from agentattest import ClaimBasis, Evidence, Status, BasisError
           from agentattest import Coverage, CoverageError, Diff, Entry
-          from agentattest.gates import UnbackedClaims, TypedScope
+          from agentattest.gates import UnbackedClaims, TypedScope, SilentSkip
           from agentattest.hooks import stop_hook, pre_tool_use_hook, gate_invariant
           g = UnbackedClaims()
           assert g.verify()
@@ -110,6 +110,11 @@ jobs:
           t = TypedScope(); assert t.verify()
           assert t.check('roots = [\"/srv/a\", \"/opt/b\"]'), 'TypedScope missed a typed population'
           assert t.check('LOGFILE = \"/var/log/app.log\"') == [], 'TypedScope false-positived'
+          s = SilentSkip(); assert s.verify()
+          swallowed = 'def check():' + chr(10) + '    try:' + chr(10) + '        return verify()' + chr(10) + '    except Exception:' + chr(10) + '        return True'
+          honest = swallowed.replace('return True', 'return False')
+          assert s.check(swallowed), 'SilentSkip missed a swallowed check'
+          assert s.check(honest) == [], 'SilentSkip false-positived'
           print('installed package: public API reachable and behaving')
           "
 

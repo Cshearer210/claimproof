@@ -95,6 +95,7 @@ def gate_invariant(
     tools: Sequence[str] = WRITE_TOOLS,
     fields: Sequence[str] = CONTENT_FIELDS,
     strict: bool = False,
+    suffixes: Sequence[str] | None = None,
 ) -> Callable[[str, dict], str | None]:
     """Turn a `Gate` into an invariant that inspects what is about to be WRITTEN.
 
@@ -110,6 +111,14 @@ def gate_invariant(
     The gate is verified before it is trusted, so a gate that can no longer catch
     its own must-fail case raises here rather than quietly allowing every write.
 
+    `suffixes` restricts it to files a gate can actually read::
+
+        gate_invariant(SilentSkip(), suffixes=(".py",))
+
+    That matters for a gate whose lenient behaviour on unreadable input is itself
+    a degrade. Filtering by suffix is the honest way to keep it off Markdown,
+    rather than having it stay quiet about text it never could have judged.
+
     **It fails OPEN when a targeted tool carries no recognisable content field.**
     That is a deliberate trade and it is the wrong default for some people, so
     `strict=True` refuses instead. The reasoning for the default: a pre-write hook
@@ -118,10 +127,18 @@ def gate_invariant(
     payload shape and would rather be stopped than guessed at.
     """
     wanted = {t.lower() for t in tools}
+    endings = tuple(s.lower() for s in suffixes) if suffixes else None
 
     def _invariant(tool: str, tool_input: dict) -> str | None:
         if (tool or "").lower() not in wanted:
             return None
+
+        if endings is not None:
+            path = ""
+            if isinstance(tool_input, dict):
+                path = str(tool_input.get("file_path") or tool_input.get("path") or "")
+            if not path.lower().endswith(endings):
+                return None
 
         chunks = [str(tool_input[f]) for f in fields
                   if isinstance(tool_input, dict) and tool_input.get(f)]
