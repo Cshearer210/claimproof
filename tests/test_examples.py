@@ -92,3 +92,16 @@ def test_coverage_example_finds_what_the_typed_audit_missed():
 
     # An exclusion is printed with its measurement, so a wrong call is visible.
     assert "240" in r.stdout and ".cache" in r.stdout
+
+
+def test_source_gates_example_refuses_two_writes_and_allows_the_good_one():
+    r = run("source_gates.py")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "THIS SHOULD NOT HAPPEN" not in r.stdout
+
+    assert r.stdout.count("-> REFUSED (exit 2)") == 2
+    assert "typed-scope in audit.py" in r.stdout
+    assert "silent-skip in certs.py" in r.stdout
+
+    # The one that matters: correct code carrying both innocent twins is allowed.
+    assert "-> allowed (exit 0)" in r.stdout

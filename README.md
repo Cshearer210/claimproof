@@ -281,6 +281,47 @@ the line, so an exception is a visible decision rather than an oversight.
 *silently* narrowing its own scope and forces the fraction into every report. It cannot prove your
 `discover` function is complete. Nothing can.
 
+## The check that stopped running eight months ago
+
+```python
+try:
+    result = verify_everything()
+except Exception:
+    print("SKIPPED: could not run the check")
+return True
+```
+
+Nothing alarms. The build goes green. The output is identical to the output it produced when it
+worked. `SilentSkip` reads source and flags this before it lands:
+
+```
+  x silent-skip in certs.py: line 5: an exception handler returns True from
+    check_certificates(), so a failure is reported as success  (except -> return True)
+```
+
+Two shapes only, and both share one property — **nothing is recorded anywhere**, so the run's
+output is the same as a run where the check passed:
+
+1. An exception handler that **returns success** (`True`, `0`, `[]`, `{}`, `""`) from a function
+   whose name says it was doing the checking.
+2. **`except: pass`** wrapped around something that was doing the checking, outside a loop.
+
+Re-raising is never flagged. Returning a failure or an UNKNOWN is never flagged. Nor is
+`try/except: pass` around a cleanup or an optional import, nor anything inside a loop, where
+skipping one item is ordinary.
+
+**A third rule was written and then deleted, which is the part worth reading.** It flagged a
+handler that printed a skip word and carried on — the shape usually described as *"prints SKIPPED
+and lets the build pass"*. Over 466 files of a real production system it produced **40 of 45
+hits**, and every one read by eye was a logged loop-item skip, or a handler that recorded the
+failure into a list of failures. The flaw was in the idea rather than the tuning: a handler that
+announces a skip **is not silent**, and what makes that pattern a bug is the exit code afterwards,
+which rule 1 already covers. Narrowing it further would have been tuning against a corpus instead
+of reasoning about the pattern.
+
+Measured on the two surviving rules: **0 of the 26 Python files here, and 5 of 466 files (1.1%) of
+a real production system** — with all five read by eye before the gate was wired in.
+
 ## Why this exists
 
 A content quality gate in a production system defaulted to passing everything once its API budget
@@ -307,7 +348,7 @@ Python 3.10+. No runtime dependencies.
 
 ## Examples you can copy
 
-Five runnable files in [examples/](examples/):
+Six runnable files in [examples/](examples/):
 
 - **[stop_hook.py](examples/stop_hook.py)** is a complete hook. Copy it, point your runtime at it,
   done. Includes the `settings.json` block for Claude Code and a one-line way to try it with no
@@ -323,6 +364,8 @@ Five runnable files in [examples/](examples/):
 - **[coverage_ledger.py](examples/coverage_ledger.py)** runs the same trivial audit twice over one
   project. The first pass reports `0 problems` and exits 0. The second finds a real defect in a
   directory the first never opened.
+- **[source_gates.py](examples/source_gates.py)** runs the two source gates through the pre-write
+  hook: two writes refused, and a third carrying both innocent twins allowed through.
 
 ## Contributing
 

@@ -3,6 +3,59 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0]
+
+The third instance of the same argument: a check that swallows its own failure, so the run's output
+is identical to a run where the check passed.
+
+### Added
+- `gates.SilentSkip`. Two shapes, both sharing one property -- **nothing is recorded anywhere**: an
+  exception handler that returns success (`True`, `0`, `[]`, `{}`, `""`) from a function whose name
+  says it was checking, and `except: pass` around a check, outside a loop. AST-based, not regex.
+  `strict=True` makes it refuse unparseable text instead of staying quiet, because the lenient
+  default is itself the pattern this gate hunts.
+- `hooks.gate_invariant(..., suffixes=(".py",))`, so a source gate only sees files it can read.
+- `examples/source_gates.py` and a test that runs it as a subprocess.
+- Both source gates now honour one exemption marker, `# noscope:` or `# agentattest:`, with a
+  written reason on the line. Each uses it on its own fixtures and deliberate degradations, which
+  is the honest way to be exempt from your own rule.
+
+### A rule that was written and then deleted, which is the part worth reading
+A third rule flagged a handler that printed a skip word and carried on -- the shape usually
+described as *"prints SKIPPED and lets the build pass"*. Swept over 466 files of a real production
+system it produced **40 of 45 hits**, and every one read by eye was a logged loop-item skip, or a
+handler that recorded the failure into a list of failures.
+
+The flaw was in the idea rather than the tuning: a handler that announces a skip **is not silent**,
+and what makes that pattern a bug is the exit code afterwards, which rule 1 already covers.
+Narrowing it further would have been tuning against a corpus instead of reasoning about the
+pattern, so it was removed rather than adjusted.
+
+Two other false alarms found the same way and fixed rather than tolerated:
+- `scandir` matched `scan`, so every `os.scandir()` in a `try` looked like a swallowed check.
+  Both ends of the word are anchored now.
+- `_git_busy()` returning True on error means *"assume busy, back off"*, and `_win_alive()` means
+  *"assume alive, do not steal the lane"*. Both are the CONSERVATIVE answer, the opposite of
+  passing. Rule 1 therefore keys on the function NAME -- what the returned value means -- and never
+  on what the `try` body happened to call.
+
+Measured flag rate: **0 of the 26 Python files here, and 5 of 466 files (1.1%) of a real production
+system**, with all five read by eye before the gate was wired in. It started at 38%.
+
+### Verified rather than assumed
+155 tests before, **185 after**. Eight deliberate breaks, and the first run **MISSED three of
+them** -- the re-raise guard, the inside-a-loop condition, and the suffix filter all had tests that
+looked correct and tested nothing:
+
+- the re-raise fixture was a handler whose whole body was `raise`, which no rule would have flagged
+  anyway;
+- the loop fixture used `print`, not `except: pass`;
+- the suffix fixture used `# just prose`, which is a **valid Python comment**, so it parsed cleanly
+  and passed whether the filter worked or not.
+
+All three were rewritten and all eight breaks are now caught (1, 29, 1, 1, 1, 2, 3 and 1 failures),
+returning to 185 passed on restore.
+
 ## [0.6.0]
 
 `"22 nodes, 0 broken"` reads as *the system is healthy* and means *the 22 I chose are healthy*.

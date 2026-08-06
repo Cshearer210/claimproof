@@ -1,6 +1,6 @@
 # Examples
 
-Five files, each runnable on its own. Start with whichever matches what you want.
+Six files, each runnable on its own. Start with whichever matches what you want.
 
 ```bash
 pip install agentattest
@@ -10,6 +10,7 @@ python custom_gate.py     # write your own gate, and watch a broken one get reje
 python live_checks.py     # checks that look at your actual machine
 python claim_basis.py     # watch a claim that was true go stale on its own
 python coverage_ledger.py # the same audit reported two ways, one of them honest
+python source_gates.py    # two bad writes refused, one good write allowed
 ```
 
 ## stop_hook.py
@@ -167,3 +168,28 @@ Two details worth stealing even if you never use this class. The exclusions carr
 calling something a cache is a claim you can check rather than a label nobody questions. And
 `scripts/` reports **could not tell** rather than passing: the audit only reads Python, and saying
 so is the difference between four directories examined and three examined plus one guess.
+
+## source_gates.py
+
+The two gates that read code rather than prose, run through the pre-write hook exactly as a
+runtime would call it. Nothing touches your filesystem.
+
+```
+1. A tool that types its own list of places to look
+  -> REFUSED (exit 2)
+     x typed-scope in audit.py: line 2: 2 absolute paths on one line is a
+       hand-written population, not a discovered one
+
+2. A check that reports success when it fails
+  -> REFUSED (exit 2)
+     x silent-skip in certs.py: line 5: an exception handler returns True from
+       check_certificates(), so a failure is reported as success
+
+3. The same two ideas, written correctly
+  -> allowed (exit 0)
+```
+
+The third case is the one that decides whether either gate survives contact with a real codebase.
+Both patterns have an innocent twin that appears constantly: one absolute path is a config value,
+and `try/except` is how you handle an optional file. A gate that cannot tell them apart gets
+switched off within a week, and then everyone still believes it is running.
