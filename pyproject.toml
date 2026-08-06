@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentattest"
-version = "0.5.0"
+version = "0.6.0"
 description = "Agents claim work is done that isn't. This makes them prove it."
 readme = "README.md"
 requires-python = ">=3.10"

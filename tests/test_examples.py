@@ -76,3 +76,19 @@ def test_claim_basis_example_shows_a_claim_going_stale_both_ways():
     # The prose promises the old basis is kept. Assert the output agrees, because
     # a demo whose narration contradicts its output is worse than no demo.
     assert "1 superseded version on record" in r.stdout
+
+
+def test_coverage_example_finds_what_the_typed_audit_missed():
+    r = run("coverage_ledger.py")
+    assert r.returncode == 1, r.stdout + r.stderr
+
+    # The narration's whole argument is that pass 1 looks clean. If it ever stops
+    # reporting zero, the example is arguing against an output it no longer has.
+    assert "4 files checked, 0 problems" in r.stdout
+
+    # ...and that pass 2 finds a real defect in a directory pass 1 never opened.
+    assert "4 of 6 directories examined" in r.stdout
+    assert "missing a header: index.md" in r.stdout
+
+    # An exclusion is printed with its measurement, so a wrong call is visible.
+    assert "240" in r.stdout and ".cache" in r.stdout
