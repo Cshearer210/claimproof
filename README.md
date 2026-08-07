@@ -5,9 +5,12 @@
 [![Python](https://img.shields.io/pypi/pyversions/claimproof.svg)](https://pypi.org/project/claimproof/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-AI coding agents routinely report work as finished when it isn't. Not by lying, but because a
-fluent summary and a correct one feel identical from the inside, and nothing in the loop is
-checking. `claimproof` makes an agent prove it, at the runtime layer, before its turn can end.
+**claimproof stops an AI coding agent from ending its turn saying "done" until it shows proof a
+machine can check.**
+
+Agents report work as finished when it isn't — not by lying, but because a fluent summary and a
+correct one feel identical from the inside, and nothing in the loop is checking. This runs at the
+runtime layer, before the turn can end.
 
 ```bash
 pip install claimproof
@@ -76,6 +79,24 @@ This is not theoretical. It caught two real bugs in this library before either s
    approved. The mandatory must-fail case caught it on the first run.
 2. `selftest_cases()` asserted multi-line fixtures against a `window=0` gate, a guarantee that
    configuration never made.
+
+## Isn't this what an eval framework does?
+
+No, and the difference is the whole point.
+
+| | Eval frameworks (DeepEval, promptfoo) | claimproof |
+|---|---|---|
+| **When** | after the run, on a transcript | during the run, before the turn can end |
+| **What it produces** | a score you read later | a refusal the agent has to answer now |
+| **Who judges** | usually another model | the text itself: an exit code, a test count, a file and line |
+| **Cost per check** | a model call | none |
+
+An eval tells you your agent was wrong last Tuesday. This refuses to let it be wrong now. They
+compose fine — run evals on your prompts, and run this on the turn.
+
+The same distinction separates it from verification tools that call a second model to grade the
+first: those pay per check and inherit that model's judgement. This one asks a narrower question
+that a regular expression can answer, which is why it can run on every turn for free.
 
 ## Wire it into Claude Code in one command
 
