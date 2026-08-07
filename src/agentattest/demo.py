@@ -3,8 +3,9 @@
     python -m agentattest.demo
 
 Shows an agent trying to end its turn on a claim it cannot back, getting refused,
-and then getting through once it shows the receipt. Then shows a gate that has
-never been made to fail being rejected outright.
+and then getting through once it shows the receipt; "all done" checked against
+the list of what was actually asked; a gate that has never been made to fail
+being rejected outright; and live-state checks where UNKNOWN is not a pass.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import sys
 from agentattest import Case, Gate, Harness, SelftestError
 from agentattest.gates import UnbackedClaims
 from agentattest.hooks import BLOCK, stop_hook
+from agentattest.ledger import Ledger, NothingLeft
 
 BAR = "-" * 68
 
@@ -59,7 +61,25 @@ def main() -> int:
     _turn("3. Honest uncertainty is left alone.",
           "This should fix the parser bug, but I have not run the suite yet.")
 
-    print("\n4. A gate that has never been made to fail cannot be used.")
+    print('\n4. "All done" is checked against what was actually asked.')
+    print(BAR)
+    led = Ledger()
+    led.ask("fix the parser bug")
+    led.ask("update the changelog")
+    led.done("1a", "pytest: 56 passed in 0.14s")
+    gate = NothingLeft(led)
+    print('  | All done, everything works.')
+    print(BAR)
+    for f in gate.check("All done, everything works."):
+        print(f"  -> REFUSED: {f.message}")
+    led.skip("2a", "changelog is generated at release time")
+    print("  after closing the last item, on the record:")
+    if gate.check("All done, everything works."):
+        print("  -> REFUSED. THIS SHOULD NOT HAPPEN.")
+        return 1
+    print("  -> allowed: the same claim passes, because now it is true")
+
+    print("\n5. A gate that has never been made to fail cannot be used.")
     print(BAR)
     try:
         NeverFails().check("obviously bad")
@@ -68,7 +88,7 @@ def main() -> int:
     except SelftestError as exc:
         print(f"  -> refused at construction, not at review time:\n     {exc}")
 
-    print("\n5. Live-state checks. UNKNOWN is not a pass.")
+    print("\n6. Live-state checks. UNKNOWN is not a pass.")
     print(BAR)
     h = Harness()
     h.check("disk", "There is room on the disk")(lambda: (True, "41% used"))

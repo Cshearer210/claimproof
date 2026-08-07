@@ -25,3 +25,11 @@ def test_the_never_fails_gate_really_cannot_be_used():
 
     with pytest.raises(SelftestError):
         demo.NeverFails().check("obviously bad")
+
+
+def test_the_demo_checks_all_done_against_the_list(capsys):
+    demo.main()
+    out = capsys.readouterr().out
+    assert '"All done" is checked against what was actually asked' in out
+    assert "item(s) are open -- 2a: update the changelog" in out
+    assert "the same claim passes, because now it is true" in out

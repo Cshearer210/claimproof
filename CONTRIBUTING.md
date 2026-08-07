@@ -15,6 +15,11 @@ python -m pytest
 You should see all tests pass. If you do not, that is a bug worth reporting on its own, since it
 means the project does not build on a machine we have not tried.
 
+`python tools/verify_wheel.py` runs CI's installed-package job locally in about a minute — it
+builds a wheel, installs it into a clean environment, and runs the suite against the installed
+package. Run it before opening a PR; it has already caught a test that passed against the source
+tree while finding zero files against the wheel.
+
 ## The one rule that is not negotiable
 
 **Every gate must be able to fail, and you must prove it.**
@@ -61,6 +66,14 @@ declined, though an issue discussing it first is welcome.
 Hedged language passing is intentional, not an oversight. *"This should work, but I have not run
 it"* is the honest case. A gate that punishes honesty teaches agents to be vague rather than
 accurate.
+
+## What makes a good first contribution
+
+Adapters are the friendliest surface. `claude_code.py` shows the shape — payload parsing learned
+from a real runtime, a loop guard, gating only turns that did work, failing open but announcing
+it. A clean adapter for another agent runtime's stop event, held to the same test discipline, is
+genuinely useful. So are new evidence patterns for `UnbackedClaims` — test-runner or CI output
+formats it does not recognize yet — with a must-flag and a must-pass case for each.
 
 ## Style
 
