@@ -1,0 +1,42 @@
+name: Publish to PyPI
+
+# Publishes ONLY when a GitHub release is published -- never on push. Uses
+# PyPI trusted publishing (OIDC): no long-lived token exists anywhere to
+# leak. PyPI trusts this exact repo + workflow + environment combination,
+# configured at pypi.org/manage/account/publishing/.
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build
+      # The wheel that gets uploaded is the wheel that got smoke-tested,
+      # not a sibling built from the same tree.
+      - run: |
+          python -m pip install dist/*.whl
+          python -c "import agentattest; print('installs as', agentattest.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # the whole credential: a short-lived identity proof
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
