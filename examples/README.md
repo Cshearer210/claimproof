@@ -1,11 +1,12 @@
 # Examples
 
-Seven files, each runnable on its own. Start with whichever matches what you want.
+Eight files, each runnable on its own. Start with whichever matches what you want.
 
 ```bash
 pip install agentattest
 
 python claude_code_install.py # the one-command Claude Code setup, in a sandbox
+python no_silent_drops.py # "all done" checked against what was actually asked
 python stop_hook.py       # paste JSON on stdin, see a turn refused
 python custom_gate.py     # write your own gate, and watch a broken one get rejected
 python live_checks.py     # checks that look at your actual machine
@@ -24,6 +25,23 @@ settings are never touched. In your own project the same thing is:
 ```bash
 python -m agentattest.claude_code install
 ```
+
+## no_silent_drops.py
+
+The most universal agent failure: request six of eight quietly never happening. A user asks for
+three things across two messages; the agent does most of them and says "All done, everything
+works." The ledger disagrees, by name:
+
+```
+REFUSED: line 1: claims everything is finished, but 2 item(s) are open --
+         1b: add a regression test; 2a: bump the version
+```
+
+Partial claims pass ("done with the parser fix" is not a claim that everything is finished),
+skipping an item is allowed but carries its reason on the record, and closing an item with the
+bare word "done" is refused — the ledger cannot judge your evidence, but it can refuse a claim
+posing as one. When the list is genuinely clear, the same "all done" passes, because now it is
+true.
 
 ## stop_hook.py
 

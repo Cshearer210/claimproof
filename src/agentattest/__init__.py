@@ -19,6 +19,13 @@
                    gate into a project's Stop hook; the module is also the
                    runtime entry that reads the real transcript at every turn.
 
+    ledger.Ledger      -- every ask recorded verbatim, closed only with
+                          evidence or skipped with a reason on the record.
+                          Nothing auto-closes; state lives on disk.
+    ledger.NothingLeft -- the gate that refuses "all done" while the ledger
+                          still holds open items. A claim about one item is
+                          left alone; only total claims are checked.
+
     Coverage -- a count is not a result until it says what it did not look at.
                 "22 nodes, 0 broken" reads as the system being healthy and means
                 the 22 that were chosen are healthy. Anything discovered and then
@@ -44,7 +51,7 @@ from agentattest.core import Case, Finding, Gate, SelftestError
 from agentattest.coverage import Coverage, CoverageError, Diff, Entry
 from agentattest.harness import BROKE, OK, UNKNOWN, Harness, Result
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 __all__ = [
     "Case", "Finding", "Gate", "SelftestError",
     "Harness", "Result", "OK", "BROKE", "UNKNOWN",

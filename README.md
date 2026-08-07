@@ -102,6 +102,35 @@ before it lands rather than catching it in review.
 Malformed input fails **open**. A hook that wedges every turn gets deleted within the hour, and a
 deleted hook protects nothing.
 
+## "All done" is a claim about a list. Keep the list.
+
+The most universal agent failure is not a wrong answer -- it is request six of eight quietly
+never happening. The early asks get done, one falls out of the context window, and the session
+signs off "everything is finished" with nothing in the loop keeping the list. The measured case
+this was built from: a capture layer had recorded 1,318 user requests verbatim, and not one had
+ever become a tracked item, so every completion check ran against an empty list and passed.
+
+```python
+from agentattest.ledger import Ledger, NothingLeft
+
+led = Ledger("ledger.json")               # on disk: it survives the session that forgot
+led.ask("fix the parser bug and add a regression test")
+led.split(1, "fix the parser bug", "add a regression test")
+
+NothingLeft(led).check("All done.")
+# -> claims everything is finished, but 2 item(s) are open -- 1a: fix the parser bug; ...
+
+led.done("1a", "pytest: 57 passed, was 56")   # evidence required; "done" alone is refused
+led.skip("1b", "agreed: the regression test ships with the next change")  # on the record
+```
+
+Closing an item takes evidence -- the ledger refuses bare claim-words like "done" or "fixed",
+because a claim cannot be its own receipt. Skipping is allowed and honest: the reason goes on the
+record instead of into the void. Partial claims ("done with the parser fix") pass; only a claim
+of *total* completion is checked against the list, and a true "all done" over a clear list passes
+untouched. There is a CLI for harnesses that drive it from outside:
+`python -m agentattest.ledger ask|split|done|skip|show|gate`.
+
 ## Checks that look at the world, not the code
 
 A test suite proves your code is internally correct. It cannot tell you the backup stopped
