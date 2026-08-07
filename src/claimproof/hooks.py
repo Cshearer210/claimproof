@@ -30,6 +30,27 @@ BLOCK = 2
 ALLOW = 0
 
 
+def _as_text(value) -> str:
+    """Whatever a runtime handed us, as inspectable text. Never raises.
+
+    A string is itself. A list is the concatenation of its text-ish parts,
+    which is how content-block APIs represent one message. A dict contributes
+    its own `text`/`content` field if it has one. Anything else -- a number,
+    None, an object -- has no text in it, and saying so honestly is better than
+    stringifying it into something a gate might match on by accident.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for key in ("text", "content", "message"):
+            if key in value:
+                return _as_text(value[key])
+        return ""
+    if isinstance(value, (list, tuple)):
+        return "\n".join(p for p in (_as_text(v) for v in value) if p)
+    return ""
+
+
 def _render(findings: Sequence[Finding], header: str, remedy: str) -> str:
     lines = [header]
     for f in findings:
@@ -46,8 +67,16 @@ def stop_hook(payload: dict, gates: Iterable[Gate]) -> tuple[int, str]:
 
     Every gate is verified before it is trusted, so a broken gate raises loudly
     here instead of quietly waving the turn through.
+
+    The payload comes from someone else's runtime, so its fields are whatever
+    that runtime sends -- a number, a list of content blocks, a nested dict.
+    Found 2026-08-07 by feeding it hostile payloads: a non-string `text` raised
+    TypeError and took the whole turn down. A gate that kills the turn it was
+    guarding gets uninstalled, so anything text-shaped is read as text and
+    anything else is treated as no text at all.
     """
-    text = payload.get("text") or payload.get("message") or payload.get("transcript") or ""
+    text = _as_text(payload.get("text") or payload.get("message")
+                    or payload.get("transcript") or "")
 
     all_findings: list[Finding] = []
     for gate in gates:

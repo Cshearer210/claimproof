@@ -38,9 +38,13 @@ broken detector.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import os
 import json
 import re
 import sys
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,6 +52,68 @@ from pathlib import Path
 from claimproof.core import Case, Finding, Gate, SelftestError
 
 __all__ = ["LedgerError", "Item", "Ask", "Ledger", "NothingLeft", "main"]
+
+#: How long to wait for another agent to finish with the ledger, in seconds.
+#: Generous: the critical section is a few milliseconds of file I/O, so anything
+#: approaching this means a crashed holder, which the stale-lock rule handles.
+_LOCK_TIMEOUT = 10.0
+#: A lock older than this is assumed to belong to a process that died. Without
+#: this rule, one crash makes the ledger permanently unusable -- and a tracker
+#: nobody can write to is worse than no tracker.
+_LOCK_STALE_AFTER = 30.0
+
+
+@contextlib.contextmanager
+def _locked(path: Path):
+    """Hold an exclusive lock on `path` for the duration of the block.
+
+    Multi-agent tracking is this module's whole purpose, so two agents on one
+    ledger is the NORMAL case, not the exotic one. Measured 2026-08-07 with
+    four concurrent writers on Windows: without this, three of them died with
+    PermissionError and one left the file unreadable. POSIX was fine, which is
+    exactly how a bug like this ships -- it is invisible on the developer's
+    machine and breaks on half the users' machines.
+
+    Implemented with an atomic O_EXCL create rather than fcntl or msvcrt: those
+    are per-platform, and this needs one behaviour on both. A stale lock is
+    broken after `_LOCK_STALE_AFTER` so a crashed agent cannot wedge the
+    ledger forever.
+    """
+    lock = path.with_name(path.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + _LOCK_TIMEOUT
+    fd = None
+    while fd is None:
+        try:
+            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        # PermissionError belongs here, not in an outer handler: on Windows a
+        # file in the "delete pending" state -- the instant between another
+        # holder unlinking it and the OS finishing -- refuses to be opened with
+        # errno 13 rather than "already exists". Treating that as a hard
+        # failure makes the ledger randomly unwritable under exactly the
+        # concurrency it is for, which is how the first version of this failed.
+        except (FileExistsError, PermissionError):
+            try:
+                age = time.time() - lock.stat().st_mtime
+            except OSError:
+                age = 0.0            # it vanished; loop and take it
+            if age > _LOCK_STALE_AFTER:
+                # The holder is gone. Say so out loud rather than silently
+                # stealing it: a stolen lock can mean a lost write.
+                print("claimproof: breaking a stale ledger lock (%.0fs old) on %s"
+                      % (age, lock), file=sys.stderr)
+                lock.unlink(missing_ok=True)
+                continue
+            if time.monotonic() > deadline:
+                raise LedgerError(
+                    f"another agent held {path} for more than {_LOCK_TIMEOUT:.0f}s. "
+                    f"Nothing was written and the ledger is unchanged.")
+            time.sleep(0.01)
+    try:
+        os.close(fd)
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
 
 
 #: Words the ledger refuses as evidence on their own. This is not a judgment
@@ -119,14 +185,22 @@ class Ledger:
         self.path = Path(path) if path else None
         self.asks: list[Ask] = []
         if self.path and self.path.exists():
-            try:
-                raw = json.loads(self.path.read_text(encoding="utf-8"))
-            except ValueError as exc:
-                raise LedgerError(
-                    f"{self.path} is not valid JSON ({exc}). Refusing to start a "
-                    f"fresh ledger over what may be the only record of the asks."
-                ) from exc
-            self.asks = [Ask.from_dict(a) for a in raw.get("asks", [])]
+            with _locked(self.path):
+                self._read()
+
+    def _read(self) -> None:
+        """Load from disk. The caller holds the lock."""
+        if not self.path or not self.path.exists():
+            self.asks = []
+            return
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise LedgerError(
+                f"{self.path} is not valid JSON ({exc}). Refusing to start a "
+                f"fresh ledger over what may be the only record of the asks."
+            ) from exc
+        self.asks = [Ask.from_dict(a) for a in raw.get("asks", [])]
 
     # ------------------------------------------------------------- recording
     def ask(self, text: str) -> Ask:
@@ -138,11 +212,29 @@ class Ledger:
         text = (text or "").strip()
         if not text:
             raise LedgerError("an empty ask cannot be tracked")
-        ask = Ask(id=len(self.asks) + 1, text=text, when=_now())
-        ask.items.append(Item(id=f"{ask.id}a", text=text))
-        self.asks.append(ask)
-        self._save()
+
+        # Re-read inside the lock before appending. Without this, two agents
+        # that both loaded the ledger a second ago each write their own copy
+        # and the later one silently erases the earlier one's ask -- which is
+        # precisely the "requests quietly disappear" failure this module was
+        # built to end, reintroduced by its own storage layer.
+        with self._critical():
+            ask = Ask(id=len(self.asks) + 1, text=text, when=_now())
+            ask.items.append(Item(id=f"{ask.id}a", text=text))
+            self.asks.append(ask)
+            self._write()
         return ask
+
+    @contextlib.contextmanager
+    def _critical(self):
+        """Lock, refresh from disk, run the block, write. In-memory: just run."""
+        if not self.path:
+            yield
+            return
+        with _locked(self.path):
+            self._read()
+            yield
+            self._write()
 
     def split(self, ask_id: int, *parts: str) -> list[Item]:
         """Replace an ask's unstarted auto-item with named pieces.
@@ -160,10 +252,12 @@ class Ledger:
         letters = "abcdefghijklmnopqrstuvwxyz"
         if len(parts) > len(letters):
             raise LedgerError("more parts than this ledger can label")
-        ask.items = [Item(id=f"{ask_id}{letters[n]}", text=p.strip())
-                     for n, p in enumerate(parts) if p.strip()]
-        self._save()
-        return ask.items
+        with self._critical():
+            ask = self._ask(ask_id)          # re-fetch: _read replaced the objects
+            ask.items = [Item(id=f"{ask_id}{letters[n]}", text=p.strip())
+                         for n, p in enumerate(parts) if p.strip()]
+            items = list(ask.items)
+        return items
 
     # --------------------------------------------------------------- closing
     def done(self, item_id: str, evidence: str) -> Item:
@@ -176,9 +270,11 @@ class Ledger:
             raise LedgerError(
                 f"item {item_id}: {ev!r} is a claim, not evidence. Show what "
                 f"proves it: output, an exit code, a test count, a path.")
-        item.status, item.evidence, item.closed_at = "done", ev, _now()
-        self._save()
-        return item
+        with self._critical():
+            item = self._item(item_id)       # re-fetch after the refresh
+            item.status, item.evidence, item.closed_at = "done", ev, _now()
+            closed = item
+        return closed
 
     def skip(self, item_id: str, reason: str) -> Item:
         """Decline an item, on the record. The reason is required."""
@@ -188,9 +284,11 @@ class Ledger:
             raise LedgerError(
                 f"item {item_id}: skipping without a reason is a silent drop, "
                 f"which is the exact thing this ledger exists to prevent")
-        item.status, item.reason, item.closed_at = "skipped", why, _now()
-        self._save()
-        return item
+        with self._critical():
+            item = self._item(item_id)       # re-fetch after the refresh
+            item.status, item.reason, item.closed_at = "skipped", why, _now()
+            closed = item
+        return closed
 
     # --------------------------------------------------------------- reading
     def open_items(self) -> list[Item]:
@@ -234,13 +332,42 @@ class Ledger:
                     return i
         raise LedgerError(f"no item {item_id!r} in this ledger")
 
-    def _save(self) -> None:
+    def _write(self) -> None:
+        """Write the ledger so a reader never sees it half-written.
+
+        Found 2026-08-07 by four threads writing one ledger: the plain
+        write truncates the file and then fills it, so a concurrent reader hit
+        an empty file and got "Expecting value: line 1 column 1", which this
+        class correctly refuses to start fresh over -- meaning a second agent
+        could not open the ledger at all until the first finished.
+
+        The fix is to write a sibling temp file and then RENAME it over the
+        target: on both POSIX and Windows a rename is atomic, so a reader sees
+        either the whole old file or the whole new one, never a torn one.
+
+        The honest limit, stated rather than pretended away: this makes the
+        file always READABLE, not the updates transactional. Two agents
+        appending at the same moment still race, and the last writer wins.
+        Serialising them needs a lock, which is a bigger decision than this
+        class should make for its callers.
+        """
         if not self.path:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps({"asks": [a.as_dict() for a in self.asks]}, indent=2) + "\n",
-            encoding="utf-8")
+        payload = json.dumps({"asks": [a.as_dict() for a in self.asks]},
+                             indent=2) + "\n"
+        # The temp name carries the process AND thread id: two writers sharing
+        # one temp file would corrupt each other's, which is the bug this whole
+        # method exists to remove.
+        tmp = self.path.with_name(
+            "%s.%d.%d.tmp" % (self.path.name, os.getpid(),
+                              threading.get_ident()))
+        tmp.write_text(payload, encoding="utf-8")
+        try:
+            os.replace(tmp, self.path)
+        except BaseException:
+            tmp.unlink(missing_ok=True)   # never leave litter behind a failure
+            raise
 
 
 # ------------------------------------------------------------------- the gate
