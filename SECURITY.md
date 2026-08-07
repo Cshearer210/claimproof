@@ -2,7 +2,7 @@
 
 ## Reporting
 
-Open a [private security advisory](https://github.com/Cshearer210/agentattest/security/advisories/new)
+Open a [private security advisory](https://github.com/Cshearer210/claimproof/security/advisories/new)
 rather than a public issue. Expect a reply within a week.
 
 ## What this library does and does not protect

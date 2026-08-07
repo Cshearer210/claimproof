@@ -2,7 +2,7 @@
 
     python tools/render_demo_svg.py          # rewrites assets/demo.svg
 
-The SVG is generated from a fresh run of `python -m agentattest.demo`, never
+The SVG is generated from a fresh run of `python -m claimproof.demo`, never
 from pasted text, so the image cannot drift from what the code actually prints.
 If the demo's wording changes, rerunning this script is the whole update.
 
@@ -52,7 +52,7 @@ GREEN = "#3fb950"
 def demo_lines() -> list[str]:
     """Acts 1-4 of the live demo, verbatim."""
     proc = subprocess.run(
-        [sys.executable, "-m", "agentattest.demo"],
+        [sys.executable, "-m", "claimproof.demo"],
         capture_output=True, text=True, timeout=120,
     )
     if proc.returncode != 0:
@@ -139,14 +139,14 @@ def render(lines: list[str]) -> str:
             f"{esc(text)}</text>"
         )
 
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-label="python -m agentattest.demo: an unbacked claim is refused; the same claim with a test result attached is allowed; honest uncertainty is left alone; all-done is checked against the list of what was asked">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-label="python -m claimproof.demo: an unbacked claim is refused; the same claim with a test result attached is allowed; honest uncertainty is left alone; all-done is checked against the list of what was asked">
 <style>{''.join(css)}</style>
 <rect width="{width}" height="{height}" rx="9" fill="{BG}"/>
 <path d="M0 9a9 9 0 0 1 9-9h{width - 18}a9 9 0 0 1 9 9v27H0z" fill="{BAR}"/>
 <circle cx="22" cy="18" r="5.5" fill="#ff5f57"/>
 <circle cx="42" cy="18" r="5.5" fill="#febc2e"/>
 <circle cx="62" cy="18" r="5.5" fill="#28c840"/>
-<text class="l" x="{width // 2}" y="23" fill="{DIM}" text-anchor="middle">python -m agentattest.demo</text>
+<text class="l" x="{width // 2}" y="23" fill="{DIM}" text-anchor="middle">python -m claimproof.demo</text>
 {chr(10).join(texts)}
 </svg>
 """

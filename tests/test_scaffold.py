@@ -4,17 +4,17 @@ Deliberately does NOT assert `True == True`. A test that cannot fail is the
 exact thing this library exists to argue against, so even the placeholder
 asserts something that would break if the package were misconfigured.
 """
-import agentattest
+import claimproof
 
 
 def test_package_imports_and_reports_a_version():
-    assert isinstance(agentattest.__version__, str)
-    assert agentattest.__version__.count(".") == 2
+    assert isinstance(claimproof.__version__, str)
+    assert claimproof.__version__.count(".") == 2
 
 
 def test_version_is_not_a_placeholder():
     # Catches the classic "shipped with version unset" mistake.
-    assert agentattest.__version__ not in ("", "0.0.0", "unknown")
+    assert claimproof.__version__ not in ("", "0.0.0", "unknown")
 
 
 def test_the_version_in_the_package_matches_the_one_being_built():
@@ -26,23 +26,23 @@ def test_the_version_in_the_package_matches_the_one_being_built():
     from importlib.metadata import PackageNotFoundError, version
 
     try:
-        installed = version("agentattest")
+        installed = version("claimproof")
     except PackageNotFoundError:  # pragma: no cover - only when not installed
         import pytest
-        pytest.skip("agentattest is not installed, so there is no metadata to compare")
+        pytest.skip("claimproof is not installed, so there is no metadata to compare")
 
-    assert installed == agentattest.__version__
+    assert installed == claimproof.__version__
 
 
 def test_two_names_for_unknown_do_not_silently_collide():
     """`UNKNOWN` means the Harness display verdict at the top level.
 
-    The claim verdicts are kept in `agentattest.basis` on purpose. If a later
+    The claim verdicts are kept in `claimproof.basis` on purpose. If a later
     change re-exports them here, one name starts meaning two things and every
-    `from agentattest import UNKNOWN` silently changes value.
+    `from claimproof import UNKNOWN` silently changes value.
     """
-    from agentattest import basis
+    from claimproof import basis
 
-    assert agentattest.UNKNOWN == "??"
+    assert claimproof.UNKNOWN == "??"
     assert basis.UNKNOWN == "UNKNOWN"
-    assert "HOLDS" not in agentattest.__all__
+    assert "HOLDS" not in claimproof.__all__

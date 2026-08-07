@@ -1,5 +1,5 @@
 """The demo is the first thing anyone runs. If it breaks, the project looks dead."""
-from agentattest import demo
+from claimproof import demo
 
 
 def test_the_demo_runs_clean(capsys):
@@ -21,7 +21,7 @@ def test_the_demo_shows_a_gate_being_rejected_at_construction(capsys):
 def test_the_never_fails_gate_really_cannot_be_used():
     """The demo's own prop must behave the way the demo claims it does."""
     import pytest
-    from agentattest import SelftestError
+    from claimproof import SelftestError
 
     with pytest.raises(SelftestError):
         demo.NeverFails().check("obviously bad")

@@ -10,8 +10,8 @@ memory and runs them through the pre-tool-use hook exactly as a runtime would.
 """
 import sys
 
-from agentattest.gates import SilentSkip, TypedScope
-from agentattest.hooks import gate_invariant, pre_tool_use_hook
+from claimproof.gates import SilentSkip, TypedScope
+from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
 # A tool that decides for itself what to look at. It reads as responsible, which
 # is why this keeps happening. Its completeness is capped by what the author

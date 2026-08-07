@@ -13,7 +13,7 @@ import shutil
 import sys
 import time
 
-from agentattest import Harness
+from claimproof import Harness
 
 h = Harness()
 
@@ -33,7 +33,7 @@ def _():
 
 @h.check("home-writable", "We can actually write to the home directory")
 def _():
-    p = os.path.join(os.path.expanduser("~"), ".agentattest-probe")
+    p = os.path.join(os.path.expanduser("~"), ".claimproof-probe")
     try:
         with open(p, "w") as f:
             f.write("probe")
@@ -58,7 +58,7 @@ def _():
 def _():
     # Deliberately points at a path that will not exist for you. A check that
     # cannot find what it is meant to measure must say so rather than pass.
-    log = os.path.join(os.path.expanduser("~"), ".agentattest-example-backup.log")
+    log = os.path.join(os.path.expanduser("~"), ".claimproof-example-backup.log")
     if not os.path.exists(log):
         return None, "no backup log found at the configured path, cannot tell"
     age_h = (time.time() - os.path.getmtime(log)) / 3600

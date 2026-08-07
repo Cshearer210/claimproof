@@ -10,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from agentattest.coverage import Coverage
+from claimproof.coverage import Coverage
 
 
 def build_project(root: Path) -> None:

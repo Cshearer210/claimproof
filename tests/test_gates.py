@@ -1,8 +1,8 @@
 """UnbackedClaims: the gate that reads a reply before it is sent."""
 import pytest
 
-from agentattest import SelftestError
-from agentattest.gates import UnbackedClaims
+from claimproof import SelftestError
+from claimproof.gates import UnbackedClaims
 
 
 def test_its_own_selftest_cases_all_hold():

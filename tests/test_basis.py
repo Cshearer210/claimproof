@@ -13,8 +13,8 @@ import sys
 
 import pytest
 
-from agentattest import Harness
-from agentattest.basis import (
+from claimproof import Harness
+from claimproof.basis import (
     ABSENT, HOLDS, REOPENED, RETIRED, UNKNOWN,
     BasisError, ClaimBasis, Evidence, fingerprint_path, slug,
 )
@@ -320,7 +320,7 @@ def test_selftest_passes():
 
 
 def test_selftest_runs_as_a_command_and_exits_0():
-    r = subprocess.run([sys.executable, "-m", "agentattest.basis", "--selftest"],
+    r = subprocess.run([sys.executable, "-m", "claimproof.basis", "--selftest"],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "SELFTEST PASS" in r.stdout
@@ -328,7 +328,7 @@ def test_selftest_runs_as_a_command_and_exits_0():
 
 # ---------------------------------------------------------------------- CLI
 def cli(*args, cwd):
-    return subprocess.run([sys.executable, "-m", "agentattest.basis", *args],
+    return subprocess.run([sys.executable, "-m", "claimproof.basis", *args],
                           capture_output=True, text=True, timeout=120, cwd=str(cwd))
 
 

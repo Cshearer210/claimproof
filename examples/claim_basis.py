@@ -17,7 +17,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from agentattest.basis import ClaimBasis
+from claimproof.basis import ClaimBasis
 
 
 def show(title, basis, **kw):

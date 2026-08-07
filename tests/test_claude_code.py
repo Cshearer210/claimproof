@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from agentattest.claude_code import (
+from claimproof.claude_code import (
     MARKER, decide, hook_command, install, last_assistant_turn,
     settings_file, uninstall,
 )
@@ -183,7 +183,7 @@ def test_settings_file_locations(tmp_path):
 # ------------------------------------------------- the real thing, end to end
 def run_module(args=None, stdin=""):
     return subprocess.run(
-        [sys.executable, "-m", "agentattest.claude_code"] + (args or []),
+        [sys.executable, "-m", "claimproof.claude_code"] + (args or []),
         input=stdin, capture_output=True, text=True, timeout=120,
     )
 

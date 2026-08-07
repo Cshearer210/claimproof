@@ -50,7 +50,7 @@ def step(label: str, cmd: list[str], cwd: Path | None = None,
 
 
 def main() -> int:
-    print(f"agentattest wheel verification, {sys.version.split()[0]}\n")
+    print(f"claimproof wheel verification, {sys.version.split()[0]}\n")
 
     dist = REPO / "dist"
     before = set(dist.glob("*.whl")) if dist.is_dir() else set()
@@ -78,13 +78,13 @@ def main() -> int:
 
         step("public API is reachable and behaving from outside the source tree",
              [str(py), "-c", (
-                 "import agentattest;"
-                 "assert 'site-packages' in agentattest.__file__, agentattest.__file__;"
-                 "from agentattest import Gate, Case, Finding, Harness, SelftestError;"
-                 "from agentattest import ClaimBasis, Evidence, Status, BasisError;"
-                 "from agentattest import Coverage, CoverageError, Diff, Entry;"
-                 "from agentattest.gates import UnbackedClaims, TypedScope, SilentSkip;"
-                 "from agentattest.hooks import stop_hook, pre_tool_use_hook, gate_invariant;"
+                 "import claimproof;"
+                 "assert 'site-packages' in claimproof.__file__, claimproof.__file__;"
+                 "from claimproof import Gate, Case, Finding, Harness, SelftestError;"
+                 "from claimproof import ClaimBasis, Evidence, Status, BasisError;"
+                 "from claimproof import Coverage, CoverageError, Diff, Entry;"
+                 "from claimproof.gates import UnbackedClaims, TypedScope, SilentSkip;"
+                 "from claimproof.hooks import stop_hook, pre_tool_use_hook, gate_invariant;"
                  "g = UnbackedClaims(); assert g.verify();"
                  "assert g.check('It works.'), 'failed to flag an unbacked claim';"
                  "assert g.check('It works. exit=0') == [], 'false positive';"
@@ -100,31 +100,31 @@ def main() -> int:
              cwd=elsewhere)
 
         step("a partial scan must not exit 0 from the installed package",
-             [str(py), "-m", "agentattest.coverage"], cwd=elsewhere, expect=2)
+             [str(py), "-m", "claimproof.coverage"], cwd=elsewhere, expect=2)
 
         step("py.typed ships, or downstream type checking silently does nothing",
              [str(py), "-c", (
                  "import importlib.util, pathlib;"
-                 "spec = importlib.util.find_spec('agentattest');"
+                 "spec = importlib.util.find_spec('claimproof');"
                  "p = pathlib.Path(spec.origin).parent / 'py.typed';"
                  "assert p.exists(), 'py.typed missing from the installed package';"
                  "print(p)")],
              cwd=elsewhere)
 
-        step("the advertised demo command runs", [str(py), "-m", "agentattest.demo"],
+        step("the advertised demo command runs", [str(py), "-m", "claimproof.demo"],
              cwd=elsewhere)
-        step("python -m agentattest runs", [str(py), "-m", "agentattest"], cwd=elsewhere)
+        step("python -m claimproof runs", [str(py), "-m", "claimproof"], cwd=elsewhere)
 
         # The new feature, end to end, through the CLI a reader would use.
         (elsewhere / "proof.txt").write_text("green\n", encoding="utf-8")
         step("the installed CLI records a claim",
-             [str(py), "-m", "agentattest.basis", "--store", "c.json",
+             [str(py), "-m", "claimproof.basis", "--store", "c.json",
               "--record", "the suite passes", "--evidence", "proof.txt"], cwd=elsewhere)
         step("...and reports it holding",
-             [str(py), "-m", "agentattest.basis", "--store", "c.json"], cwd=elsewhere)
+             [str(py), "-m", "claimproof.basis", "--store", "c.json"], cwd=elsewhere)
         (elsewhere / "proof.txt").write_text("red\n", encoding="utf-8")
         step("...and REOPENS it once the evidence changes, exit 1",
-             [str(py), "-m", "agentattest.basis", "--store", "c.json"],
+             [str(py), "-m", "claimproof.basis", "--store", "c.json"],
              cwd=elsewhere, expect=1)
 
         shutil.copytree(REPO / "tests", elsewhere / "tests")

@@ -5,7 +5,7 @@ Two gates below. The first is correct. The second looks correct and is not, and
 the library refuses it. That second one is the whole point: it is the shape a
 broken check actually takes in the wild, and reading it passes review.
 """
-from agentattest import Case, Finding, Gate, SelftestError
+from claimproof import Case, Finding, Gate, SelftestError
 
 
 class NoTodoLeftBehind(Gate):

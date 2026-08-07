@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from agentattest import Case, Gate, SelftestError
-from agentattest.gates import UnbackedClaims
-from agentattest.hooks import (ALLOW, BLOCK, pre_tool_use_hook, run_stop_hook,
+from claimproof import Case, Gate, SelftestError
+from claimproof.gates import UnbackedClaims
+from claimproof.hooks import (ALLOW, BLOCK, pre_tool_use_hook, run_stop_hook,
                                stop_hook)
 
 

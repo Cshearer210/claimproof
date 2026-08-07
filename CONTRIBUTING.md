@@ -6,8 +6,8 @@ fastest way to get a change merged is to show it failing first.
 ## Setup
 
 ```bash
-git clone https://github.com/Cshearer210/agentattest
-cd agentattest
+git clone https://github.com/Cshearer210/claimproof
+cd claimproof
 python -m pip install -e ".[dev]"
 python -m pytest
 ```
