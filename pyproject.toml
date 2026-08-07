@@ -24,7 +24,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pyarrow>=14"]   # pyarrow reads the finding's dataset; the LIBRARY still has zero runtime deps
 
 [project.urls]
 Homepage = "https://github.com/Cshearer210/claimproof"

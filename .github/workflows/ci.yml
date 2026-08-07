@@ -44,6 +44,14 @@ jobs:
       - name: Test
         run: python -m pytest
 
+      # The published finding rests on this script, so its guards are CI's
+      # problem too. It measures 73,269 agent runs and its first real run died
+      # mid-download while reporting success -- a number from a tool that
+      # cannot detect its own truncated input is not a measurement. The
+      # selftest forces each guard to fail on purpose; no network, ~2 seconds.
+      - name: The measurement script's guards can still fail
+        run: python tools/measure_unbacked_claims.py --selftest
+
   # The job that matters most to anyone who installs this.
   #
   # Everything above tests the SOURCE TREE. A package can pass every one of those
