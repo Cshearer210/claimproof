@@ -105,3 +105,13 @@ def test_source_gates_example_refuses_two_writes_and_allows_the_good_one():
 
     # The one that matters: correct code carrying both innocent twins is allowed.
     assert "-> allowed (exit 0)" in r.stdout
+
+
+def test_claude_code_install_walkthrough_runs_clean():
+    r = run("claude_code_install.py")
+    assert r.returncode == 0, r.stderr
+    assert "installed:" in r.stdout
+    assert '"decision": "block"' in r.stdout
+    assert "no evidence" in r.stdout
+    assert "the turn is allowed" in r.stdout
+    assert "uninstalled from" in r.stdout
