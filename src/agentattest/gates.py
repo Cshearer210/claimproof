@@ -43,6 +43,7 @@ _EVIDENCE = re.compile(
     r"|\b\d+\s*(?:/|of)\s*\d+\b"            # 12/12
     r"|\b\d+\s+(?:tests?|files?|checks?|passed|failed|findings?|rows?)\b"
     r"|\bok\s+\S+\s+\d+\.\d+s\b"            # go test: ok pkg/thing 0.42s
+    r"|\bTests? run:\s*\d+\b"               # JUnit: Tests run: 14, Failures: 0
     r"|\$\s|\bstdout\b|\bstderr\b|\boutput\b|\bran\b|\blogs?\b"
     r"|\.(?:py|js|ts|sh|json|toml|yml|yaml|md)\b"
     r"|:\d+\b"                              # file:line
@@ -184,6 +185,16 @@ class UnbackedClaims(Gate):
                 text="Ran the suite:\n```\n12 passed in 0.06s\n```\nAll tests pass.",
                 expect_flagged=False,
                 name="claim + fenced output two lines up",
+            ))
+            cases.append(Case(
+                text="Tests run: 14, Failures: 0, Errors: 0\nAll tests pass.",
+                expect_flagged=False,
+                name="claim + JUnit test count",
+            ))
+            cases.append(Case(
+                text="BUILD SUCCESS\nAll tests pass.",
+                expect_flagged=True,
+                name="build banner alone is not evidence",
             ))
         if self.window >= 1:
             cases.append(Case(
