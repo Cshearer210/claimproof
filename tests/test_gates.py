@@ -8,7 +8,7 @@ from agentattest.gates import UnbackedClaims
 def test_its_own_selftest_cases_all_hold():
     """The gate's shipped fixtures must agree with its behaviour, or it is broken."""
     checked = UnbackedClaims().verify()
-    assert len(checked) == 12
+    assert len(checked) == 14
 
 
 @pytest.mark.parametrize("text", [
