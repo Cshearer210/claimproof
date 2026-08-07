@@ -115,3 +115,13 @@ def test_claude_code_install_walkthrough_runs_clean():
     assert "no evidence" in r.stdout
     assert "the turn is allowed" in r.stdout
     assert "uninstalled from" in r.stdout
+
+
+def test_no_silent_drops_walkthrough_runs_clean():
+    r = run("no_silent_drops.py")
+    assert r.returncode == 0, r.stderr
+    assert "REFUSED" in r.stdout
+    assert "2 item(s) are open" in r.stdout
+    assert "allowed: 'Done with the parser fix" in r.stdout
+    assert "0 open, of 3 item(s) total" in r.stdout
+    assert "allowed: 'All done, everything works.'" in r.stdout
