@@ -8,7 +8,7 @@ from agentattest.gates import UnbackedClaims
 def test_its_own_selftest_cases_all_hold():
     """The gate's shipped fixtures must agree with its behaviour, or it is broken."""
     checked = UnbackedClaims().verify()
-    assert len(checked) == 12
+    assert len(checked) == 13
 
 
 @pytest.mark.parametrize("text", [
@@ -45,6 +45,16 @@ def test_the_finding_says_where_and_what():
 def test_evidence_counts_from_a_neighbouring_line_not_just_the_same_line():
     text = "Ran the suite, 12 passed.\nAll tests pass."
     assert UnbackedClaims().check(text) == []
+
+
+def test_go_test_ok_line_counts_as_evidence():
+    text = "ok  pkg/thing  0.42s\nAll tests pass."
+    assert UnbackedClaims().check(text) == []
+
+
+def test_go_test_banner_without_nearby_claim_still_flags():
+    text = "ok  pkg/thing  0.42s\nanother line\nAll tests pass."
+    assert UnbackedClaims(window=1).check(text)
 
 
 def test_a_zero_window_only_accepts_evidence_on_the_same_line():
