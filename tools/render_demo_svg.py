@@ -6,8 +6,8 @@ The SVG is generated from a fresh run of `python -m agentattest.demo`, never
 from pasted text, so the image cannot drift from what the code actually prints.
 If the demo's wording changes, rerunning this script is the whole update.
 
-Only the first three acts are drawn -- the claims story, which is the hook.
-The caption under the image in the README says exactly that, and acts 4 and 5
+Only the first four acts are drawn -- the claims story, which is the hook.
+The caption under the image in the README says exactly that, and the remaining acts
 appear as plain code blocks further down. An asset that shows less than the
 whole demo is fine; an asset that shows something the demo does not print is
 not, which is why this script refuses to render if the expected act markers
@@ -50,7 +50,7 @@ GREEN = "#3fb950"
 
 
 def demo_lines() -> list[str]:
-    """Acts 1-3 of the live demo, verbatim."""
+    """Acts 1-4 of the live demo, verbatim."""
     proc = subprocess.run(
         [sys.executable, "-m", "agentattest.demo"],
         capture_output=True, text=True, timeout=120,
@@ -59,13 +59,14 @@ def demo_lines() -> list[str]:
         raise SystemExit(f"demo exited {proc.returncode}; not rendering from a broken demo")
     out = proc.stdout.splitlines()
 
-    starts = [i for i, ln in enumerate(out) if ln.startswith(("1. ", "2. ", "3. ", "4. "))]
-    if len(starts) < 4:
+    starts = [i for i, ln in enumerate(out)
+              if ln.startswith(("1. ", "2. ", "3. ", "4. ", "5. "))]
+    if len(starts) < 5:
         raise SystemExit(
-            "demo output no longer contains acts 1-4 where expected; "
+            "demo output no longer contains acts 1-5 where expected; "
             "refusing to render a stale or partial story"
         )
-    lines = out[starts[0]:starts[3]]
+    lines = out[starts[0]:starts[4]]
     while lines and not lines[-1].strip():
         lines.pop()
     return lines
@@ -89,7 +90,7 @@ def wrap(line: str) -> list[str]:
 def color_for(line: str) -> tuple[str, bool]:
     """(fill, bold) for one demo line, by what it is rather than position."""
     s = line.strip()
-    if s.startswith(("1.", "2.", "3.")):
+    if s.startswith(("1.", "2.", "3.", "4.")):
         return HEAD, True
     if s.startswith("| "):
         return QUOTE, False
@@ -138,7 +139,7 @@ def render(lines: list[str]) -> str:
             f"{esc(text)}</text>"
         )
 
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-label="python -m agentattest.demo: an unbacked claim is refused, the same claim with a test result attached is allowed, honest uncertainty is left alone">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-label="python -m agentattest.demo: an unbacked claim is refused; the same claim with a test result attached is allowed; honest uncertainty is left alone; all-done is checked against the list of what was asked">
 <style>{''.join(css)}</style>
 <rect width="{width}" height="{height}" rx="9" fill="{BG}"/>
 <path d="M0 9a9 9 0 0 1 9-9h{width - 18}a9 9 0 0 1 9 9v27H0z" fill="{BAR}"/>

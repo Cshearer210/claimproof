@@ -16,7 +16,7 @@ python -m agentattest.demo
 
 ![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](assets/demo.svg)
 
-*The first three acts of `python -m agentattest.demo`, drawn from the demo's real output.
+*The first four acts of `python -m agentattest.demo`, drawn from the demo's real output.
 `tools/render_demo_svg.py` regenerates this image from a live run and refuses to render if the
 output drifts — the same standard the library holds everyone else to.*
 
