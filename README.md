@@ -26,6 +26,16 @@ output drifts — the same standard the library holds everyone else to.*
 > hook installed under the old name is upgraded in place rather than doubled. Nothing you already
 > wired up breaks.
 
+## The number this exists for
+
+**18,008 real agent runs ended with a confident claim of success. 12,578 of them had not fixed
+anything** — 69.8%, measured against the maintainers' own test suites across 73,269 completed
+runs. And claims carrying no evidence failed 83.0% of the time against 69.2% for claims that
+showed something, so an agent that shows its work is measurably more likely to be right.
+
+Measured with the gate below, unmodified, over a public CC-BY dataset. Method, limits and the
+script that reproduces it: **[FINDINGS.md](FINDINGS.md)**.
+
 Hedged language passes on purpose. A claim that admits its own uncertainty is the honest case,
 and a gate that punishes honesty teaches agents to be vague instead of accurate.
 
