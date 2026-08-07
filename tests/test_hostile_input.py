@@ -64,7 +64,8 @@ def _typed_scope_fixture() -> str:
 SOURCE_LIKE = [
     "",
     "def f(:",                            # a syntax error
-    "\x00",
+    "\x00",                               # NUL: ast.parse raises ValueError on 3.10
+    "((((((((((" * 200 + "1" + "))))))))))" * 200,   # deep nesting -> RecursionError
     "def f():\n" + "    x = 1\n" * 20_000,  # very deep file
     "# " + "a" * 100_000,                 # one huge comment
     _typed_scope_fixture(),
@@ -97,8 +98,8 @@ def test_no_text_gate_explodes_on_hostile_input(text):
             assert f.line is None or f.line >= 1
 
 
-SOURCE_IDS = ["empty", "syntax-error", "nul", "20k-lines", "huge-comment",
-              "typed-scope", "bom", "mixed-tabs"]
+SOURCE_IDS = ["empty", "syntax-error", "nul", "deep-nesting", "20k-lines",
+              "huge-comment", "typed-scope", "bom", "mixed-tabs"]
 
 
 @pytest.mark.parametrize("src", SOURCE_LIKE, ids=SOURCE_IDS)
@@ -295,13 +296,22 @@ def test_a_harness_check_that_raises_is_unknown_never_a_pass():
 
 # --------------------------------------------- the CLI survives bad input
 def test_the_ledger_cli_never_dies_on_garbage_stdin(tmp_path):
+    """Bytes, not text, and UTF-8 forced on both ends.
+
+    The first version passed a str and let subprocess encode it with the
+    console default. On Windows that is cp1252, which cannot represent a
+    byte-order mark, so the TEST died with UnicodeEncodeError while the
+    library was fine -- and on 3.13 it hung until the timeout instead.
+    A test that fails for its own reasons teaches everyone to ignore it.
+    """
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     r = subprocess.run(
         [sys.executable, "-m", "claimproof.ledger", "--file",
          str(tmp_path / "l.json"), "gate"],
-        input="\x00garbage﻿" + "x" * 50_000,
-        capture_output=True, text=True, timeout=120)
-    assert r.returncode in (0, 1, 2), r.stderr
-    assert "Traceback" not in r.stderr
+        input=("\x00garbage﻿" + "x" * 50_000).encode("utf-8"),
+        capture_output=True, timeout=120, env=env)
+    assert r.returncode in (0, 1, 2), r.stderr.decode("utf-8", "replace")
+    assert b"Traceback" not in r.stderr
 
 
 def test_concurrent_asks_are_not_silently_LOST(tmp_path):
