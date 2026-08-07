@@ -459,7 +459,14 @@ class SilentSkip(Gate):
             return []
         try:
             tree = ast.parse(source)
-        except SyntaxError:
+        # ValueError, not just SyntaxError: a file containing a NUL byte makes
+        # ast.parse raise `ValueError: source code string cannot contain null
+        # bytes` on Python 3.10, and an uncaught exception here takes down the
+        # turn this gate was guarding. Found 2026-08-07 by CI on 3.10 -- the
+        # local 3.13 run passed, which is the whole argument for the version
+        # matrix. RecursionError joins them: a deeply nested expression can
+        # blow the stack inside the parser.
+        except (SyntaxError, ValueError, RecursionError):
             if self.strict:
                 return [Finding(
                     message="this is not parseable Python, so the gate could not "
