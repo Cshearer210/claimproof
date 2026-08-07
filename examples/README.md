@@ -1,16 +1,28 @@
 # Examples
 
-Six files, each runnable on its own. Start with whichever matches what you want.
+Seven files, each runnable on its own. Start with whichever matches what you want.
 
 ```bash
 pip install agentattest
 
+python claude_code_install.py # the one-command Claude Code setup, in a sandbox
 python stop_hook.py       # paste JSON on stdin, see a turn refused
 python custom_gate.py     # write your own gate, and watch a broken one get rejected
 python live_checks.py     # checks that look at your actual machine
 python claim_basis.py     # watch a claim that was true go stale on its own
 python coverage_ledger.py # the same audit reported two ways, one of them honest
 python source_gates.py    # two bad writes refused, one good write allowed
+```
+
+## claude_code_install.py
+
+The fastest path from nothing to protected. It installs the Stop hook into a throwaway project,
+feeds it a turn that claims victory with nothing attached (refused, with the reason), the same
+claim with the receipt (allowed), then uninstalls — all in a temp directory, so your real
+settings are never touched. In your own project the same thing is:
+
+```bash
+python -m agentattest.claude_code install
 ```
 
 ## stop_hook.py
@@ -32,17 +44,9 @@ $ printf '{"text": "I fixed it.\n56 passed in 0.14s"}' | python stop_hook.py ; e
 exit=0
 ```
 
-To wire it into Claude Code, add this to `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {"hooks": [{"type": "command", "command": "python /full/path/to/stop_hook.py"}]}
-    ]
-  }
-}
-```
+For Claude Code, don't wire this by hand — `python -m agentattest.claude_code install` does it
+in one command, reads the real transcript, and only gates turns that did real work (see
+claude_code_install.py above). This file is the raw adapter underneath, kept simple on purpose.
 
 For any other runtime, call `stop_hook(payload, gates)` yourself. It takes a dict and returns
 `(exit_code, message)`, so adapting it is a few lines rather than a port.

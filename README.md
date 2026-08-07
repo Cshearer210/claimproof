@@ -83,7 +83,30 @@ This is not theoretical. It caught two real bugs in this library before either s
 2. `selftest_cases()` asserted multi-line fixtures against a `window=0` gate, a guarantee that
    configuration never made.
 
-## Wire it into the runtime
+## Wire it into Claude Code in one command
+
+```bash
+python -m agentattest.claude_code install          # this project
+python -m agentattest.claude_code install --user   # every project
+```
+
+That is the whole setup. From the next turn on, the agent in that scope cannot end a turn on
+"Fixed. All tests pass." with nothing attached — the turn is refused and the reason is handed
+back to the agent, which revises the reply instead of guessing. Honest hedging still passes, and
+conversational turns are never inspected: only turns that actually edited files or did real tool
+work are held to the standard, because a hook that nags small talk gets uninstalled, and then it
+catches nothing.
+
+`install` merges into `.claude/settings.json` without touching anything else in it, running it
+twice adds one entry not two, `uninstall` removes exactly that entry, and a settings file that
+does not parse is refused loudly rather than replaced. Errors at runtime allow the turn *and say
+so on stderr* — an announced skip, never a silent one, for exactly the reason `gates.SilentSkip`
+exists.
+
+[examples/claude_code_install.py](examples/claude_code_install.py) runs the whole journey in a
+sandbox — install, a refused turn, the fix, uninstall — without touching your real settings.
+
+## Wire it into any other runtime
 
 A gate you have to remember to call is a suggestion. The same gate wired into the harness is a
 rule, because the runtime calls it whether anyone remembers or not.
