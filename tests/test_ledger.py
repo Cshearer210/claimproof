@@ -5,8 +5,8 @@ import sys
 
 import pytest
 
-from agentattest import SelftestError
-from agentattest.ledger import Ledger, LedgerError, NothingLeft
+from claimproof import SelftestError
+from claimproof.ledger import Ledger, LedgerError, NothingLeft
 
 
 # ----------------------------------------------------------------- recording
@@ -144,7 +144,7 @@ def test_the_gates_selftest_holds_regardless_of_live_state():
 
 
 def test_a_broken_detector_is_refused_by_its_own_selftest(monkeypatch):
-    import agentattest.ledger as mod
+    import claimproof.ledger as mod
     import re as _re
     # the classic silent death: someone "tightens" the pattern into nonsense
     monkeypatch.setattr(mod, "_TOTAL_CLAIM", _re.compile(r"(?!x)x"))
@@ -155,7 +155,7 @@ def test_a_broken_detector_is_refused_by_its_own_selftest(monkeypatch):
 # ---------------------------------------------------------------------- CLI
 def run_cli(tmp_path, *args, stdin=""):
     return subprocess.run(
-        [sys.executable, "-m", "agentattest.ledger",
+        [sys.executable, "-m", "claimproof.ledger",
          "--file", str(tmp_path / "ledger.json")] + list(args),
         input=stdin, capture_output=True, text=True, timeout=120)
 

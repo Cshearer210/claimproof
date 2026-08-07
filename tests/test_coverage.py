@@ -7,8 +7,8 @@ import json
 
 import pytest
 
-from agentattest import Harness
-from agentattest.coverage import Coverage, CoverageError, Diff
+from claimproof import Harness
+from claimproof.coverage import Coverage, CoverageError, Diff
 
 MEMBERS = ["a", "b", "c", "d"]
 
@@ -261,7 +261,7 @@ def test_the_demo_command_exits_2_and_shows_both_readings():
     import subprocess
     import sys
 
-    r = subprocess.run([sys.executable, "-m", "agentattest.coverage"],
+    r = subprocess.run([sys.executable, "-m", "claimproof.coverage"],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 2, r.stdout
     assert "2 nodes checked, 0 broken" in r.stdout
@@ -272,7 +272,7 @@ def test_selftest_runs_as_a_command_and_exits_0():
     import subprocess
     import sys
 
-    r = subprocess.run([sys.executable, "-m", "agentattest.coverage", "--selftest"],
+    r = subprocess.run([sys.executable, "-m", "claimproof.coverage", "--selftest"],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "SELFTEST PASS" in r.stdout

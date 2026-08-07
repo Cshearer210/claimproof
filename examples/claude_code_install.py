@@ -14,7 +14,7 @@ import tempfile
 import textwrap
 from pathlib import Path
 
-MODULE = [sys.executable, "-m", "agentattest.claude_code"]
+MODULE = [sys.executable, "-m", "claimproof.claude_code"]
 
 
 def run(args=None, stdin=""):

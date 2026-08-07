@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-import agentattest
-from agentattest.gates import TypedScope
+import claimproof
+from claimproof.gates import TypedScope
 
 # Located from the module actually imported, NOT from the repo layout. A
 # repo-relative path resolves to nothing when the suite is run against an
 # installed wheel, and the first version of this file silently found 0 modules
 # there. Caught by tools/verify_wheel.py, which is what that script is for.
-PACKAGE = Path(agentattest.__file__).resolve().parent
+PACKAGE = Path(claimproof.__file__).resolve().parent
 
 
 def test_its_own_selftest_cases_all_hold():
@@ -89,7 +89,7 @@ def test_the_gate_is_clean_over_the_librarys_own_source():
 
 def test_it_composes_with_the_pre_write_hook():
     """The point is refusing the write, not finding it later in a diff."""
-    from agentattest.hooks import gate_invariant, pre_tool_use_hook
+    from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
     payload = {"tool_name": "Write",
                "tool_input": {"file_path": "scan.py",
@@ -102,7 +102,7 @@ def test_it_composes_with_the_pre_write_hook():
 
 
 def test_an_innocent_write_is_allowed_through():
-    from agentattest.hooks import gate_invariant, pre_tool_use_hook
+    from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
     payload = {"tool_name": "Write",
                "tool_input": {"file_path": "app.py",
@@ -113,7 +113,7 @@ def test_an_innocent_write_is_allowed_through():
 
 
 def test_a_tool_that_is_not_a_write_is_ignored():
-    from agentattest.hooks import gate_invariant, pre_tool_use_hook
+    from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
     payload = {"tool_name": "Bash",
                "tool_input": {"command": 'echo ["/srv/a", "/opt/b"]'}}  # noscope: fixture
@@ -124,7 +124,7 @@ def test_a_tool_that_is_not_a_write_is_ignored():
 
 def test_content_it_cannot_read_fails_open_by_default_and_strict_refuses():
     """The default is a deliberate trade, so both halves of it are pinned here."""
-    from agentattest.hooks import gate_invariant, pre_tool_use_hook
+    from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
     payload = {"tool_name": "Write", "tool_input": {"file_path": "x.py"}}
 
@@ -139,9 +139,9 @@ def test_content_it_cannot_read_fails_open_by_default_and_strict_refuses():
 
 def test_a_gate_that_cannot_prove_itself_raises_rather_than_allowing_the_write():
     """Silently allowing every write is the one outcome that must not happen."""
-    from agentattest import Case, SelftestError
-    from agentattest.core import Gate as BaseGate
-    from agentattest.hooks import gate_invariant, pre_tool_use_hook
+    from claimproof import Case, SelftestError
+    from claimproof.core import Gate as BaseGate
+    from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
     class NeverFails(BaseGate):
         def inspect(self, text):

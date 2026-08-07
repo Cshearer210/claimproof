@@ -12,7 +12,7 @@ record) and the same claim passes, because now it is true.
 import sys
 import textwrap
 
-from agentattest.ledger import Ledger, NothingLeft
+from claimproof.ledger import Ledger, NothingLeft
 
 
 def show(label, body):

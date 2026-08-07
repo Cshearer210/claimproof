@@ -3,7 +3,7 @@
 Eight files, each runnable on its own. Start with whichever matches what you want.
 
 ```bash
-pip install agentattest
+pip install claimproof
 
 python claude_code_install.py # the one-command Claude Code setup, in a sandbox
 python no_silent_drops.py # "all done" checked against what was actually asked
@@ -23,7 +23,7 @@ claim with the receipt (allowed), then uninstalls — all in a temp directory, s
 settings are never touched. In your own project the same thing is:
 
 ```bash
-python -m agentattest.claude_code install
+python -m claimproof.claude_code install
 ```
 
 ## no_silent_drops.py
@@ -62,7 +62,7 @@ $ printf '{"text": "I fixed it.\n56 passed in 0.14s"}' | python stop_hook.py ; e
 exit=0
 ```
 
-For Claude Code, don't wire this by hand — `python -m agentattest.claude_code install` does it
+For Claude Code, don't wire this by hand — `python -m claimproof.claude_code install` does it
 in one command, reads the real transcript, and only gates turns that did real work (see
 claude_code_install.py above). This file is the raw adapter underneath, kept simple on purpose.
 

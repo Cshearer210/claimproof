@@ -22,7 +22,7 @@ jobs:
       # not a sibling built from the same tree.
       - run: |
           python -m pip install dist/*.whl
-          python -c "import agentattest; print('installs as', agentattest.__version__)"
+          python -c "import claimproof; print('installs as', claimproof.__version__)"
       - uses: actions/upload-artifact@v4
         with:
           name: dist

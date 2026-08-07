@@ -1,7 +1,7 @@
 """The live-state harness. The rule under test: UNKNOWN is never a pass."""
 import pytest
 
-from agentattest.harness import BROKE, OK, UNKNOWN, Harness
+from claimproof.harness import BROKE, OK, UNKNOWN, Harness
 
 
 def build(ok=0, broke=0, unknown=0, raises=0):

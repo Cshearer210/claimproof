@@ -16,7 +16,7 @@ is identical to a run where the check passed.
   default is itself the pattern this gate hunts.
 - `hooks.gate_invariant(..., suffixes=(".py",))`, so a source gate only sees files it can read.
 - `examples/source_gates.py` and a test that runs it as a subprocess.
-- Both source gates now honour one exemption marker, `# noscope:` or `# agentattest:`, with a
+- Both source gates now honour one exemption marker, `# noscope:` or `# claimproof:`, with a
   written reason on the line. Each uses it on its own fixtures and deliberate degradations, which
   is the honest way to be exempt from your own rule.
 
@@ -108,7 +108,7 @@ Everything before this asked whether a claim has evidence **now**. This release 
 underneath it: the evidence you cited has since changed, so is the claim still true?
 
 ### Added
-- `ClaimBasis`, `Claim`, `Evidence`, `Status`, `BasisError`, and the `python -m agentattest.basis`
+- `ClaimBasis`, `Claim`, `Evidence`, `Status`, `BasisError`, and the `python -m claimproof.basis`
   command. Record what a completion claim was measured against; `recheck()` reopens it when the
   evidence moves. `REOPENED` means *unverified*, never *false*.
 - A `scope` callable, discovered on every run rather than written down. A source appearing next
@@ -133,7 +133,7 @@ underneath it: the evidence you cited has since changed, so is the claim still t
   no current value supplied never counts as holding.
 - **A corrupt store raises** rather than starting from empty, which would report every claim as
   holding.
-- The claim verdicts (`HOLDS` / `REOPENED` / `UNKNOWN` / `RETIRED`) stay in `agentattest.basis`
+- The claim verdicts (`HOLDS` / `REOPENED` / `UNKNOWN` / `RETIRED`) stay in `claimproof.basis`
   and are deliberately **not** re-exported at the top level, where `UNKNOWN` already means the
   `Harness` display verdict. A test asserts they have not silently collided.
 
@@ -150,7 +150,7 @@ making sure the thing people actually install works, which is a different questi
 ### Added
 - `py.typed`, so downstream type checkers see the annotations. Without it every `mypy` and
   `pyright` user silently gets nothing from a fully annotated package.
-- `python -m agentattest` as an alias for `python -m agentattest.demo`.
+- `python -m claimproof` as an alias for `python -m claimproof.demo`.
 - A CI job that builds the wheel, installs it into a clean virtual environment, and runs the
   suite from a directory where the source tree is not importable. The existing jobs all tested
   the repo, which cannot catch a packaging bug.
@@ -173,7 +173,7 @@ making sure the thing people actually install works, which is a different questi
 ## [0.3.0]
 
 ### Added
-- `agentattest.demo`, a runnable demonstration. The README transcript is copied from a real run.
+- `claimproof.demo`, a runnable demonstration. The README transcript is copied from a real run.
 - Tests asserting the demo actually refuses and actually allows, so it cannot decay into prose
   describing a refusal it no longer performs.
 

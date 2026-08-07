@@ -10,10 +10,10 @@ from pathlib import Path
 
 import pytest
 
-import agentattest
-from agentattest.gates import SilentSkip
+import claimproof
+from claimproof.gates import SilentSkip
 
-PACKAGE = Path(agentattest.__file__).resolve().parent
+PACKAGE = Path(claimproof.__file__).resolve().parent
 
 
 def test_its_own_selftest_cases_all_hold():
@@ -150,7 +150,7 @@ def test_a_written_exemption_is_honoured():
               "    try:\n"
               "        return verify()\n"
               "    except Exception:\n"
-              "        return True  # agentattest: deliberate, documented reason\n")
+              "        return True  # claimproof: deliberate, documented reason\n")
     assert SilentSkip().check(source) == []
 
 
@@ -184,7 +184,7 @@ def test_the_gate_is_clean_over_the_librarys_own_source():
 
 
 def test_it_refuses_a_write_through_the_pre_write_hook():
-    from agentattest.hooks import gate_invariant, pre_tool_use_hook
+    from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
     payload = {"tool_name": "Write",
                "tool_input": {"file_path": "gate.py",
@@ -204,7 +204,7 @@ def test_suffix_filtering_keeps_it_off_files_it_cannot_read():
     parsed, produced no findings, and passed whether the suffix filter worked or
     not -- a test that was green with the filter deleted.
     """
-    from agentattest.hooks import gate_invariant, pre_tool_use_hook
+    from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
     prose = "# Notes\n\nThis is prose, not Python: it has ((unbalanced brackets\n"
     assert SilentSkip(strict=True).check(prose), "the fixture must be unparseable"

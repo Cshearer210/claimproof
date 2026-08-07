@@ -54,7 +54,7 @@ jobs:
   #
   # So this builds the real artifacts, installs the WHEEL into a clean
   # environment, and runs the suite from a directory where the source tree is not
-  # importable. If this passes, `pip install agentattest` works.
+  # importable. If this passes, `pip install claimproof` works.
   installed:
     name: wheel installs and works from clean env (${{ matrix.os }})
     strategy:
@@ -94,13 +94,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/elsewhere"
           cd "$RUNNER_TEMP/elsewhere"
           "$CLEANPY" -c "
-          import agentattest
-          assert 'site-packages' in agentattest.__file__, agentattest.__file__
-          from agentattest import Gate, Case, Finding, Harness, SelftestError
-          from agentattest import ClaimBasis, Evidence, Status, BasisError
-          from agentattest import Coverage, CoverageError, Diff, Entry
-          from agentattest.gates import UnbackedClaims, TypedScope, SilentSkip
-          from agentattest.hooks import stop_hook, pre_tool_use_hook, gate_invariant
+          import claimproof
+          assert 'site-packages' in claimproof.__file__, claimproof.__file__
+          from claimproof import Gate, Case, Finding, Harness, SelftestError
+          from claimproof import ClaimBasis, Evidence, Status, BasisError
+          from claimproof import Coverage, CoverageError, Diff, Entry
+          from claimproof.gates import UnbackedClaims, TypedScope, SilentSkip
+          from claimproof.hooks import stop_hook, pre_tool_use_hook, gate_invariant
           g = UnbackedClaims()
           assert g.verify()
           assert g.check('It works.'), 'installed package failed to flag an unbacked claim'
@@ -122,7 +122,7 @@ jobs:
         shell: bash
         run: |
           cd "$RUNNER_TEMP/elsewhere"
-          if "$CLEANPY" -m agentattest.coverage; then
+          if "$CLEANPY" -m claimproof.coverage; then
             echo "FAIL: 2 of 7 examined with 0 broken exited 0"
             exit 1
           fi
@@ -133,10 +133,10 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/elsewhere"
           echo green > proof.txt
-          "$CLEANPY" -m agentattest.basis --store c.json --record "the suite passes" --evidence proof.txt
-          "$CLEANPY" -m agentattest.basis --store c.json
+          "$CLEANPY" -m claimproof.basis --store c.json --record "the suite passes" --evidence proof.txt
+          "$CLEANPY" -m claimproof.basis --store c.json
           echo red > proof.txt
-          if "$CLEANPY" -m agentattest.basis --store c.json; then
+          if "$CLEANPY" -m claimproof.basis --store c.json; then
             echo "FAIL: the installed package did not reopen a claim whose evidence changed"
             exit 1
           fi
@@ -144,18 +144,18 @@ jobs:
 
       - name: The advertised demo command must work
         shell: bash
-        run: cd "$RUNNER_TEMP/elsewhere" && "$CLEANPY" -m agentattest.demo
+        run: cd "$RUNNER_TEMP/elsewhere" && "$CLEANPY" -m claimproof.demo
 
-      - name: python -m agentattest must work too
+      - name: python -m claimproof must work too
         shell: bash
-        run: cd "$RUNNER_TEMP/elsewhere" && "$CLEANPY" -m agentattest
+        run: cd "$RUNNER_TEMP/elsewhere" && "$CLEANPY" -m claimproof
 
       - name: py.typed must ship, or downstream type checking silently does nothing
         shell: bash
         run: |
           "$CLEANPY" -c "
           import importlib.util, pathlib
-          spec = importlib.util.find_spec('agentattest')
+          spec = importlib.util.find_spec('claimproof')
           p = pathlib.Path(spec.origin).parent / 'py.typed'
           assert p.exists(), 'py.typed missing from the installed package'
           print('py.typed ships:', p)

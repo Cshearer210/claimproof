@@ -25,8 +25,8 @@ Try it without an agent:
 """
 import sys
 
-from agentattest.gates import UnbackedClaims
-from agentattest.hooks import run_stop_hook
+from claimproof.gates import UnbackedClaims
+from claimproof.hooks import run_stop_hook
 
 # The gates this hook enforces. Add your own here; each one is checked and each
 # must pass its own selftest before it is trusted, so a broken gate stops the

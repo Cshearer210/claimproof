@@ -1,7 +1,7 @@
 """The contract tests. Every one of these describes a way a gate can be untrustworthy."""
 import pytest
 
-from agentattest import Case, Finding, Gate, SelftestError
+from claimproof import Case, Finding, Gate, SelftestError
 
 
 class WordGate(Gate):

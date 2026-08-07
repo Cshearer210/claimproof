@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agentattest"
-version = "0.9.0"
+name = "claimproof"
+version = "0.10.0"
 description = "Agents claim work is done that isn't. This makes them prove it."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,11 +27,11 @@ dependencies = []
 dev = ["pytest>=8"]
 
 [project.urls]
-Homepage = "https://github.com/Cshearer210/agentattest"
-Issues = "https://github.com/Cshearer210/agentattest/issues"
+Homepage = "https://github.com/Cshearer210/claimproof"
+Issues = "https://github.com/Cshearer210/claimproof/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agentattest"]
+packages = ["src/claimproof", "src/agentattest"]
 
 
 [tool.pytest.ini_options]

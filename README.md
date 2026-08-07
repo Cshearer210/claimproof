@@ -1,24 +1,30 @@
-# agentattest
+# claimproof
 
-[![CI](https://github.com/Cshearer210/agentattest/actions/workflows/ci.yml/badge.svg)](https://github.com/Cshearer210/agentattest/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/agentattest.svg)](https://pypi.org/project/agentattest/)
-[![Python](https://img.shields.io/pypi/pyversions/agentattest.svg)](https://pypi.org/project/agentattest/)
+[![CI](https://github.com/Cshearer210/claimproof/actions/workflows/ci.yml/badge.svg)](https://github.com/Cshearer210/claimproof/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/claimproof.svg)](https://pypi.org/project/claimproof/)
+[![Python](https://img.shields.io/pypi/pyversions/claimproof.svg)](https://pypi.org/project/claimproof/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 AI coding agents routinely report work as finished when it isn't. Not by lying, but because a
 fluent summary and a correct one feel identical from the inside, and nothing in the loop is
-checking. `agentattest` makes an agent prove it, at the runtime layer, before its turn can end.
+checking. `claimproof` makes an agent prove it, at the runtime layer, before its turn can end.
 
 ```bash
-pip install agentattest
-python -m agentattest.demo
+pip install claimproof
+python -m claimproof.demo
 ```
 
 ![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](assets/demo.svg)
 
-*The first four acts of `python -m agentattest.demo`, drawn from the demo's real output.
+*The first four acts of `python -m claimproof.demo`, drawn from the demo's real output.
 `tools/render_demo_svg.py` regenerates this image from a live run and refuses to render if the
 output drifts — the same standard the library holds everyone else to.*
+
+> **Renamed from `agentattest` (2026-08-07).** PyPI refuses names a hyphen away from an existing
+> project, and `agent-attest` — an unrelated agent evaluator — got there first. The old GitHub
+> address redirects, `import agentattest` still works via a compatibility layer, and a Claude Code
+> hook installed under the old name is upgraded in place rather than doubled. Nothing you already
+> wired up breaks.
 
 Hedged language passes on purpose. A claim that admits its own uncertainty is the honest case,
 and a gate that punishes honesty teaches agents to be vague instead of accurate.
@@ -32,7 +38,7 @@ So `selftest_cases()` is abstract and **must include a case the gate is required
 that cannot demonstrate its own failure mode is refused at construction, not at review time.
 
 ```python
-from agentattest import Gate, Case
+from claimproof import Gate, Case
 
 class UnbackedClaims(Gate):
     def inspect(self, text: str) -> list[Finding]:
@@ -64,8 +70,8 @@ This is not theoretical. It caught two real bugs in this library before either s
 ## Wire it into Claude Code in one command
 
 ```bash
-python -m agentattest.claude_code install          # this project
-python -m agentattest.claude_code install --user   # every project
+python -m claimproof.claude_code install          # this project
+python -m claimproof.claude_code install --user   # every project
 ```
 
 That is the whole setup. From the next turn on, the agent in that scope cannot end a turn on
@@ -90,8 +96,8 @@ A gate you have to remember to call is a suggestion. The same gate wired into th
 rule, because the runtime calls it whether anyone remembers or not.
 
 ```python
-from agentattest.gates import UnbackedClaims
-from agentattest.hooks import run_stop_hook
+from claimproof.gates import UnbackedClaims
+from claimproof.hooks import run_stop_hook
 
 raise SystemExit(run_stop_hook([UnbackedClaims()]))   # JSON on stdin, exit 2 blocks
 ```
@@ -111,7 +117,7 @@ this was built from: a capture layer had recorded 1,318 user requests verbatim, 
 ever become a tracked item, so every completion check ran against an empty list and passed.
 
 ```python
-from agentattest.ledger import Ledger, NothingLeft
+from claimproof.ledger import Ledger, NothingLeft
 
 led = Ledger("ledger.json")               # on disk: it survives the session that forgot
 led.ask("fix the parser bug and add a regression test")
@@ -129,7 +135,7 @@ because a claim cannot be its own receipt. Skipping is allowed and honest: the r
 record instead of into the void. Partial claims ("done with the parser fix") pass; only a claim
 of *total* completion is checked against the list, and a true "all done" over a clear list passes
 untouched. There is a CLI for harnesses that drive it from outside:
-`python -m agentattest.ledger ask|split|done|skip|show|gate`.
+`python -m claimproof.ledger ask|split|done|skip|show|gate`.
 
 ## Checks that look at the world, not the code
 
@@ -137,7 +143,7 @@ A test suite proves your code is internally correct. It cannot tell you the back
 running, the hook got unwired, or the service died quietly. Code does not decay. Reality does.
 
 ```python
-from agentattest import Harness
+from claimproof import Harness
 
 h = Harness()
 
@@ -176,7 +182,7 @@ the claim still reads as finished, and nothing anywhere reopened it. It was neve
 stale in silence, which is worse, because a lie has an author and this has none.
 
 ```python
-from agentattest.basis import ClaimBasis
+from claimproof.basis import ClaimBasis
 
 basis = ClaimBasis("claims.json")
 basis.record("auth refactor done", evidence=["src/auth.py", "tests/test_auth.py"])
@@ -247,7 +253,7 @@ gap was 628,407 files and **nothing could notice**, because a scan of 4 roots pr
 shape of output as a scan of 40.
 
 ```python
-from agentattest import Coverage
+from claimproof import Coverage
 
 cov = Coverage("nodes", discover=list_all_nodes)   # a callable, not a list
 
@@ -287,8 +293,8 @@ The other half of the same problem is the code that decides what to look at, and
 catchable before it lands:
 
 ```python
-from agentattest.gates import TypedScope
-from agentattest.hooks import gate_invariant, pre_tool_use_hook
+from claimproof.gates import TypedScope
+from claimproof.hooks import gate_invariant, pre_tool_use_hook
 
 pre_tool_use_hook(payload, [gate_invariant(TypedScope())])
 ```
@@ -371,7 +377,7 @@ have caught the second one.
 ## Install
 
 ```bash
-pip install agentattest
+pip install claimproof
 ```
 
 Python 3.10+. No runtime dependencies.
