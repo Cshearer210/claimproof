@@ -54,6 +54,26 @@ URL = ("https://huggingface.co/datasets/" + REPO +
        "/resolve/main/data/train-{n:05d}-of-{total:05d}.parquet")
 
 
+def _require_pyarrow():
+    """Import pyarrow, or die saying so.
+
+    Deliberately NOT folded into the try/except below. An earlier version
+    caught every exception, so a missing pyarrow made every file look
+    truncated -- the tool would have re-downloaded 1 GB forever, blaming the
+    network for a missing package. Absent-and-broken must never look like
+    present-and-broken; that is `gates.SilentSkip`'s whole subject.
+    """
+    try:
+        import pyarrow.parquet as pq
+        return pq
+    except ImportError as exc:
+        raise SystemExit(
+            f"pyarrow is required to read the dataset ({exc}). Install it with "
+            f"`pip install pyarrow`, or `pip install -e \".[dev]\"` from a "
+            f"checkout. Refusing to guess at the data without it."
+        ) from exc
+
+
 def _usable(path: Path) -> bool:
     """A file only counts as cached if it actually OPENS as parquet.
 
@@ -63,11 +83,11 @@ def _usable(path: Path) -> bool:
     """
     if not path.exists():
         return False
+    pq = _require_pyarrow()          # a missing package raises, never returns False
     try:
-        import pyarrow.parquet as pq
         pq.ParquetFile(path).metadata.num_rows
         return True
-    except Exception:
+    except Exception:                # unreadable or truncated: a real answer
         return False
 
 
@@ -121,7 +141,7 @@ def final_words(trajectory: list) -> str:
 
 
 def measure(shards: int, cache: Path) -> dict:
-    import pyarrow.parquet as pq
+    pq = _require_pyarrow()
 
     gate = UnbackedClaims(window=2)
     gate.verify()   # never trust a gate that has not just proven it works
@@ -317,7 +337,8 @@ def selftest() -> int:
     # 2. The truncation guard, against a real truncated parquet -- not a
     #    made-up file, because the failure was a real half-download.
     with tempfile.TemporaryDirectory() as tmp:
-        import pyarrow as pa, pyarrow.parquet as pq
+        pq = _require_pyarrow()
+        import pyarrow as pa
         whole = Path(tmp) / "whole.parquet"
         pq.write_table(pa.table({"instance_id": ["a"] * 500}), whole)
         half = Path(tmp) / "half.parquet"

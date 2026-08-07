@@ -82,3 +82,27 @@ def test_the_report_refuses_to_invent_a_denominator():
     m = load()
     assert m.pct(0, 0) == "n/a"
     assert m.pct(1, 4) == "25.0%"
+
+
+def test_a_missing_pyarrow_is_loud_not_a_silent_false(tmp_path, monkeypatch):
+    """The bug CI found: absent-and-broken must not look like present-and-broken.
+
+    An earlier version caught every exception in `_usable`, so a missing
+    pyarrow made every shard look truncated -- the tool would re-download a
+    gigabyte forever, blaming the network for a missing package.
+    """
+    m = load()
+    import builtins
+    real_import = builtins.__import__
+
+    def no_pyarrow(name, *args, **kwargs):
+        if name.startswith("pyarrow"):
+            raise ImportError("simulated: pyarrow is not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_pyarrow)
+    present = tmp_path / "anything.parquet"
+    present.write_bytes(b"not really parquet")
+
+    with pytest.raises(SystemExit, match="pyarrow is required"):
+        m._usable(present)
