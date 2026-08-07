@@ -14,33 +14,11 @@ pip install agentattest
 python -m agentattest.demo
 ```
 
-```
-1. The agent says it is done, and shows nothing.
---------------------------------------------------------------------
-  | I fixed the parser bug. All tests pass.
---------------------------------------------------------------------
-  -> REFUSED (exit 2)
-     Turn refused: completion claim(s) with no evidence in the same turn.
-       x line 1: completion claim 'fixed' with no nearby evidence
-     Show the proof (command output, exit code, test result, or file and
-     snippet), or soften the claim. A dry run proves wiring, not correctness.
+![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](assets/demo.svg)
 
-2. Same claim, with the receipt attached.
---------------------------------------------------------------------
-  | I fixed the parser bug.
-  | ```
-  | 56 passed in 0.14s
-  | ```
-  | All tests pass.
---------------------------------------------------------------------
-  -> allowed (exit 0)
-
-3. Honest uncertainty is left alone.
---------------------------------------------------------------------
-  | This should fix the parser bug, but I have not run the suite yet.
---------------------------------------------------------------------
-  -> allowed (exit 0)
-```
+*The first three acts of `python -m agentattest.demo`, drawn from the demo's real output.
+`tools/render_demo_svg.py` regenerates this image from a live run and refuses to render if the
+output drifts — the same standard the library holds everyone else to.*
 
 Hedged language passes on purpose. A claim that admits its own uncertainty is the honest case,
 and a gate that punishes honesty teaches agents to be vague instead of accurate.
