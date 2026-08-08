@@ -31,12 +31,35 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    environment: pypi
     permissions:
-      id-token: write   # the whole credential: a short-lived identity proof
+      id-token: write   # trusted publishing: a short-lived identity proof
+    env:
+      # The `secrets` context is NOT available in a step's `if:` -- it silently
+      # evaluates empty there, so the token branch would never fire and the
+      # failure would look like "trusted publishing is still broken". Job-level
+      # env CAN read secrets, so the presence check is computed here once.
+      HAS_TOKEN: ${{ secrets.PYPI_API_TOKEN != '' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+
+      # Two routes, and whichever is configured wins. Trusted publishing is the
+      # better one -- no long-lived secret exists to leak -- but it requires a
+      # pending publisher on PyPI whose five fields match this workflow exactly,
+      # and a single mismatched field fails with a message that does not say
+      # which one. A token is one paste in a browser and cannot half-match.
+      #
+      # So: if PYPI_API_TOKEN is set, use it. If not, fall back to trusted
+      # publishing. Neither path is a silent default -- the step name says which
+      # ran, so nobody has to guess afterwards which credential was used.
+      - name: Publish with an API token
+        if: env.HAS_TOKEN == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Publish with trusted publishing (no token configured)
+        if: env.HAS_TOKEN != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
