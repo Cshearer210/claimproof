@@ -7,6 +7,11 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
+  # Manual trigger. Added 2026-08-08 after a re-run of a failed publish used
+  # the workflow as it existed AT THE TAG -- which predated the fix being
+  # re-run. Without this, correcting a publishing problem costs a whole new
+  # release, and the version number becomes a log of infrastructure mistakes.
+  workflow_dispatch:
 
 jobs:
   build:
