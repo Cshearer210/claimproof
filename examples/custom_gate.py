@@ -27,8 +27,9 @@ class NoTodoLeftBehind(Gate):
         return out
 
     def selftest_cases(self) -> list[Case]:
-        # At least one case MUST be one this gate is required to catch.
-        # Without it, the library refuses to run the gate at all.
+        # At least one case MUST be one this gate is required to catch, and at
+        # least one MUST be a guard it has to leave alone. Missing either one and
+        # the library refuses to run the gate at all.
         return [
             Case(text="def f():\n    pass  # TODO wire this up", expect_flagged=True),
             Case(text="raise NotImplementedError  # FIXME", expect_flagged=True),

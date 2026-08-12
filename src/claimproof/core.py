@@ -40,8 +40,15 @@ class Finding:
 class Case:
     """One selftest fixture: some text, and whether the gate must flag it.
 
-    `expect_flagged=True` means "this is the bad case, the gate is required to
-    catch it". A gate with no such case is not trusted.
+    `expect_flagged=True` is the BAD case -- the gate is REQUIRED to catch it.
+    `expect_flagged=False` is the GUARD case -- something close enough to the bad
+    one to be tempting, which the gate must look at and leave alone.
+
+    A gate needs at least one of each, because one direction only proves half of
+    it. A gate with no bad case has never been made to fail on purpose. A gate
+    with no guard case has never been shown to stay quiet, and an over-firing
+    gate is the more expensive failure: it does not look broken, it looks like a
+    discovery.
     """
 
     text: str
@@ -61,12 +68,13 @@ class SelftestError(RuntimeError):
 
 
 class Gate(abc.ABC):
-    """Inspect text, return findings, and be able to prove you can find them.
+    """Inspect text, prove you can find the problem, and prove you leave the
+    rest alone.
 
     Subclasses implement two methods:
 
         inspect(text)        -> list[Finding]
-        selftest_cases()     -> list[Case]      # must include one bad case
+        selftest_cases()     -> list[Case]      # >=1 bad case AND >=1 guard case
 
     Then::
 
@@ -89,7 +97,11 @@ class Gate(abc.ABC):
 
     @abc.abstractmethod
     def selftest_cases(self) -> list[Case]:
-        """Fixtures proving this gate works. At least one must be a bad case."""
+        """Fixtures proving this gate works in BOTH directions.
+
+        At least one case this gate must flag, and at least one it must look at
+        and leave alone.
+        """
 
     # -------------------------------------------------------------- verify
     def verify(self) -> list[str]:
@@ -111,6 +123,17 @@ class Gate(abc.ABC):
                 f"{self.name}: every selftest case expects a clean result. At least "
                 f"one case must be one this gate is REQUIRED to flag, or the gate has "
                 f"never been made to fail on purpose and cannot be trusted."
+            )
+
+        if all(c.expect_flagged for c in cases):
+            raise SelftestError(
+                f"{self.name}: every selftest case expects a flag. At least one case "
+                f"must be a GUARD -- something this gate has to look at and leave "
+                f"alone. A gate proven only to fire has never been shown to stay "
+                f"quiet, and over-firing is the more expensive failure: it does not "
+                f"look broken, it looks like a discovery, so it manufactures work "
+                f"that was never there. Then it gets switched off, and after that it "
+                f"catches nothing at all."
             )
 
         checked: list[str] = []
