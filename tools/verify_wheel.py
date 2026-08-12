@@ -49,9 +49,17 @@ def step(label: str, cmd: list[str], cwd: Path | None = None,
     return r
 
 
-def main() -> int:
-    print(f"claimproof wheel verification, {sys.version.split()[0]}\n")
+def clean_install(room: Path, extras: tuple[str, ...] = ("pytest>=8",)) -> Path | None:
+    """Build the wheel and install it into a fresh virtual environment under `room`.
 
+    Returns the interpreter to run things with, or None if no wheel was produced.
+    The source tree is NOT importable from it, which is the entire point: every
+    other check in this repo runs against the source, and a package can pass all
+    of them while being broken on `pip install`.
+
+    Split out of main() so `fresh_eyes.py` gets the identical environment rather
+    than building a second, slightly different one beside it.
+    """
     dist = REPO / "dist"
     before = set(dist.glob("*.whl")) if dist.is_dir() else set()
 
@@ -59,22 +67,31 @@ def main() -> int:
     wheels = sorted(set(dist.glob("*.whl")) - before) or sorted(dist.glob("*.whl"))
     if not wheels:
         print("  FAIL  no wheel was produced")
-        return 1
+        return None
     wheel = max(wheels, key=lambda p: p.stat().st_mtime)
     print(f"        using {wheel.name}")
 
+    venv = room / "venv"
+    step("create a clean virtual environment", [sys.executable, "-m", "venv", str(venv)])
+    py = venv / ("Scripts" if os.name == "nt" else "bin") / (
+        "python.exe" if os.name == "nt" else "python")
+
+    step("install the wheel into it" + (" with " + ", ".join(extras) if extras else ""),
+         [str(py), "-m", "pip", "install", "--quiet", str(wheel), *extras])
+    return py
+
+
+def main() -> int:
+    print(f"claimproof wheel verification, {sys.version.split()[0]}\n")
+
     with tempfile.TemporaryDirectory() as tmp:
         room = Path(tmp)
-        venv = room / "venv"
         elsewhere = room / "elsewhere"
         elsewhere.mkdir()
 
-        step("create a clean virtual environment", [sys.executable, "-m", "venv", str(venv)])
-        py = venv / ("Scripts" if os.name == "nt" else "bin") / (
-            "python.exe" if os.name == "nt" else "python")
-
-        step("install the wheel and pytest into it",
-             [str(py), "-m", "pip", "install", "--quiet", str(wheel), "pytest>=8"])
+        py = clean_install(room)
+        if py is None:
+            return 1
 
         step("public API is reachable and behaving from outside the source tree",
              [str(py), "-c", (

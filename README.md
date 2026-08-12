@@ -57,8 +57,9 @@ required to flag, and at least one **guard case** — something close enough to 
 the gate has to look at and leave alone. A gate that can demonstrate only one of the two is
 refused at construction, not at review time.
 
+<!-- fresh-eyes: run -->
 ```python
-from claimproof import Gate, Case
+from claimproof import Case, Finding, Gate
 
 class UnbackedClaims(Gate):
     def inspect(self, text: str) -> list[Finding]:
@@ -76,6 +77,7 @@ correct — every one of them a shape a careless version of the check would flag
 `gate.check(text)` verifies before it inspects, so a clean result can never come out of an
 unproven gate:
 
+<!-- fresh-eyes: illustration -->
 ```python
 >>> AlwaysPasses().inspect("this is bad")   # the trap: looks fine
 []
@@ -137,6 +139,7 @@ sandbox — install, a refused turn, the fix, uninstall — without touching you
 A gate you have to remember to call is a suggestion. The same gate wired into the harness is a
 rule, because the runtime calls it whether anyone remembers or not.
 
+<!-- fresh-eyes: run -->
 ```python
 from claimproof.gates import UnbackedClaims
 from claimproof.hooks import run_stop_hook
@@ -158,6 +161,7 @@ signs off "everything is finished" with nothing in the loop keeping the list. Th
 this was built from: a capture layer had recorded 1,318 user requests verbatim, and not one had
 ever become a tracked item, so every completion check ran against an empty list and passed.
 
+<!-- fresh-eyes: run -->
 ```python
 from claimproof.ledger import Ledger, NothingLeft
 
@@ -184,6 +188,7 @@ untouched. There is a CLI for harnesses that drive it from outside:
 A test suite proves your code is internally correct. It cannot tell you the backup stopped
 running, the hook got unwired, or the service died quietly. Code does not decay. Reality does.
 
+<!-- fresh-eyes: run exit=1 -->
 ```python
 from claimproof import Harness
 
@@ -223,6 +228,7 @@ You close "auth refactor done" pointing at two files. Three weeks later both hav
 the claim still reads as finished, and nothing anywhere reopened it. It was never a lie. It went
 stale in silence, which is worse, because a lie has an author and this has none.
 
+<!-- fresh-eyes: illustration -->
 ```python
 from claimproof.basis import ClaimBasis
 
@@ -249,6 +255,7 @@ There is a second way an old claim rots, and it is the one nobody instruments. G
 `scope` — the *places you look*, as distinct from the evidence you cite — and it is discovered on
 every run rather than written down:
 
+<!-- fresh-eyes: illustration -->
 ```python
 basis = ClaimBasis("claims.json", scope=lambda: [s.name for s in Path("sources").iterdir()])
 basis.record("no open item is older than March", evidence=["report.json"])
@@ -280,6 +287,7 @@ Three more rules it will not bend on, each of which is a way of quietly reportin
 
 It drops into the live-state harness, so the whole thing is one exit code:
 
+<!-- fresh-eyes: illustration -->
 ```python
 h.check("claims", "Every closed claim still rests on the evidence it cited")(basis.as_check())
 ```
@@ -294,6 +302,7 @@ own hand-typed list of places to look, opened 57,100, and that was reported as "
 gap was 628,407 files and **nothing could notice**, because a scan of 4 roots prints the same
 shape of output as a scan of 40.
 
+<!-- fresh-eyes: illustration -->
 ```python
 from claimproof import Coverage
 
@@ -334,6 +343,7 @@ as the other. Four rules make that structural rather than something you remember
 The other half of the same problem is the code that decides what to look at, and that one is
 catchable before it lands:
 
+<!-- fresh-eyes: illustration -->
 ```python
 from claimproof.gates import TypedScope
 from claimproof.hooks import gate_invariant, pre_tool_use_hook
@@ -361,6 +371,7 @@ the line, so an exception is a visible decision rather than an oversight.
 
 ## The check that stopped running eight months ago
 
+<!-- fresh-eyes: illustration -->
 ```python
 try:
     result = verify_everything()
