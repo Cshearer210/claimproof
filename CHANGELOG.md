@@ -3,6 +3,48 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0]
+
+The library required a gate to prove it can fire. It never required a gate to prove it can stay
+quiet, which is half a proof presented as a whole one.
+
+An over-firing gate is the more expensive failure and the one nobody thinks to test for, because
+it does not look broken. It looks like a discovery. It produces a pile of findings that were never
+real, somebody spends a day on them, and when that is worked out the gate gets switched off — at
+which point it catches nothing at all. That is strictly worse than never having written it.
+
+### Changed — BREAKING
+- `Gate.verify()` now refuses a gate whose selftest cases are **all** `expect_flagged=True`, the
+  mirror of the existing refusal for all-`False`. Every gate must ship at least one **guard case**:
+  something close enough to the bad case to be tempting, which the gate has to look at and leave
+  alone.
+- **Migration:** add one `Case(..., expect_flagged=False)` to any gate that has none. Pick a real
+  near-miss, not an empty string — an empty case is free and proves nothing on its own. The three
+  shipped gates already satisfied this (`UnbackedClaims` carries 9 guard cases of 15, `TypedScope`
+  7 of 10, `SilentSkip` 11 of 15), so no in-tree gate changed behaviour.
+
+### Added
+- `test_a_gate_with_no_guard_case_is_refused` — the new rule fires.
+- `test_one_guard_case_among_many_bad_ones_is_enough` — the guard case for the guard-case rule
+  itself: four must-flag cases and exactly one guard still verifies, so the requirement cannot
+  quietly become "most cases must be clean".
+- `test_a_gate_that_flags_correct_work_is_caught_by_its_guard_case` — the over-firing gate, the
+  failure mode this release exists for. 312 tests before, 315 after.
+
+### The part worth reading
+The discipline was already in the library everywhere except the one place it governs somebody
+else's code. Sweeping all four self-proof mechanisms: `Harness.selftest` asserts a clean run
+returns 0 as well as catching the broken one; `Coverage.selftest` asserts *"the same 0 broken IS a
+pass once the whole population is accounted for"*; `ClaimBasis.selftest` asserts *"rewriting the
+identical bytes does NOT reopen"* and says why — a checker that fires on a touched-but-identical
+file gets switched off. One of four had the hole, and it was `Gate.verify()`, the one every
+external gate passes through.
+
+Two fixtures declared only a bad case and were refused for the new reason rather than the reason
+they were written to demonstrate: `demo.NeverFails` and the `Exploding` gate in the hostile-input
+suite. Both now declare a guard case, so each is refused for its real defect again — returning
+clean on everything, and raising from `inspect()`.
+
 ## [0.7.0]
 
 The third instance of the same argument: a check that swallows its own failure, so the run's output

@@ -1,8 +1,10 @@
 """claimproof: agents claim work is done that isn't. This makes them prove it.
 
     Gate     -- inspect output and block what cannot be backed. selftest_cases()
-                is abstract and must include a case the gate is REQUIRED to flag,
-                so a gate that has never been made to fail cannot be trusted.
+                is abstract and must include BOTH a case the gate is REQUIRED to
+                flag and a GUARD case it must leave alone: a gate never made to
+                fail cannot be trusted, and a gate never shown to stay quiet is
+                the costlier half, because over-firing reads as a discovery.
     Case     -- one selftest fixture and its expected verdict.
     Finding  -- one problem a gate found.
 
@@ -51,7 +53,7 @@ from claimproof.core import Case, Finding, Gate, SelftestError
 from claimproof.coverage import Coverage, CoverageError, Diff, Entry
 from claimproof.harness import BROKE, OK, UNKNOWN, Harness, Result
 
-__version__ = "0.11.1"
+__version__ = "0.12.0"
 __all__ = [
     "Case", "Finding", "Gate", "SelftestError",
     "Harness", "Result", "OK", "BROKE", "UNKNOWN",

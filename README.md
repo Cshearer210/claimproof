@@ -42,13 +42,20 @@ script that reproduces it: **[FINDINGS.md](FINDINGS.md)**.
 Hedged language passes on purpose. A claim that admits its own uncertainty is the honest case,
 and a gate that punishes honesty teaches agents to be vague instead of accurate.
 
-## A gate that has never failed proves nothing
+## A gate is unproven in BOTH directions until you prove it
 
 Most checks are written, pass on their first run, and are never once fed a case they were
 supposed to catch. Nobody finds out they are broken until the thing they guarded against happens.
 
-So `selftest_cases()` is abstract and **must include a case the gate is required to flag**. A gate
-that cannot demonstrate its own failure mode is refused at construction, not at review time.
+The mirror of that is the failure nobody thinks to check, and it is the more expensive one. A gate
+that flags correct work does not look broken — it looks like a discovery. It generates a pile of
+findings that were never real, somebody eventually switches it off, and from then on it catches
+nothing at all.
+
+So `selftest_cases()` is abstract and **must include both**: at least one case the gate is
+required to flag, and at least one **guard case** — something close enough to be tempting that
+the gate has to look at and leave alone. A gate that can demonstrate only one of the two is
+refused at construction, not at review time.
 
 ```python
 from claimproof import Gate, Case
@@ -58,9 +65,13 @@ class UnbackedClaims(Gate):
         ...
 
     def selftest_cases(self) -> list[Case]:          # required
-        return [Case(text="It works.",          expect_flagged=True),
-                Case(text="It works. exit=0",   expect_flagged=False)]
+        return [Case(text="It works.",          expect_flagged=True),    # must catch
+                Case(text="It works. exit=0",   expect_flagged=False)]   # must leave alone
 ```
+
+Pick guard cases that are genuinely tempting. `TypedScope` ships seven of its ten cases as guards,
+including a commented-out line, a path inside a docstring, and a single project directory that is
+correct — every one of them a shape a careless version of the check would flag.
 
 `gate.check(text)` verifies before it inspects, so a clean result can never come out of an
 unproven gate:
