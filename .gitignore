@@ -1,10 +1,10 @@
 __pycache__/
+*.pyc
 *.egg-info/
 dist/
 build/
-full_run.txt
-.deadcanary-pristine.duckdb
-
-# The demo target is cloned, not vendored -- see README.
+.pytest_cache/
 projects/
 deadcanary-report.json
+full_run.txt
+*.duckdb
