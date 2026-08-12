@@ -3,6 +3,43 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0]
+
+The gate was refusing turns that had already shown their working. Measured over
+2,975 real end-of-turn replies from a working agent's transcripts: it refused 109
+of them, and hand-reading a sample of twelve, roughly half were wrong.
+
+Three shapes, none of them visible from this project's own fixtures, because the
+fixtures were written to suit the gate.
+
+### Fixed
+- **The claim word used as an ordinary adjective.** "Now proving all 166 shipped
+  ebook cheat sheets still render", "the deployed code", "fixed-character wrap".
+  In each the word modifies a noun and nothing is claimed. Largest single source
+  of wrong refusals.
+- **Negated and conditional context.** "Caught before it shipped" is a near miss
+  being reported, not a completion being claimed.
+- **A real measurement in a form it did not recognise.** "223 cases",
+  "0 deleted lines", "all 21 empty" were all refused, while "12 passed" and
+  "316 tests pass" were correctly allowed. This one contradicted the README,
+  which promises a test count counts as evidence.
+
+### The part worth reading
+The discriminator for the adjective case is the copula: "the deployed code"
+describes, "it IS deployed" asserts. Without that distinction "The bug is fixed
+and it works now" parsed as attributive and a genuine claim stopped being caught.
+The existing suite caught that regression before it shipped -- which is the whole
+argument for the guard-case contract added in 0.12.0, working on its author.
+
+`UnbackedClaims` now carries 25 selftest cases, ten of them the exact real
+sentences it used to get wrong. On the same corpus: 109 refusals -> 85, at 23
+microseconds per turn.
+
+### Also
+- `tools/verify_wheel.py` gained a selftest proving both directions: a passing
+  step records nothing, a failing step is recorded, an expected non-zero exit is
+  not a failure.
+
 ## [0.12.0]
 
 The library required a gate to prove it can fire. It never required a gate to prove it can stay
