@@ -279,7 +279,10 @@ def test_a_gate_that_raises_is_refused_not_trusted():
             raise RuntimeError("boom")
 
         def selftest_cases(self):
-            return [Case("bad", True, "must flag")]
+            # Both directions declared, so the refusal below is for the real
+            # reason -- inspect() explodes -- and not for a missing guard case.
+            return [Case("bad", True, "must flag"),
+                    Case("fine", False, "must leave alone")]
 
     with pytest.raises(SelftestError, match="RuntimeError"):
         Exploding().check("anything")

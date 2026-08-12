@@ -22,15 +22,26 @@ tree while finding zero files against the wheel.
 
 ## The one rule that is not negotiable
 
-**Every gate must be able to fail, and you must prove it.**
+**Every gate must be able to fail AND to stay quiet, and you must prove both.**
 
 `Gate.selftest_cases()` is abstract and must return at least one `Case` with
-`expect_flagged=True`. This is enforced in `verify()`, not by review. A gate whose cases are all
-happy-path is refused at construction with a `SelftestError`.
+`expect_flagged=True` and at least one with `expect_flagged=False`. This is enforced in
+`verify()`, not by review. A gate whose cases are all happy-path is refused at construction with a
+`SelftestError`; so is a gate whose cases are all bad.
+
+One direction only proves half. A gate with no bad case has never been made to fail on purpose. A
+gate with no guard case has never been shown to leave correct work alone — and that is the failure
+that costs more, because an over-firing gate reads as a discovery rather than a defect. It
+manufactures findings that were never real, and once someone works that out it gets switched off,
+which is strictly worse than never having written it.
+
+A guard case is only worth something if it is tempting. `Case(text="", expect_flagged=False)` is
+free and proves nothing on its own; the useful ones are the near-misses — the commented-out line,
+the path inside a docstring, the correct single directory. Ship at least one that would catch a
+careless version of your own check.
 
 If you add a check to the library, the same standard applies to your tests: include a case that
-demonstrates the check catching something, not just a case where nothing is wrong. A test that
-has only ever passed tells you nothing about whether it can fail.
+demonstrates the check catching something, and one that demonstrates it staying silent.
 
 The project holds itself to this. Before any behaviour change lands, we break the thing on purpose
 and confirm the suite goes red:
