@@ -156,5 +156,43 @@ def main() -> int:
     return 0
 
 
+def selftest() -> int:
+    """Prove this script can report a failure, and can stay quiet on a success.
+
+    `step()` is the only judgement this file makes: it decides whether a command
+    did what was wanted, and records a failure if not. A version that recorded
+    nothing would print a clean run and exit 0 no matter how broken the wheel was
+    -- the exact shape this repo exists to catch, occurring in the repo's own
+    tooling. So both directions are asserted, not just the firing one.
+    """
+    global FAILURES
+    print("verify_wheel selftest")
+
+    # THE GUARD CASE: correct work must produce silence.
+    FAILURES = []
+    step("a command that succeeds", [sys.executable, "-c", "pass"])
+    assert len(FAILURES) == 0, "a passing step was recorded as a failure"
+    print("  ok    a passing step records nothing")
+
+    # THE CASE IT EXISTS FOR: a real failure must be recorded, never swallowed.
+    FAILURES = []
+    step("a command that fails, ON PURPOSE", [sys.executable, "-c", "raise SystemExit(3)"])
+    assert len(FAILURES) == 1, "a failing step was swallowed"
+    print("  ok    a failing step is recorded, not swallowed")
+
+    # The second guard case: an expected non-zero exit is not a failure.
+    FAILURES = []
+    step("a non-zero exit that was EXPECTED", [sys.executable, "-c", "raise SystemExit(2)"],
+         expect=2)
+    assert not FAILURES, "an expected non-zero exit was counted as a failure"
+    print("  ok    an expected non-zero exit is not a failure")
+
+    FAILURES = []
+    print("selftest PASSED")
+    return 0
+
+
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        sys.exit(selftest())
     sys.exit(main())
