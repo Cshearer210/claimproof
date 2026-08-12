@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deadcanary"
+version = "0.1.0"
+description = "Find the data tests that cannot fail. Mutation testing for dbt data quality."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Christopher Shearer", email = "cshearer210@gmail.com" }]
+dependencies = ["duckdb>=1.0"]
+
+[project.optional-dependencies]
+dbt = ["dbt-duckdb>=1.9"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+deadcanary = "deadcanary.__main__:main"
+
+[tool.setuptools]
+packages = ["deadcanary"]
+package-dir = { "" = "src" }
