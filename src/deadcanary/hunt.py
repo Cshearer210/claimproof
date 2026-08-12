@@ -279,7 +279,7 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
     undone = [o for o in outcomes if o.verdict == UNDONE]
     missed = [o for o in outcomes if o.verdict == SURVIVED]
 
-    return {
+    report = {
         "project": str(project.root),
         "seconds": round(time.time() - started, 1),
         "tests_total": len(healthy),
@@ -296,4 +296,26 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
         "mutations_missed": len(missed),
         "outcomes": outcomes,
         "killers": {t: sorted(v) for t, v in killers.items() if v},
+        "corruptions": [
+            {"name": o.mutation.name, "table": o.mutation.target.table,
+             "column": o.mutation.target.column, "story": o.mutation.story,
+             "verdict": o.verdict, "caught_by": list(o.failing_tests),
+             "detail": o.detail}
+            for o in outcomes
+        ],
     }
+    save(project, report)
+    return report
+
+
+def save(project: DbtProject, report: dict) -> Path:
+    """Write the report next to the project it describes.
+
+    Until this existed a run's findings lived only in a terminal, so every number
+    quoted from one was a number nobody else could check. A measurement that leaves
+    no artifact is a claim.
+    """
+    out = project.root / "deadcanary-report.json"
+    out.write_text(json.dumps({k: v for k, v in report.items() if k != "outcomes"},
+                              indent=2, sort_keys=True), encoding="utf-8")
+    return out

@@ -7,3 +7,4 @@ full_run.txt
 
 # The demo target is cloned, not vendored -- see README.
 projects/
+deadcanary-report.json
