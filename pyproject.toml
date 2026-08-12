@@ -25,6 +25,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pyarrow>=14"]   # pyarrow reads the finding's dataset; the LIBRARY still has zero runtime deps
+crewai = ["crewai>=0.80"] 
 
 [project.urls]
 Homepage = "https://github.com/Cshearer210/claimproof"
