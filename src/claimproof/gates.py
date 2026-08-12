@@ -41,7 +41,18 @@ _EVIDENCE = re.compile(
     r"```"                                  # a fenced block
     r"|\bexit(?:\s*code|\s*status)?\s*[=:]?\s*\d"
     r"|\b\d+\s*(?:/|of)\s*\d+\b"            # 12/12
-    r"|\b\d+\s+(?:tests?|files?|checks?|passed|failed|findings?|rows?)\b"
+    # A count beside a claim IS a measurement. The first version recognised only a
+    # handful of nouns, so real receipts went unrecognised and the gate flagged
+    # turns that had shown their working: "223 cases", "0 deleted lines",
+    # "all 21 empty". Measured 2026-08-12 against 2,975 real agent turns -- this
+    # was one of the three shapes behind roughly half the refusals being wrong.
+    # One optional word between the number and the noun, because real receipts read
+    # "0 deleted lines" and "12 failing checks", not just "12 checks".
+    r"|\b\d+\s+(?:\w+\s+)?(?:tests?|files?|checks?|passed|failed|findings?|rows?|cases?|lines?"
+    r"|items?|entries|records?|errors?|warnings?|columns?|tables?|commits?|bytes?"
+    r"|chars?|characters?|occurrences?|matches?|instances?|detectors?|scripts?"
+    r"|modules?|hits?|results?|of them)\b"
+    r"|\ball\s+\d+\b"                        # "all 21 empty"
     r"|\bok\s+\S+\s+\d+\.\d+s\b"            # go test: ok pkg/thing 0.42s
     r"|\bTests? run:\s*\d+\b"               # JUnit: Tests run: 14, Failures: 0
     r"|\$\s|\bstdout\b|\bstderr\b|\boutput\b|\bran\b|\blogs?\b"
@@ -90,6 +101,44 @@ _DISPLAYED = re.compile(
 )
 
 
+# The claim word used as an ORDINARY ADJECTIVE, which is not a claim at all.
+#
+# ADDED 2026-08-12 after running this gate over 2,975 real end-of-turn replies.
+# It refused "Now proving all 166 shipped ebook cheat sheets still render",
+# "Proving the deployed code actually writes a verdict" and "the bar branch's
+# fixed-character wrap". In every one the word modifies a noun -- shipped sheets,
+# deployed code, fixed-character -- and nothing is being asserted about the work.
+# This was the single largest source of wrong refusals.
+# The discriminator is the copula. "the deployed code" describes a noun; "it IS
+# deployed" asserts a completion. So the words between the determiner and the claim
+# may not be a form of `be` or `get` -- without that, "The bug is fixed and it works
+# now" read as attributive and a genuine claim stopped being caught. The library's
+# own test suite caught that regression before it shipped.
+_ATTRIBUTIVE = re.compile(
+    r"\b(?:the|a|an|this|that|these|those|all|its|their|his|her|our|your|any|"
+    r"each|every|some|no|\d+)\s+"
+    r"(?:(?!(?:is|was|are|were|be|been|being|get|got|gets|has|have|had)\b)\w+\s+){0,2}"
+    r"(?:fixed|deployed|shipped|verified|confirmed)\s+"
+    # ...modifying a real noun. A conjunction or adverb after the word means it was
+    # never a modifier: "fixed AND tested" is a claim, "fixed WIDTH" is a description.
+    r"(?!(?:and|or|but|so|then|now|yet|because|which|that|when|while|after|before|"
+    r"in|on|at|by|to|for|with|as|it|its|this|already|properly|successfully)\b)"
+    r"[a-z]\w*"
+    r"|\b(?:fixed|deployed|shipped|verified)-\w+",     # or hyphenated: fixed-width
+    re.I,
+)
+
+# The claim sits inside a conditional, a negation, or something that already
+# happened to somebody else. "Caught before it shipped" is a near miss being
+# reported, not a completion being claimed.
+_HYPOTHETICAL = re.compile(
+    r"\b(?:before|until|unless|whether|if|when|once|in case|would|could|should|"
+    r"might|may|not|never|no longer|isn't|aren't|wasn't|weren't|hasn't|haven't|"
+    r"didn't|don't|doesn't|cannot|can't)\b[^.!?]{0,40}$",
+    re.I,
+)
+
+
 class UnbackedClaims(Gate):
     """Flag completion claims that have no evidence within `window` lines.
 
@@ -116,6 +165,14 @@ class UnbackedClaims(Gate):
                 continue                     # content shown for review, not a claim
             match = _CLAIM.search(line)
             if not match:
+                continue
+
+            # The word is there, but it is not making a claim: it is describing a
+            # noun ("the deployed code"), or it sits under a conditional or a
+            # negation ("caught before it shipped").
+            if _ATTRIBUTIVE.search(line):
+                continue
+            if _HYPOTHETICAL.search(line[: match.start()]):
                 continue
 
             lo = max(0, i - self.window)
@@ -160,6 +217,31 @@ class UnbackedClaims(Gate):
             Case(text="This should work, but I have not run it.", expect_flagged=False,
                  name="hedged, not a hard claim"),
             Case(text="", expect_flagged=False, name="empty"),
+
+            # The three shapes measured on 2,975 real agent turns, 2026-08-12.
+            # Each was a wrong refusal; each must now be left alone.
+            Case(text="Now proving all 166 shipped ebook cheat sheets still render.",
+                 expect_flagged=False, name="'shipped' modifying a noun is not a claim"),
+            Case(text="Proving the deployed code actually writes a verdict.",
+                 expect_flagged=False, name="'deployed' modifying a noun is not a claim"),
+            Case(text="Now the bar branch's fixed-character wrap, which clips labels.",
+                 expect_flagged=False, name="hyphenated 'fixed-' is an adjective"),
+            Case(text="Caught before it shipped: pythonw resolves to the Store stub.",
+                 expect_flagged=False, name="a near miss reported, not a claim"),
+            Case(text="I have not fixed the parser yet.",
+                 expect_flagged=False, name="a negated claim is not a claim"),
+            Case(text="Baseline recorded: 12 tools, 223 cases, all passing.",
+                 expect_flagged=False, name="a count IS the receipt"),
+            Case(text="Append verified as purely additive (0 deleted lines).",
+                 expect_flagged=False, name="zero is a measurement too"),
+            Case(text="Verified properly: all 21 empty, three signals agreeing.",
+                 expect_flagged=False, name="'all N' is a measurement"),
+
+            # ...and the true positives these must not have blunted.
+            Case(text="Deployed. Now fixing the notification gap.",
+                 expect_flagged=True, name="a bare 'Deployed.' is still caught"),
+            Case(text="Three bugs fixed and measured.",
+                 expect_flagged=True, name="a claim with no number is still caught"),
             # Must NOT flag: CONTENT BEING SHOWN FOR REVIEW is not a claim about
             # my own work. Added 2026-08-06 after this gate blocked a menu of
             # candidate carousel hooks because one of them ended "...the real
