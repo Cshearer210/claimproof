@@ -175,3 +175,27 @@ jobs:
           cp -r tests "$RUNNER_TEMP/elsewhere/tests"
           cd "$RUNNER_TEMP/elsewhere"
           "$CLEANPY" -m pytest tests -q
+
+  fresh-eyes:
+    name: a stranger following the README gets a working library
+    runs-on: ubuntu-latest
+
+    # The `installed` job proves the CODE works from a clean install: it runs the
+    # test suite from outside the source tree. This proves the PRODUCT does --
+    # it executes what the README actually tells a newcomer to type. The two
+    # fail independently, because documentation rots on its own schedule.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
+
+      - name: The rehearsal's own guards can still fail
+        run: python tools/fresh_eyes.py --selftest
+
+      - name: Be the stranger
+        run: python tools/fresh_eyes.py

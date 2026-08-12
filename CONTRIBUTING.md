@@ -43,6 +43,28 @@ careless version of your own check.
 If you add a check to the library, the same standard applies to your tests: include a case that
 demonstrates the check catching something, and one that demonstrates it staying silent.
 
+## Before you touch the README
+
+```bash
+python tools/fresh_eyes.py
+```
+
+It installs the built package into an empty environment where the source tree is not importable,
+then does what the README says — because nothing else here has ever executed the README, and a
+documentation example can reference a keyword argument renamed two releases ago while every test
+passes.
+
+Every ```` ```python ```` block must carry a marker on the line above it, `<!-- fresh-eyes: run -->`
+or `<!-- fresh-eyes: illustration -->` (add ` exit=1` to a `run` block whose point is a non-zero
+exit). They are HTML comments, so they do not render. **An unmarked block fails the check rather
+than being skipped** — same reason `Coverage` refuses to call an unexamined member a pass. A block
+that only makes sense as a fragment of the one above it is an illustration; a block somebody could
+paste into a file and run is a `run`.
+
+It also points the source gates at the Python standard library, which nobody wrote to suit this
+project, and fails if either describes more than a quarter of it. A gate that fires on ordinary
+code is not a discovery.
+
 The project holds itself to this. Before any behaviour change lands, we break the thing on purpose
 and confirm the suite goes red:
 

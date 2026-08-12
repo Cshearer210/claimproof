@@ -31,6 +31,39 @@ which point it catches nothing at all. That is strictly worse than never having 
 - `test_a_gate_that_flags_correct_work_is_caught_by_its_guard_case` — the over-firing gate, the
   failure mode this release exists for. 312 tests before, 315 after.
 
+### Added — `tools/fresh_eyes.py`, the rehearsal nobody had run
+`verify_wheel.py` proves the CODE works from a clean install by running the test suite outside the
+source tree. Nothing proved the PRODUCT works, because nothing here had ever executed the README —
+and documentation rots on its own schedule. A doc example can name a keyword argument renamed two
+releases ago while every test passes.
+
+Four acts, each a thing a first-time user does in their first ten minutes: install from the built
+artifact into an empty environment; run what the README says; point the gates at somebody else's
+code; run the one-command Claude Code integration in a throwaway project and make it actually
+refuse a turn. It reuses `verify_wheel.clean_install()` rather than building a second, slightly
+different environment beside it.
+
+- **It found a real defect immediately.** The README's first example annotated `list[Finding]` and
+  imported only `Gate, Case`, so anyone pasting it got `NameError: name 'Finding' is not defined`.
+  Fixed. Folded into this release rather than minting 0.12.1, since 0.12.0 has not been published.
+- **Every ```python block must now declare itself** — `<!-- fresh-eyes: run -->` or
+  `<!-- fresh-eyes: illustration -->`, HTML comments so nothing renders differently. An unmarked
+  block FAILS rather than being skipped, so a block added next month cannot fall out of coverage.
+  4 of the 11 blocks execute; the rest are fragments that reference the reader's own code.
+- **Aimed at the Python standard library** — 151 files nobody wrote to suit this project —
+  `TypedScope` flags 0.7% and `SilentSkip` 1.3%, against a stated 25% over-firing ceiling. The hits
+  are real: a hardcoded temp-directory list in `tempfile.py`, and `except: pass` around a check in
+  `platform.py` and `webbrowser.py`.
+- Wired as its own CI job, so it runs on every change rather than when somebody remembers.
+
+**The rehearsal was wrong twice before the library was.** Act 4 first reported that the headline
+feature did not block an unbacked claim. It does. The fixture was a bare text turn with no tool
+call, which `decide()` correctly ignores — a hook that nags small talk gets uninstalled. Rewritten
+with a `tool_use` block, it still passed, because the fixture said *"I edited core.py and fixed the
+parser"* and **a filename is evidence**: "a file and line" is one of the things the gate accepts.
+Both are recorded in comments where the fixture is built. A probe that names something you have
+just watched work is the probe being wrong.
+
 ### The part worth reading
 The discipline was already in the library everywhere except the one place it governs somebody
 else's code. Sweeping all four self-proof mechanisms: `Harness.selftest` asserts a clean run
