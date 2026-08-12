@@ -78,6 +78,92 @@ they were written to demonstrate: `demo.NeverFails` and the `Exploding` gate in 
 suite. Both now declare a guard case, so each is refused for its real defect again — returning
 clean on everything, and raising from `inspect()`.
 
+## [0.11.1]
+
+### Fixed
+- The publish workflow can be triggered manually. Re-running the failed 0.11.0 publish used the
+  workflow **as it existed at the tag**, which predated the token support, so it took the trusted
+  publishing branch again and failed identically. Without a manual trigger, correcting any
+  publishing problem costs a whole new release and the version number becomes a log of
+  infrastructure mistakes.
+
+## [0.11.0]
+
+First PyPI release, under the new name.
+
+### Added
+- `tests/test_hostile_input.py` — 252 to 311 tests. The suite proved the library did the right
+  thing on inputs that make sense; a stranger's data is nothing like ours. This feeds every surface
+  what it was not designed for: a 40 MB transcript, a 200,000-character line, a byte-order mark,
+  CRLF, emoji, right-to-left text, payload fields of the wrong type, four threads on one ledger.
+  The bar is absolute — nothing may raise an unexpected exception — because a gate that kills
+  somebody's turn gets uninstalled, and wrong-but-alive beats dead.
+
+### Fixed
+Three real defects, all found on the first hostile run:
+- `stop_hook` died on a non-string reply. Other runtimes send a number, a list of content blocks, a
+  nested dict. `_as_text()` now reads anything text-shaped and treats the rest as no text rather
+  than taking the turn down.
+- The ledger corrupted under concurrent writes — and multi-agent tracking is its entire purpose. A
+  plain write truncates then fills, so a reader hit an empty file. Now an `O_EXCL` lock file, a
+  re-read INSIDE the lock, and an atomic rename.
+- Windows-only: with the lock added, `os.replace` still raised `PermissionError`, because Windows
+  refuses a rename while a reader holds the file.
+
+## [0.10.0]
+
+### Changed
+- **Renamed to `claimproof`.** PyPI refuses a name a hyphen away from an existing project, and
+  `agent-attest` — an unrelated agent evaluator, on PyPI since 2026-06-19 — got there first.
+  `agentattest` was never published, so the cost of moving was only ours.
+- `src/agentattest` ships as a compatibility layer: every public name forwards, and
+  `agentattest.claude_code` stays RUNNABLE, because that exact command sits in real settings files.
+  A rename that silently stops guarding somebody's turns is the failure this library exists to
+  catch. `install()` upgrades a pre-rename hook entry in place instead of doubling it; `uninstall()`
+  removes either spelling.
+- The GitHub address 301s forever, so links already published still resolve.
+
+## [0.9.0]
+
+The most universal agent failure is not a wrong answer — it is request six of eight quietly never
+happening. The measured case behind this: a capture layer had recorded 1,318 user requests verbatim
+and not one had ever become a tracked item, so every completion check ran against an empty list and
+passed.
+
+### Added
+- `ledger.Ledger` — asks recorded verbatim (a paraphrase is where the third request in a compound
+  message goes to die), items closed only with evidence (bare claim-words like "done" are refused:
+  a claim cannot be its own receipt), skips carrying their reason on the record, nothing
+  auto-closing, state on disk so it survives the session that forgot. CLI for harnesses:
+  `ask|split|done|skip|show|gate`.
+- `ledger.NothingLeft` — a `Gate` that flags a claim of TOTAL completion while the ledger holds open
+  items, naming them. Partial, negated and hedged claims pass; a true "all done" over a clear list
+  passes. Its selftest runs against a FIXTURE ledger, never the live one — a clean live ledger must
+  not excuse a detector that can no longer detect.
+
+## [0.8.0]
+
+### Added
+- `claimproof.claude_code` — the one-command integration.
+  `hooks.stop_hook` was the raw adapter and expected the reply text handed to it. Claude Code's Stop
+  event does not carry the text; it carries a transcript path, and the reply has to be dug out of
+  the last assistant message. This module is that missing half, with the wiring learned from a hook
+  that had run in production for months rather than from documentation: the loop guard
+  (`stop_hook_active`), gating only turns that did real work, blocking via the JSON decision form,
+  and failing open on every error — while announcing the skip on stderr, never swallowing it, for
+  exactly the reason `gates.SilentSkip` exists.
+- `install` merges into `.claude/settings.json` without touching anyone else's hooks, twice adds one
+  entry not two, `uninstall` removes exactly ours, and an unparseable settings file is refused
+  loudly rather than replaced.
+
+---
+
+*0.8.0 through 0.11.1 were reconstructed on 2026-08-12 from the repository's own record and had been
+missing since they shipped. Only 0.11.0 and 0.11.1 were ever tagged, so the mapping comes from the
+`version` line in `pyproject.toml` at each commit — the one source that cannot disagree with what
+was actually built: 0.8.0 `1202f84`, 0.9.0 `7b25159`, 0.10.0 `4172433`, 0.11.0 `69d29ac`, 0.11.1
+`98cbda4`. Every entry above is drawn from those commits' own messages, not written from memory.*
+
 ## [0.7.0]
 
 The third instance of the same argument: a check that swallows its own failure, so the run's output
