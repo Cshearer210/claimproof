@@ -1,0 +1,544 @@
+{
+  "corruptions": [
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_customers_customer_id.5c9bf9911d",
+        "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa",
+        "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_customers_.c6ec7f58f2"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows arrive with id empty",
+      "table": "raw_customers",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.unique_customers_customer_id.c5af1ff4b1",
+        "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of raw_customers is loaded twice, so id is no longer unique",
+      "table": "raw_customers",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_customers_.c6ec7f58f2"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "drop_rows",
+      "story": "3 rows of raw_customers never arrive, and nothing errors",
+      "table": "raw_customers",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_customers_.c6ec7f58f2"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "empty_table",
+      "story": "raw_customers is empty -- the load never ran, and the table still exists",
+      "table": "raw_customers",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_customers_.c6ec7f58f2",
+        "test.jaffle_shop.unique_customers_customer_id.c5af1ff4b1",
+        "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a id that does not exist anywhere",
+      "table": "raw_customers",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_customers_.c6ec7f58f2"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "negative_amount",
+      "story": "id comes through negative, reversing the sign",
+      "table": "raw_customers",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "first_name",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "blank_required",
+      "story": "3 rows arrive with first_name empty",
+      "table": "raw_customers",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "first_name",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "unexpected_category",
+      "story": "first_name starts arriving as an unagreed value from upstream",
+      "table": "raw_customers",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "last_name",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "blank_required",
+      "story": "3 rows arrive with last_name empty",
+      "table": "raw_customers",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "last_name",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "unexpected_category",
+      "story": "last_name starts arriving as an unagreed value from upstream",
+      "table": "raw_customers",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59",
+        "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a",
+        "test.jaffle_shop.not_null_orders_order_id.cf6c17daed",
+        "test.jaffle_shop.not_null_stg_orders_order_id.81cfe2fe64"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows arrive with id empty",
+      "table": "raw_orders",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.unique_orders_order_id.fed79b3a6e",
+        "test.jaffle_shop.unique_stg_orders_order_id.e3b841c71a"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of raw_orders is loaded twice, so id is no longer unique",
+      "table": "raw_orders",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "id",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "drop_rows",
+      "story": "3 rows of raw_orders never arrive, and nothing errors",
+      "table": "raw_orders",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "id",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "empty_table",
+      "story": "raw_orders is empty -- the load never ran, and the table still exists",
+      "table": "raw_orders",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59",
+        "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a",
+        "test.jaffle_shop.unique_orders_order_id.fed79b3a6e",
+        "test.jaffle_shop.unique_stg_orders_order_id.e3b841c71a"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a id that does not exist anywhere",
+      "table": "raw_orders",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59",
+        "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "negative_amount",
+      "story": "id comes through negative, reversing the sign",
+      "table": "raw_orders",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_customer_id.c5f02694af"
+      ],
+      "column": "user_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows arrive with user_id empty",
+      "table": "raw_orders",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_customers_.c6ec7f58f2"
+      ],
+      "column": "user_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a user_id that does not exist anywhere",
+      "table": "raw_orders",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_customers_.c6ec7f58f2"
+      ],
+      "column": "user_id",
+      "detail": "",
+      "name": "negative_amount",
+      "story": "user_id comes through negative, reversing the sign",
+      "table": "raw_orders",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "order_date",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "blank_required",
+      "story": "3 rows arrive with order_date empty",
+      "table": "raw_orders",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "order_date",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "future_date",
+      "story": "order_date lands 100 years in the future, the shape of an epoch bug",
+      "table": "raw_orders",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "status",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "blank_required",
+      "story": "3 rows arrive with status empty",
+      "table": "raw_orders",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.accepted_values_orders_status__placed__shipped__completed__return_pending__returned.be6b5b5ec3",
+        "test.jaffle_shop.accepted_values_stg_orders_status__placed__shipped__completed__return_pending__returned.080fb20aad"
+      ],
+      "column": "status",
+      "detail": "",
+      "name": "unexpected_category",
+      "story": "status starts arriving as an unagreed value from upstream",
+      "table": "raw_orders",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_stg_payments_payment_id.c19cc50075"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows arrive with id empty",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.unique_stg_payments_payment_id.3744510712"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of raw_payments is loaded twice, so id is no longer unique",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59",
+        "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "drop_rows",
+      "story": "3 rows of raw_payments never arrive, and nothing errors",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59",
+        "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "empty_table",
+      "story": "raw_payments is empty -- the load never ran, and the table still exists",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.unique_stg_payments_payment_id.3744510712"
+      ],
+      "column": "id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a id that does not exist anywhere",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "id",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "negative_amount",
+      "story": "id comes through negative, reversing the sign",
+      "table": "raw_payments",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59",
+        "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a"
+      ],
+      "column": "order_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows arrive with order_id empty",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59",
+        "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a"
+      ],
+      "column": "order_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a order_id that does not exist anywhere",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59",
+        "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a"
+      ],
+      "column": "order_id",
+      "detail": "",
+      "name": "negative_amount",
+      "story": "order_id comes through negative, reversing the sign",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "payment_method",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "blank_required",
+      "story": "3 rows arrive with payment_method empty",
+      "table": "raw_payments",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.accepted_values_stg_payments_payment_method__credit_card__coupon__bank_transfer__gift_card.3c3820f278"
+      ],
+      "column": "payment_method",
+      "detail": "",
+      "name": "unexpected_category",
+      "story": "payment_method starts arriving as an unagreed value from upstream",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.jaffle_shop.not_null_orders_amount.106140f9fd",
+        "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625",
+        "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59"
+      ],
+      "column": "amount",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows arrive with amount empty",
+      "table": "raw_payments",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "amount",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "break_reference",
+      "story": "3 rows point at a amount that does not exist anywhere",
+      "table": "raw_payments",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "amount",
+      "detail": "every test still passed with corrupted data in the warehouse",
+      "name": "negative_amount",
+      "story": "amount comes through negative, reversing the sign",
+      "table": "raw_payments",
+      "verdict": "SURVIVED"
+    }
+  ],
+  "coverage_complete": true,
+  "dead_canaries": [],
+  "dead_canaries_provisional": [],
+  "killers": {
+    "test.jaffle_shop.accepted_values_orders_status__placed__shipped__completed__return_pending__returned.be6b5b5ec3": [
+      "unexpected_category"
+    ],
+    "test.jaffle_shop.accepted_values_stg_orders_status__placed__shipped__completed__return_pending__returned.080fb20aad": [
+      "unexpected_category"
+    ],
+    "test.jaffle_shop.accepted_values_stg_payments_payment_method__credit_card__coupon__bank_transfer__gift_card.3c3820f278": [
+      "unexpected_category"
+    ],
+    "test.jaffle_shop.not_null_customers_customer_id.5c9bf9911d": [
+      "blank_required"
+    ],
+    "test.jaffle_shop.not_null_orders_amount.106140f9fd": [
+      "blank_required",
+      "break_reference",
+      "drop_rows",
+      "empty_table",
+      "negative_amount"
+    ],
+    "test.jaffle_shop.not_null_orders_bank_transfer_amount.7743500c49": [
+      "blank_required",
+      "break_reference",
+      "drop_rows",
+      "empty_table",
+      "negative_amount"
+    ],
+    "test.jaffle_shop.not_null_orders_coupon_amount.ab90c90625": [
+      "blank_required",
+      "break_reference",
+      "drop_rows",
+      "empty_table",
+      "negative_amount"
+    ],
+    "test.jaffle_shop.not_null_orders_credit_card_amount.d3ca593b59": [
+      "blank_required",
+      "break_reference",
+      "drop_rows",
+      "empty_table",
+      "negative_amount"
+    ],
+    "test.jaffle_shop.not_null_orders_customer_id.c5f02694af": [
+      "blank_required"
+    ],
+    "test.jaffle_shop.not_null_orders_gift_card_amount.413a0d2d7a": [
+      "blank_required",
+      "break_reference",
+      "drop_rows",
+      "empty_table",
+      "negative_amount"
+    ],
+    "test.jaffle_shop.not_null_orders_order_id.cf6c17daed": [
+      "blank_required"
+    ],
+    "test.jaffle_shop.not_null_stg_customers_customer_id.e2cfb1f9aa": [
+      "blank_required"
+    ],
+    "test.jaffle_shop.not_null_stg_orders_order_id.81cfe2fe64": [
+      "blank_required"
+    ],
+    "test.jaffle_shop.not_null_stg_payments_payment_id.c19cc50075": [
+      "blank_required"
+    ],
+    "test.jaffle_shop.relationships_orders_customer_id__customer_id__ref_customers_.c6ec7f58f2": [
+      "blank_required",
+      "break_reference",
+      "drop_rows",
+      "empty_table",
+      "negative_amount"
+    ],
+    "test.jaffle_shop.unique_customers_customer_id.c5af1ff4b1": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.jaffle_shop.unique_orders_order_id.fed79b3a6e": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.jaffle_shop.unique_stg_customers_customer_id.c7614daada": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.jaffle_shop.unique_stg_orders_order_id.e3b841c71a": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.jaffle_shop.unique_stg_payments_payment_id.3744510712": [
+      "break_reference",
+      "duplicate_key"
+    ]
+  },
+  "mutations_applied": 37,
+  "mutations_missed": 13,
+  "mutations_noop": 0,
+  "mutations_planned": 37,
+  "mutations_undone": 0,
+  "never_executed": [],
+  "project": "C:\\Users\\Owner\\PureEuphoria\\claimproof\\packages\\deadcanary\\projects\\jaffle_shop_duckdb",
+  "seconds": 992.6,
+  "tables_available": [
+    "raw_customers",
+    "raw_orders",
+    "raw_payments"
+  ],
+  "tables_corrupted": [
+    "raw_customers",
+    "raw_orders",
+    "raw_payments"
+  ],
+  "tests_green": 20,
+  "tests_total": 20
+}
