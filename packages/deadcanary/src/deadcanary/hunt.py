@@ -189,18 +189,31 @@ class DbtProject:
                 if n.get("resource_type") == "model"}
 
     def test_results(self) -> dict[str, str]:
-        """Every test and its status, from dbt's own artifact.
+        """Every TEST and its status, from dbt's own artifact.
 
         Read from run_results.json rather than the console, because the console
         wording is prose and prose changes between releases. A tool that learns
         its answer by grepping another tool's output breaks silently the day that
         output is reworded.
+
+        **Tests only, and that word had to be earned.** This used to return every
+        node, so after a `dbt build` it carried the models as well -- and a run
+        then announced *"82 test(s) in the suite, 63 green"* for a project with 63
+        tests and nothing failing at all. It inflated the suite by every model in
+        the project and made a completely green run read as 19 failures. Measured
+        on adityawarmanfw/dbt_duckdb_chinook, whose 19 models are the whole gap.
+
+        The verdicts were never wrong: a model reports `success` where a test
+        reports `pass`, so the green set came out right by accident. **The
+        headline was wrong**, and in a tool whose entire argument is about not
+        overstating what you measured, the headline is the part that matters.
         """
         path = self.root / "target" / "run_results.json"
         if not path.is_file():
             return {}
         data = json.loads(path.read_text(encoding="utf-8"))
-        return {r["unique_id"]: r["status"] for r in data.get("results", [])}
+        return {r["unique_id"]: r["status"] for r in data.get("results", [])
+                if str(r["unique_id"]).startswith("test.")}
 
     # -- warehouse state ---------------------------------------------------
     def snapshot(self) -> None:
