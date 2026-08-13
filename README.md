@@ -34,13 +34,48 @@ This is **mutation testing** — decades old, well proven for source code
 [`cosmic-ray`](https://pypi.org/project/cosmic-ray/)) — pointed at data quality rules
 instead of at functions.
 
+## Try it in one minute
+
+The repo ships a tiny dbt project with **two deliberately useless tests planted in
+it**, so you can see the point without wiring anything up.
+
+```bash
+git clone https://github.com/Cshearer210/deadcanary
+cd deadcanary
+pip install -e .[dbt]
+
+cd demo && dbt build --profiles-dir . && cd ..   # 10 green tests
+python -m deadcanary demo
+```
+
+It finds both:
+
+```
+  2 of 7 green tests are DEAD CANARIES (29%)
+
+  Tests that cannot fail:
+    x accepted_values_stg_orders_status__placed__shipped__completed
+    x not_null_orders_amount
+```
+
+Neither is contrived. Look at `demo/models/stg_orders.sql`: it filters to
+`status in ('placed','shipped','completed')`, so the `accepted_values` test on
+that column can never see a bad value however broken the upstream data gets.
+And `demo/models/orders.sql` wraps the amount in `coalesce(amount, 0)`, so a NULL
+arriving from upstream becomes a zero before the `not_null` test ever looks. Both
+are ordinary, sensible-looking SQL. Both quietly disarm the test above them.
+
+The other five tests in that project are alive, and the run says which corruption
+killed each one.
+
 ## Install
 
 ```bash
-pip install deadcanary[dbt]
+pip install -e .[dbt]          # from a clone
 ```
 
-Runs locally against DuckDB. No warehouse credentials, no cloud spend, no model calls.
+Not on PyPI yet. Runs locally against DuckDB: no warehouse credentials, no cloud
+spend, no model calls.
 
 ## The three ways a tool like this lies, and what stops each one
 

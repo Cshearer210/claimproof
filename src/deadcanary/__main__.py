@@ -66,6 +66,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="machine-readable report on stdout")
     ap.add_argument("--quiet", action="store_true",
                     help="gate mode: exit 1 if any test is a dead canary")
+    ap.add_argument("--expect-dead", type=int, metavar="N",
+                    help="fail unless EXACTLY N dead canaries are found. The demo "
+                         "project carries two on purpose; CI asserts they are still "
+                         "found, so a broken tool cannot pass while the README "
+                         "still promises the demo works.")
     args = ap.parse_args(argv)
 
     try:
@@ -80,6 +85,19 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({k: v for k, v in report.items() if k != "outcomes"}, indent=2))
     elif not args.quiet:
         print(render(report))
+
+    if args.expect_dead is not None:
+        found = len(report["dead_canaries"])
+        if not report["coverage_complete"]:
+            print(f"deadcanary: coverage was not complete, so the count means nothing",
+                  file=sys.stderr)
+            return 2
+        if found != args.expect_dead:
+            print(f"deadcanary: expected {args.expect_dead} dead canaries, found {found}",
+                  file=sys.stderr)
+            return 1
+        print(f"deadcanary: {found} dead canaries, as expected")
+        return 0
 
     return 1 if report["dead_canaries"] else 0
 

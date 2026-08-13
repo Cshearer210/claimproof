@@ -127,14 +127,72 @@ def test_models_are_never_aimed_at(tmp_path):
 # --------------------------------------------------------- PARTIAL COVERAGE
 
 def test_a_partial_run_refuses_to_name_any_dead_canary(tmp_path):
-    """A test never given a chance to fire looks exactly like a dead one."""
+    """A test never given a chance to fire looks exactly like a dead one.
+
+    `limit` is high enough to get past the all-NULL `blanks` table, whose first
+    corruption is a no-op -- with only a no-op applied, nothing executed at all
+    and there is correctly nothing to report either way.
+    """
     root = _make_project(tmp_path)
     p = StubProject(root, HEALTHY)
-    report = hunt(p, limit=1, echo=False)
+    report = hunt(p, limit=6, echo=False)
 
     assert report["coverage_complete"] is False
     assert report["dead_canaries"] == [], "no figure may be claimed from a partial run"
     assert report["dead_canaries_provisional"], "but the provisional list is still kept"
+
+
+# ------------------------------------------------------- SKIPPED BY DBT
+
+class SkippingProject(StubProject):
+    """dbt's real behaviour: when one test fails, everything downstream is SKIPPED."""
+
+    def dbt(self, *args, timeout=1200):
+        # The FIRST call is the baseline, and a healthy suite is all green -- a
+        # project whose tests were already failing would be rejected before the
+        # hunt starts, so the skipping only begins once data is corrupted.
+        first = not self.calls
+        self.calls.append(args)
+        results = ([{"unique_id": "test.a", "status": "pass"},
+                    {"unique_id": "test.b", "status": "pass"}] if first else
+                   [{"unique_id": "test.a", "status": "fail"},
+                    {"unique_id": "test.b", "status": "skipped"}])
+        (self.root / "target" / "run_results.json").write_text(
+            json.dumps({"results": results}), encoding="utf-8")
+
+        class R:
+            returncode = 0 if first else 1
+        return R()
+
+
+def test_a_skipped_test_is_never_credited_with_a_catch(tmp_path):
+    """dbt skips downstream tests when one fails. A skip is not a catch.
+
+    Measured on the demo project: one genuine failure produced four skips, and
+    all four were recorded as having caught the corruption. That made the suite
+    look far more alive than it is and hid a real dead canary.
+    """
+    root = _make_project(tmp_path)
+    p = SkippingProject(root, HEALTHY)
+    p.dbt("build")          # consume the baseline call, as hunt() would
+    p.snapshot()
+
+    out = apply_one(p, _mutation(), HEALTHY)
+
+    assert out.verdict == KILLED
+    assert out.failing_tests == ("test.a",), "only the FAILING test may be credited"
+    assert "test.b" not in out.ran, "a skipped test did not execute"
+
+
+def test_a_test_skipped_in_every_run_is_unknown_not_dead(tmp_path):
+    """No chance to fire, no verdict -- the same rule as an uncorrupted table."""
+    root = _make_project(tmp_path)
+    p = SkippingProject(root, HEALTHY)
+    report = hunt(p, echo=False)
+
+    assert "test.b" in report["never_executed"]
+    assert "test.b" not in report["dead_canaries"],         "a test dbt never ran cannot be called decorative"
+    assert report["coverage_complete"] is False, "a run with unexecuted tests is not whole"
 
 
 def test_a_complete_run_does_name_them(tmp_path):

@@ -55,6 +55,9 @@ class Outcome:
     rows_changed: int
     failing_tests: tuple[str, ...] = ()
     detail: str = ""
+    #: Tests that actually executed under this corruption. A test dbt skipped is
+    #: absent here, and absence is why it can never be called a dead canary.
+    ran: frozenset = dataclasses.field(default_factory=frozenset)
 
 
 class DbtProject:
@@ -147,10 +150,20 @@ def rebuild_and_test(project: DbtProject) -> subprocess.CompletedProcess:
     corruption stands in for bad data arriving from upstream, so the right
     simulation is: the raw table is now wrong, push it through the pipeline.
     """
-    # One invocation, not two. dbt's start-up and parse dominate the cost -- 8.7s of a
-    # 9s call on the reference project -- so running `run` then `test` separately pays
-    # it twice and doubles the length of the whole hunt for nothing.
-    return project.dbt("build", "--exclude-resource-type", "seed")
+    # TWO invocations, deliberately, and this is not an oversight to optimise away.
+    #
+    # `dbt build` interleaves models and tests and STOPS THE CHAIN when a test fails:
+    # every test downstream of the failure is skipped. A skipped test did not run, so
+    # it cannot be credited with a catch -- and it also cannot be called dead, because
+    # it was never given a chance. Measured on the demo project: a single `build` left
+    # two tests unexecuted under exactly the corruptions that would have killed them,
+    # and both were then reported as dead canaries. Two of four findings were false.
+    #
+    # `run` then `test` builds every model first, so every test executes every time
+    # and each one is judged on its own behaviour. It costs a second dbt start-up per
+    # corruption. Correctness is worth more than the second.
+    project.dbt("run")
+    return project.dbt("test")
 
 
 def apply_one(project: DbtProject, mutation: Mutation, healthy: dict[str, str]) -> Outcome:
@@ -196,13 +209,25 @@ def apply_one(project: DbtProject, mutation: Mutation, healthy: dict[str, str]) 
         return Outcome(mutation, BROKE, changed,
                        detail=f"dbt produced no results at all (exit {r.returncode})")
 
+    # ONLY a real failure counts as a catch.
+    #
+    # When one test fails, dbt SKIPS every test downstream of it. Counting a skip
+    # as a catch credits tests that never executed -- measured on the demo project:
+    # one genuine failure produced four skips, and all four were recorded as having
+    # caught the corruption. That inflates how alive the suite looks and hides real
+    # dead canaries; it hid one of the two the demo was built to contain.
+    #
+    # `error` is excluded for the same reason: the test broke, it did not fire.
     now_failing = tuple(sorted(
         tid for tid, status in after_status.items()
-        if status != "pass" and healthy.get(tid) == "pass"
+        if status == "fail" and healthy.get(tid) == "pass"
     ))
+    # Which tests actually EXECUTED, so a test that was only ever skipped is never
+    # called dead -- it was never given a chance, exactly like an uncorrupted table.
+    ran = frozenset(tid for tid, status in after_status.items() if status in ("pass", "fail"))
     if now_failing:
-        return Outcome(mutation, KILLED, changed, now_failing)
-    return Outcome(mutation, SURVIVED, changed,
+        return Outcome(mutation, KILLED, changed, now_failing, ran=ran)
+    return Outcome(mutation, SURVIVED, changed, ran=ran,
                    detail="every test still passed with corrupted data in the warehouse")
 
 
@@ -274,7 +299,15 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
     available_tables = {t.table for t in targets}
     complete = (not limit) and corrupted_tables >= available_tables
 
-    dead = sorted(t for t in live if not killers.get(t))
+    # A test that dbt SKIPPED in every corruption never executed, so it cannot be
+    # called dead any more than a test whose table was never corrupted can. Same
+    # rule as partial coverage, one level down: no chance to fire, no verdict.
+    ever_ran = set()
+    for o in outcomes:
+        ever_ran |= o.ran
+    never_ran = sorted(t for t in live if t not in ever_ran)
+
+    dead = sorted(t for t in live if not killers.get(t) and t in ever_ran)
     applied = [o for o in outcomes if o.verdict in (KILLED, SURVIVED, BROKE)]
     undone = [o for o in outcomes if o.verdict == UNDONE]
     missed = [o for o in outcomes if o.verdict == SURVIVED]
@@ -286,7 +319,8 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
         "tests_green": len(live),
         "dead_canaries": dead if complete else [],
         "dead_canaries_provisional": [] if complete else dead,
-        "coverage_complete": complete,
+        "coverage_complete": complete and not never_ran,
+        "never_executed": never_ran,
         "tables_corrupted": sorted(corrupted_tables),
         "tables_available": sorted(available_tables),
         "mutations_planned": len(mutations),

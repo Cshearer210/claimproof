@@ -5,6 +5,9 @@ dist/
 build/
 .pytest_cache/
 projects/
+demo/target/
+demo/*.duckdb
+demo/logs/
 deadcanary-report.json
 full_run.txt
 *.duckdb
