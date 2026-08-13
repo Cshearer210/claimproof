@@ -34,6 +34,19 @@ This is **mutation testing** — decades old, well proven for source code
 [`cosmic-ray`](https://pypi.org/project/cosmic-ray/)) — pointed at data quality rules
 instead of at functions.
 
+## What it found in dbt-labs' own projects
+
+**6 of 20 green tests in dbt-labs' current jaffle-shop template cannot fail.**
+Among them `unique_orders_order_id` and `not_null_orders_order_id` — the two most
+common tests in dbt. 102 corruptions were applied to that project and **76 caught
+nothing at all.**
+
+In the older `jaffle_shop_duckdb`, every test earns its place — and yet
+**emptying `raw_orders` entirely, 99 rows to 0, leaves all 20 tests green.**
+
+Both numbers are reproducible, and the limits of what they mean are stated:
+[FINDINGS.md](FINDINGS.md).
+
 ## Try it in one minute
 
 The repo ships a tiny dbt project with **two deliberately useless tests planted in
