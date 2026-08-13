@@ -138,6 +138,31 @@ Full detail: `packages/deadcanary/HANDOFF.md`.
 
 ---
 
+## IN FLIGHT WHEN THE SESSION ENDED — 2026-08-13
+
+**PR #28 is open and green-in-progress.** It is this file's own update recording
+that Tier 1.1 shipped. Nothing depends on it; merge it first thing and the repo
+matches reality. `gh pr merge 28 --squash --delete-branch`
+
+**Nothing else is in flight.** Both packages are published and verified, both
+repos are in their final state, and the session ledger closed 10 of 10 items.
+
+## HOW TO WORK ON THIS PROJECT
+
+Chris, 2026-08-13, after a session that kept going: *"stop fucking working after
+you do the handoff... just add everything to the plan and do a last handoff and
+STOP WORKING."* And: *"i will not save that prompt."*
+
+1. **A handoff ends the session.** Do not keep working after writing one, and do
+   not hand him a copy-paste launch prompt he did not ask for. Armed as
+   correction case `733a14b239`.
+2. **Everything unfinished belongs in THIS FILE**, not in a closing message he
+   has already stopped reading.
+3. **The lesson from the day this was written:** hours were spent proving the
+   package *installed* — which it did the whole time — while the thing he
+   actually asked for was that a stranger can land on it and use it. Verify the
+   thing a user touches, not the thing that is easy to check.
+
 ## OPEN QUESTIONS FOR CHRIS
 
 1. **Should deadcanary support warehouses other than DuckDB?** Today it is DuckDB
