@@ -11,3 +11,5 @@ demo/logs/
 deadcanary-report.json
 full_run.txt
 *.duckdb
+demo/.user.yml
+demo/*.bak
