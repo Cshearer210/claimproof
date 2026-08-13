@@ -77,7 +77,35 @@ pip install -e .[dbt]          # from a clone
 Not on PyPI yet. Runs locally against DuckDB: no warehouse credentials, no cloud
 spend, no model calls.
 
-## The three ways a tool like this lies, and what stops each one
+## Two kinds of project, one report
+
+Where a project's raw data lives decides what there is to break.
+
+**Data in the warehouse.** Seeds and source tables get corrupted in the database.
+Models are never touched, because dbt rebuilds them from source and the damage
+would be gone before a single test ran.
+
+**Data in files.** A lot of real dbt work never loads raw data at all -- a
+dbt-duckdb source can point straight at a CSV:
+
+```yaml
+sources:
+  - name: raw_orders
+    meta:
+      external_location: "read_csv_auto('./jaffle-data/{name}.csv', header=1)"
+```
+
+dbt-labs' own current jaffle-shop template is built this way, and against a
+project like that the warehouse holds nothing but models. So the file *is* the
+raw table, and it gets corrupted the same way, with the same named corruptions
+and the same stories. Paths come from dbt's manifest rather than from parsing the
+YAML, every file is copied aside first, and every one is restored byte for byte.
+
+Parquet sources are recognised and declined rather than skipped quietly. A
+project with nothing corruptible at all is refused out loud with exit 2 -- cannot
+tell -- never exit 0, which would read as "your tests are fine".
+
+## The five ways a tool like this lies, and what stops each one
 
 This is the interesting part, and it is most of the work. A tool that corrupts data and
 counts silence has three easy ways to produce an impressive number that means nothing.
@@ -101,6 +129,18 @@ watching the untouched data has "never failed" — indistinguishable from a genu
 one.
 → coverage is tracked per table, and **no dead-canary figure is claimed at all** unless
 every discovered table was actually corrupted.
+
+**4. dbt skipped the test.** When one test fails, dbt skips everything downstream of it.
+A skipped test neither caught the problem nor missed it — it never ran. Counting a skip as
+a catch made one real failure credit four tests that never executed.
+→ only a genuine `fail` counts, models and tests are run in separate passes so nothing is
+skipped in the first place, and a test skipped everywhere is reported as never-executed.
+
+**5. There was nothing to corrupt.** Point it at a project whose raw data lives in files
+and, before file support existed, it discovered zero tables and reported a completed run
+with no findings. Exit 0. It looked exactly like a healthy project.
+→ **`NothingToCorrupt`, and the CLI exits 2 — cannot tell.** A tool arguing that absent
+and fine must never look like present and fine was doing precisely that about itself.
 
 Each of those turns a flattering lie into an honest gap. That is the entire design.
 
