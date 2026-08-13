@@ -34,7 +34,7 @@ This is **mutation testing** — decades old, well proven for source code
 [`cosmic-ray`](https://pypi.org/project/cosmic-ray/)) — pointed at data quality rules
 instead of at functions.
 
-## What it found in dbt-labs' own projects
+## What it found in three real dbt projects
 
 **6 of 20 green tests in dbt-labs' current jaffle-shop template cannot fail.**
 Among them `unique_orders_order_id` and `not_null_orders_order_id` — the two most
@@ -44,7 +44,19 @@ nothing at all.**
 In the older `jaffle_shop_duckdb`, every test earns its place — and yet
 **emptying `raw_orders` entirely, 99 rows to 0, leaves all 20 tests green.**
 
-Both numbers are reproducible, and the limits of what they mean are stated:
+And in `adityawarmanfw/dbt_duckdb_chinook`, by an independent author and building
+completely unmodified: **0 dead canaries — every one of its 63 tests can be made
+to fail — and 182 of the 255 corruptions applied, 71%, were caught by nothing.**
+That suite is 53 `not_null` and 10 `unique` tests, so it catches nulls and
+duplicates and very little else. **Every one of its eleven source tables can be
+emptied completely and all 63 tests stay green.**
+
+**Zero dead canaries is not a clean bill of health**, and that project is the
+proof. The two questions are different: *can this test fail?* and *what is nobody
+watching?*
+
+All three are reproducible, the raw report for the newest is committed in
+[findings/](findings/), and the limits of what any of it means are stated:
 [FINDINGS.md](FINDINGS.md).
 
 ## Try it in one minute
