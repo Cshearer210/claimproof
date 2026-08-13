@@ -50,3 +50,16 @@ jobs:
         run: cd demo && dbt build --profiles-dir .
       - name: the demo must still find its planted dead canaries
         run: python -m deadcanary demo --expect-dead 2
+
+  # Nothing else here reads the README. Documentation rots on its own schedule:
+  # a quickstart can name a flag renamed two releases ago while every test passes.
+  # This types what the README says and fails if it does not work.
+  readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e .[dbt]
+      - run: python tools/readme_runs.py --selftest
+      - run: python tools/readme_runs.py

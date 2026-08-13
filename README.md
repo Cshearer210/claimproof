@@ -39,6 +39,7 @@ instead of at functions.
 The repo ships a tiny dbt project with **two deliberately useless tests planted in
 it**, so you can see the point without wiring anything up.
 
+<!-- readme: run -->
 ```bash
 git clone https://github.com/Cshearer210/deadcanary
 cd deadcanary
@@ -70,6 +71,7 @@ killed each one.
 
 ## Install
 
+<!-- readme: illustration -->
 ```bash
 pip install -e .[dbt]          # from a clone
 ```
