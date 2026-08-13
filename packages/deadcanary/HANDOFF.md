@@ -13,16 +13,18 @@ that makes sense."*
 |---|---|
 | Home | `Cshearer210/claimproof`, `main` clean and green |
 | Locally | `PureEuphoria/claimproof`, with deadcanary at `packages/deadcanary` |
-| Tests | **316** claimproof + **76** deadcanary, both from a clean venv |
+| Tests | **316** claimproof + **77** deadcanary, both from a clean venv |
 | CI | 17 jobs |
-| PyPI | `claimproof` **0.13.0 published** · `deadcanary` **approved, not yet released** |
+| PyPI | `claimproof` **0.14.0** · `deadcanary` **0.1.0** — both published 2026-08-13 |
 
 `pip install claimproof` is the library. `claimproof[dbt]` is both halves.
 `pip install deadcanary` still works on its own — two downloads, one repo.
 
-**`Cshearer210/deadcanary` is a fossil.** Its README says so. A change made there
-reaches nothing. It was kept rather than deleted because inbound links and its
-history point at it.
+**`Cshearer210/deadcanary` is ARCHIVED** (read-only on GitHub, 2026-08-13). Its
+description and README both say where the work went. History and inbound links
+survive; nothing can be pushed there. The local checkout that used to sit at
+`PureEuphoria/deadcanary` is **gone** — 528 MB, proven behind everywhere and
+ahead nowhere before it was removed.
 
 ## THE TWO OPEN QUESTIONS ARE ANSWERED — do not ask them again
 
@@ -74,7 +76,7 @@ MORE impressive than the truth.
 5. **NOTHING TO CORRUPT** — raises `NothingToCorrupt`, CLI exits 2 (cannot tell),
    never 0.
 
-## THREE MORE DEFECTS, FOUND 2026-08-13 BY MEASURING A THIRD PROJECT
+## FOUR MORE DEFECTS, FOUND 2026-08-13 BY MEASURING A THIRD PROJECT
 
 The first two made the tool **refuse healthy projects and blame the project**.
 
@@ -101,6 +103,14 @@ The first two made the tool **refuse healthy projects and blame the project**.
    whole method silently did nothing and the tool reverted to the guess it exists
    to replace. It passed here only because dbt drags PyYAML in. **CI caught it
    within a minute.** Declared now, and the swallow is gone.
+9. **Models were counted as tests.** A run announced *"82 test(s) in the suite,
+   63 green"* for a project with 63 tests and nothing failing: `dbt build` writes
+   models and tests into one artifact and `test_results()` read both. It inflated
+   the suite by every model and made a clean run read as 19 failures. The
+   verdicts were never affected — a model reports `success` where a test reports
+   `pass`, so the green set was right by accident — but **the headline is the
+   number a reader takes away.** Held down by
+   `test_models_are_never_counted_as_tests`.
 
 ## AND THE MERGE ITSELF SWITCHED TWO CHECKS OFF
 
@@ -111,63 +121,66 @@ says, stopped running the moment the merge landed — while the file sat in the
 tree looking exactly like coverage. Both are root jobs now
 (`deadcanary-demo`, `deadcanary-readme`) and the orphaned file is deleted.
 
-## IN FLIGHT RIGHT NOW
+## THE THIRD PROJECT, MEASURED
 
-**The third project's measurement is still running** —
-`adityawarmanfw/dbt_duckdb_chinook`, 19 models, **63 tests** (53 `not_null`, 10
-`unique`), 11 CSV sources, **289 planned corruptions** at roughly 30 seconds each
-because every one is a full dbt rebuild plus a test run. Started 13:35 local,
-expect ~2.5 hours. It writes `deadcanary-report.json` beside the project when
-done. **`FINDINGS.md` has NOT been updated with it — no numbers exist yet, and
-none may be written until that file lands.**
+`adityawarmanfw/dbt_duckdb_chinook` — independent author, real relational schema,
+and it builds **completely unmodified**, which the dbt-labs template measurement
+could never claim.
 
-How it was set up, which is the part worth not re-deriving:
+| | |
+|---|---|
+| Green tests | 63 |
+| **Tests no corruption could make fail** | **0** |
+| Corruptions applied | 255 of 289 planned (34 no-op, 0 undone) |
+| **Corruptions nothing caught** | **182 — 71%** |
+| Run time | 115 minutes |
+
+**The finding is the second number.** The suite is 53 `not_null` and 10 `unique`
+tests; it caught nulls and duplicates and missed everything else. **Every one of
+its eleven source tables can be emptied completely and all 63 tests stay green.**
+
+The raw report is committed at `findings/chinook-2026-08-13.json`, so any number
+in `FINDINGS.md` can be checked by reading rather than by re-running two hours of
+dbt. The two dbt-labs projects predate that folder and their raw reports were not
+kept — reproducible from the commands in FINDINGS.md, but the artifacts are gone.
+
+**To measure a fourth project**, the setup that worked:
 
 ```bash
-cd packages/deadcanary/projects
-git clone https://github.com/adityawarmanfw/dbt_duckdb_chinook.git
-py -m venv .venv-chinook
-./.venv-chinook/Scripts/python.exe -m pip install "dbt-duckdb~=1.9.0" "duckdb==1.1.3"
-cd dbt_duckdb_chinook
-../.venv-chinook/Scripts/python.exe -m dbt.cli.main deps --profiles-dir .
-../.venv-chinook/Scripts/python.exe -m dbt.cli.main run-operation stage_external_sources --profiles-dir .
-../.venv-chinook/Scripts/python.exe -m dbt.cli.main build --profiles-dir .   # 82 pass, 0 error
-../.venv-chinook/Scripts/python.exe -m deadcanary .
+cd packages/deadcanary/projects          # gitignored; clones live here
+git clone <the project>
+py -m venv .venv-<name>
+./.venv-<name>/Scripts/python.exe -m pip install "dbt-duckdb~=1.9.0" deadcanary
 ```
 
-**duckdb is pinned to 1.1.3 on purpose.** The project's `dim_date` model does
-`date_trunc('week', ...) + 6`, which modern duckdb refuses with a binder error.
-Pinning is what lets the project build **completely unmodified** — no model and
-no test is touched, which is a stronger position than the jaffle-shop-template
-measurement, where a withdrawn dependency had to be removed.
+**Pin duckdb to the era the project was written for.** chinook needed
+`duckdb==1.1.3` because its `dim_date` does `date_trunc('week', ...) + 6`, which
+current duckdb refuses. Pinning is what let it build with nothing edited.
 
 ## WHAT IS NOT DONE
 
-1. **The PyPI release has not been cut.** Publishing is approved and the workflow
-   is ready and tested; it fires on a published GitHub release, or by
-   `workflow_dispatch`. Recorded in the workflow: a token scoped to the
-   *claimproof project* cannot create a new project, so the first `deadcanary`
-   upload may 403 while claimproof succeeds. That is a credential scope, not a
-   broken workflow, and the fix is an account-scoped token or a pending publisher
-   for `deadcanary` at pypi.org — **both are browser steps only Chris can do.**
-2. **`FINDINGS.md` still describes two projects**, both dbt-labs. See above.
-3. **Parquet sources are declined, not corrupted.** Recognised and reported,
-   never silently skipped. Real work for whoever wants it.
-4. **The local `PureEuphoria/deadcanary` checkout is now a duplicate** of
-   `claimproof/packages/deadcanary`. It is only still there because the
-   measurement is running inside it. Once that finishes it should go, along with
-   `projects/` (cloned third-party dbt projects and a venv, all re-creatable from
-   the commands above).
+1. **Parquet sources are declined, not corrupted.** Recognised and reported, never
+   silently skipped. Real work for whoever wants it.
+2. **No production dbt suite has ever been measured.** All three projects are
+   demonstrations. `FINDINGS.md` says so plainly and no claim about "data tests in
+   the wild" is made anywhere.
+3. **The two dbt-labs raw reports were never kept.** See above.
+4. **`--attest` re-runs the whole hunt.** It rides free on an existing run
+   (`--expect-dead 2 --attest` is one hunt), but there is no way to record a proof
+   from a report already on disk. Fine today; it would matter for a big project.
 
-## DECISIONS WAITING ON CHRIS
+## DECISIONS: ALL ANSWERED, NOTHING WAITING
 
-Both are instant and public with no review step, which is why they were not taken:
+Nothing is blocked on Chris. For the record, resolved 2026-08-13:
 
-1. **The repo's public description and topics still describe only claimproof** —
-   no mention of dbt or data tests, so somebody finding it sees half of what is
-   in it. Recommend updating both.
-2. **Archive `Cshearer210/deadcanary` on GitHub?** Its README already says the
-   work moved. Archiving makes that unmissable and is reversible. Recommend yes.
+- **Publish to PyPI?** Yes — both are live.
+- **Which is the resume artifact?** Neither alone; they were combined.
+- **Repo description and topics?** Updated to cover both packages, plus six new
+  topics (dbt, data-quality, mutation-testing, data-engineering, duckdb,
+  analytics-engineering).
+- **Archive the old repo?** Yes. Chris: *"why would we not archive the old
+  versions"* — and he was right that the question was badly worded: the thing
+  archived is the OLD standalone repo, never the new combined build.
 
 ## TRAPS THAT COST TIME
 
@@ -188,7 +201,7 @@ Both are instant and public with no review step, which is why they were not take
 ```bash
 cd claimproof
 py -m pytest tests -q                                   # 316
-py -m pytest packages/deadcanary/tests -q               # 76
+py -m pytest packages/deadcanary/tests -q               # 77
 py tools/fresh_eyes.py                                  # the claimproof README, typed out
 py packages/deadcanary/tools/readme_runs.py --selftest   # prove the README check can fail
 cd packages/deadcanary
