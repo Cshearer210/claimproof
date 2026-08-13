@@ -1,108 +1,197 @@
-# HANDOFF — deadcanary and claimproof, 2026-08-13
+# HANDOFF — claimproof and deadcanary, 2026-08-13 (evening)
 
-Written after a long session that compacted. Everything below was verified by
-running it, not recalled.
+Everything below was verified by running it, not recalled. Where something is
+still in flight it says so rather than being written as finished.
 
-## Where both repos stand
+## THEY ARE ONE REPO NOW
 
-| | claimproof | deadcanary |
-|---|---|---|
-| GitHub | `Cshearer210/claimproof`, main clean | `Cshearer210/deadcanary`, main clean |
-| Tests | 316 pass | 55 pass |
-| CI | 12 jobs green | 11 jobs green |
-| Published | **PyPI 0.13.0** | **not on PyPI** — deliberate, see below |
-| Local | `PureEuphoria/claimproof` | `PureEuphoria/deadcanary` |
+Chris, 2026-08-13: *"i want deadcanary and claimproof to be combined and both
+used as the things people download. they should be combined in a skillful way
+that makes sense."*
 
-Neither has uncommitted work. Both were verified from a clean clone in a fresh
-virtual environment, following their own READMEs command for command.
+| | |
+|---|---|
+| Home | `Cshearer210/claimproof`, `main` clean and green |
+| Locally | `PureEuphoria/claimproof`, with deadcanary at `packages/deadcanary` |
+| Tests | **316** claimproof + **76** deadcanary, both from a clean venv |
+| CI | 17 jobs |
+| PyPI | `claimproof` **0.13.0 published** · `deadcanary` **approved, not yet released** |
 
-## What deadcanary is
+`pip install claimproof` is the library. `claimproof[dbt]` is both halves.
+`pip install deadcanary` still works on its own — two downloads, one repo.
 
-Mutation testing pointed at dbt data quality rules. It corrupts the data on
-purpose and reports which tests never noticed — the **dead canaries**, tests that
-are green every morning and cannot fail.
+**`Cshearer210/deadcanary` is a fossil.** Its README says so. A change made there
+reaches nothing. It was kept rather than deleted because inbound links and its
+history point at it.
 
-**The measured findings, in `FINDINGS.md`:**
+## THE TWO OPEN QUESTIONS ARE ANSWERED — do not ask them again
 
-- **dbt-labs/jaffle-shop-template: 6 of 20 green tests cannot fail (30%).**
-  102 corruptions applied, 76 caught nothing. Among the dead:
-  `unique_orders_order_id` and `not_null_orders_order_id`.
-- **dbt-labs/jaffle_shop_duckdb: 0 dead canaries**, but emptying `raw_orders`
-  entirely (99 rows to 0) leaves all 20 tests green.
-- `demo/` in the repo carries **two dead canaries planted on purpose**, and CI
-  asserts they are still found (`--expect-dead 2`).
+1. ~~Publish deadcanary to PyPI?~~ **YES**, Chris, 2026-08-13. The publish
+   workflow handles both packages; the release has not been cut yet (see below).
+2. ~~Which is the resume artifact?~~ **NEITHER ALONE — combine them**, and that
+   is what the whole of this handoff describes.
 
-## The five ways this tool can lie, all of them found by real use
+## What the two things are, and why they are one idea
 
-Every one made the tool look MORE impressive than the truth. This is the part
-worth protecting — if a future session "optimises" any of it, the numbers become
-fiction:
+claimproof refuses a claim of success that carries no evidence a machine can
+check. **"All 20 data tests pass" is exactly such a claim**, and green is equally
+what a test that *cannot fail* looks like, every morning, for two years.
+deadcanary settles which one you have by corrupting real data on purpose.
+
+**The seam is code, in `src/deadcanary/gate.py`:**
+
+- `GreenTestsUnproven` — a claimproof `Gate`. Refuses a claim of data-test health
+  unless a complete deadcanary run backs it. Six selftest cases, **four of them
+  guards**, because a gate that reaches into claims it has no business in gets
+  switched off and then catches nothing at all.
+- `attest()` / `recheck()` — the proof EXPIRES. It is fingerprinted against the
+  test **suite** (every test, its kind, what it hangs off, every source), so
+  adding a test reopens the claim on its own. **Proven both ways on the real demo
+  project, not a fixture:** recorded → HOLDS exit 0; one test added → REOPENED
+  exit 1 naming `dbt:test-suite`; file restored → HOLDS again, which also shows
+  the fingerprint is content and not a timestamp.
+- It deliberately ignores dbt's run metadata. `manifest.json` carries a fresh
+  timestamp and invocation id on every build, so fingerprinting the file would
+  reopen the claim after every run — a checker crying wolf, which gets switched
+  off within a week.
+
+## THE FIVE WAYS THIS TOOL CAN LIE — do not "optimise" any of them
+
+Every one was a real defect found by real use, and every one made the tool look
+MORE impressive than the truth.
 
 1. **NO-OP** — a corruption that changed no rows is never a miss.
-2. **UNDONE-BY-REBUILD** — dbt regenerates models, so a corruption aimed at one is
-   wiped before any test runs. *The first version reported 20 of 20 tests dead
+2. **UNDONE-BY-REBUILD** — dbt regenerates models, so a corruption aimed at one
+   is wiped before any test runs. *The first version reported 20 of 20 tests dead
    for this reason and it read as a spectacular finding.* Models are never
    targeted, and the corruption is re-checked after the run.
 3. **PARTIAL COVERAGE** — a run that did not corrupt every source names no dead
    canaries at all.
-4. **SKIPPED BY DBT** — when a test fails, dbt skips everything downstream. Only a
-   genuine `fail` counts. **`hunt.py` runs `dbt run` then `dbt test` as two calls
-   on purpose; someone folded that into one `dbt build` and it made 2 of 4
+4. **SKIPPED BY DBT** — when a test fails, dbt skips everything downstream. Only
+   a genuine `fail` counts. **`hunt.py` runs `dbt run` then `dbt test` as two
+   calls on purpose; someone folded that into one `dbt build` and it made 2 of 4
    findings false.** Do not undo it.
 5. **NOTHING TO CORRUPT** — raises `NothingToCorrupt`, CLI exits 2 (cannot tell),
    never 0.
 
-## What is NOT done
+## THREE MORE DEFECTS, FOUND 2026-08-13 BY MEASURING A THIRD PROJECT
 
-**1. deadcanary is not on PyPI.** The README says `pip install -e .[dbt]` from a
-clone, which is accurate. Publishing is Chris's call — it is outward-facing and
-he has not been asked. `claimproof` publishes on a GitHub release; deadcanary has
-no publish workflow yet.
+The first two made the tool **refuse healthy projects and blame the project**.
 
-**2. Only two projects measured, both dbt-labs teaching projects.** `FINDINGS.md`
-states this limit plainly. A third project from a different author would make the
-finding much stronger, and would want its own dbt version in its own venv —
-`jaffle-shop-template` needed dbt 1.8 and its withdrawn `dbt-labs/metrics`
-dependency removed.
+6. **The warehouse is wherever the PROFILE says it is.** Searching the disk for a
+   `.duckdb` is a guess, and it was wrong in both directions:
+   `adityawarmanfw/dbt_duckdb_chinook` writes to `./target/chinook.duckdb`, which
+   the search skipped as a build artifact — then told the user to run
+   `dbt seed && dbt run`, which they had just done.
+   `matsonj/nba-monte-carlo` keeps its warehouse OUTSIDE the project, where no
+   search under the root can ever reach. Now read from the profile, with the
+   search as a fallback only when the answer is not certain (no profile, Jinja in
+   the path, a file not yet built). **`dbt-labs/jaffle-shop-template` templates
+   its path, so it still takes the fallback — that is a guard case in the tests.**
+7. **A source location is written in THREE places** and the tool knew one.
+   `meta.external_location` wrapped in `read_csv_auto()` was the only shape read;
+   `sdebruyn/inzight` writes the same key as a **bare path**, and the
+   `dbt-external-tables` package writes `external.location` with an empty `meta`.
+   Both are real projects whose raw data sat in plain sight while this reported
+   NOTHING TO CORRUPT — a verdict that reads as *your project is fine*.
+   The guard matters: once a bare string counts as a path, a bucket, a URL or a
+   plain warehouse table name must all be turned away.
+8. **PyYAML was an accident, not a dependency.** Reading the profile was wrapped
+   in `except ImportError: return None`, so on any machine without PyYAML the
+   whole method silently did nothing and the tool reverted to the guess it exists
+   to replace. It passed here only because dbt drags PyYAML in. **CI caught it
+   within a minute.** Declared now, and the swallow is gone.
 
-**3. Parquet sources are declined, not corrupted.** Recognised and reported, never
-silently skipped. Real work for whoever wants it.
+## AND THE MERGE ITSELF SWITCHED TWO CHECKS OFF
 
-**4. No `deadcanary` entry in `SYSTEM-MAP.md`.** claimproof is routed; this is not.
+`git subtree` brought `packages/deadcanary/.github/workflows/ci.yml` along, and
+**GitHub runs only workflows at the repository ROOT.** So the check that the demo
+still finds its two planted dead canaries, and the one that types what the README
+says, stopped running the moment the merge landed — while the file sat in the
+tree looking exactly like coverage. Both are root jobs now
+(`deadcanary-demo`, `deadcanary-readme`) and the orphaned file is deleted.
 
-## Traps that cost time in this session
+## IN FLIGHT RIGHT NOW
 
-- **`PureEuphoria/claimproof` used to be called `agentattest`.** Renamed 2026-08-12.
-  A drive search for "claimproof" once failed and a second clone got made. Ask pip
-  where a package lives, never the filesystem.
-- **Both repos protect `main`.** A direct push is rejected; it must be a PR with
-  passing checks. `gh pr create` then `gh pr merge --squash`.
-- **Pushing needs the `Cshearer210` account.** `gh auth switch --user Cshearer210`,
-  and switch back to `noredfarms` afterwards. deadcanary's local git config carries
-  the credential helper.
-- **`pytest -q | tail -1 && git commit` hides failures** — the pipe reports
-  `tail`'s status. Three collection errors got committed that way.
-- **`bash` on this laptop resolves to WSL**, which has none of the checkout.
-  `tools/readme_runs.py` runs argv directly for this reason.
+**The third project's measurement is still running** —
+`adityawarmanfw/dbt_duckdb_chinook`, 19 models, **63 tests** (53 `not_null`, 10
+`unique`), 11 CSV sources, **289 planned corruptions** at roughly 30 seconds each
+because every one is a full dbt rebuild plus a test run. Started 13:35 local,
+expect ~2.5 hours. It writes `deadcanary-report.json` beside the project when
+done. **`FINDINGS.md` has NOT been updated with it — no numbers exist yet, and
+none may be written until that file lands.**
 
-## The commands
+How it was set up, which is the part worth not re-deriving:
 
 ```bash
-cd deadcanary
-py -m pytest tests/ -q                    # 55
-py tools/readme_runs.py --selftest        # prove the README check can fail
-py tools/readme_runs.py                   # type what the README says
-py -m deadcanary demo --expect-dead 2     # the planted canaries are still found
+cd packages/deadcanary/projects
+git clone https://github.com/adityawarmanfw/dbt_duckdb_chinook.git
+py -m venv .venv-chinook
+./.venv-chinook/Scripts/python.exe -m pip install "dbt-duckdb~=1.9.0" "duckdb==1.1.3"
+cd dbt_duckdb_chinook
+../.venv-chinook/Scripts/python.exe -m dbt.cli.main deps --profiles-dir .
+../.venv-chinook/Scripts/python.exe -m dbt.cli.main run-operation stage_external_sources --profiles-dir .
+../.venv-chinook/Scripts/python.exe -m dbt.cli.main build --profiles-dir .   # 82 pass, 0 error
+../.venv-chinook/Scripts/python.exe -m deadcanary .
 ```
 
-## OPEN QUESTIONS FOR CHRIS
+**duckdb is pinned to 1.1.3 on purpose.** The project's `dim_date` model does
+`date_trunc('week', ...) + 6`, which modern duckdb refuses with a binder error.
+Pinning is what lets the project build **completely unmodified** — no model and
+no test is touched, which is a stronger position than the jaffle-shop-template
+measurement, where a withdrawn dependency had to be removed.
 
-1. **Publish deadcanary to PyPI?** Today anyone must clone it. Publishing means
-   `pip install deadcanary` works and the README's own instructions get simpler.
-   Cost: it is public and permanent, and the package name is claimed forever.
-   Recommendation: yes, once a third project is measured, so the FINDINGS page
-   people land on is not two projects from one vendor.
-2. **Is deadcanary the resume artifact, or claimproof?** Both are live. deadcanary
-   is the newer idea and has the more striking number; claimproof has 316 tests,
-   two outside contributors and a published 69.8% finding. Splitting attention
-   across both is the risk.
+## WHAT IS NOT DONE
+
+1. **The PyPI release has not been cut.** Publishing is approved and the workflow
+   is ready and tested; it fires on a published GitHub release, or by
+   `workflow_dispatch`. Recorded in the workflow: a token scoped to the
+   *claimproof project* cannot create a new project, so the first `deadcanary`
+   upload may 403 while claimproof succeeds. That is a credential scope, not a
+   broken workflow, and the fix is an account-scoped token or a pending publisher
+   for `deadcanary` at pypi.org — **both are browser steps only Chris can do.**
+2. **`FINDINGS.md` still describes two projects**, both dbt-labs. See above.
+3. **Parquet sources are declined, not corrupted.** Recognised and reported,
+   never silently skipped. Real work for whoever wants it.
+4. **The local `PureEuphoria/deadcanary` checkout is now a duplicate** of
+   `claimproof/packages/deadcanary`. It is only still there because the
+   measurement is running inside it. Once that finishes it should go, along with
+   `projects/` (cloned third-party dbt projects and a venv, all re-creatable from
+   the commands above).
+
+## DECISIONS WAITING ON CHRIS
+
+Both are instant and public with no review step, which is why they were not taken:
+
+1. **The repo's public description and topics still describe only claimproof** —
+   no mention of dbt or data tests, so somebody finding it sees half of what is
+   in it. Recommend updating both.
+2. **Archive `Cshearer210/deadcanary` on GitHub?** Its README already says the
+   work moved. Archiving makes that unmissable and is reversible. Recommend yes.
+
+## TRAPS THAT COST TIME
+
+- **`pytest -q | tail -1 && git commit` hides failures** — the pipe reports
+  `tail`'s status. Three collection errors got committed that way. The same trap
+  bit again this session reading `$?` after piping a `deadcanary` run into `tail`.
+- **`bash` on this laptop resolves to WSL**, which has none of the checkout.
+  `tools/readme_runs.py` runs argv directly for this reason.
+- **Both repos protect `main`.** `gh pr create`, then `gh pr merge --squash`.
+- **Pushing needs the `Cshearer210` account.** `gh auth switch --user Cshearer210`,
+  and switch back to `noredfarms` afterwards.
+- **A long `deadcanary` run buffers its stdout when redirected**, so the output
+  file sits at 0 bytes for hours. To tell whether it is alive, watch the mtime of
+  the project's `target/run_results.json` — it moves every ~30 seconds.
+
+## THE COMMANDS
+
+```bash
+cd claimproof
+py -m pytest tests -q                                   # 316
+py -m pytest packages/deadcanary/tests -q               # 76
+py tools/fresh_eyes.py                                  # the claimproof README, typed out
+py packages/deadcanary/tools/readme_runs.py --selftest   # prove the README check can fail
+cd packages/deadcanary
+py -m deadcanary demo --expect-dead 2                   # the planted canaries are still found
+py -m deadcanary demo --recheck                         # 0 holds, 1 measure again, 2 cannot tell
+```
