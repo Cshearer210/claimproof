@@ -20,6 +20,26 @@ builds a wheel, installs it into a clean environment, and runs the suite against
 package. Run it before opening a PR; it has already caught a test that passed against the source
 tree while finding zero files against the wheel.
 
+### The second package
+
+`packages/deadcanary` is a separate distribution living in this repo — the same idea pointed at a
+dbt project's data tests instead of an agent's reply. It has its own dependencies and its own test
+suite, so it is set up separately:
+
+```bash
+python -m pip install -e "./packages/deadcanary[dev]"
+python -m pytest packages/deadcanary/tests
+```
+
+Touching only one package? Run only that package's tests. Touching the seam between them
+(`packages/deadcanary/src/deadcanary/gate.py`) means running both, because the gate it contributes
+has to satisfy this library's contract — one case it must catch, one it must leave alone — or it
+cannot be constructed at all.
+
+**Its README is executable.** `python packages/deadcanary/tools/readme_runs.py` types what that
+README tells a stranger to type, and fails if it does not work. If you change the quickstart,
+change nothing else until that passes.
+
 ## The one rule that is not negotiable
 
 **Every gate must be able to fail AND to stay quiet, and you must prove both.**
