@@ -45,7 +45,7 @@ In the older `jaffle_shop_duckdb`, every test earns its place — and yet
 **emptying `raw_orders` entirely, 99 rows to 0, leaves all 20 tests green.**
 
 Both numbers are reproducible, and the limits of what they mean are stated:
-[FINDINGS.md](FINDINGS.md).
+[FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary/FINDINGS.md).
 
 ## Try it in one minute
 
