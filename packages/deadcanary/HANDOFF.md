@@ -1,5 +1,13 @@
 # HANDOFF — claimproof and deadcanary, 2026-08-13 (evening)
 
+> **THE PLAN IS `../../MASTER-PLAN.md`.** Read it first. It is the one list for
+> this project, written after Chris said this had taken too long to become
+> downloadable. This file is the state and the traps; that file is the work.
+>
+> **Picking it up tomorrow: Tier 1.1 is the only thing blocking "ready for anyone
+> to download" — merge PR #26 and cut the release.** Everything else is
+> improvement, not blocking.
+
 Everything below was verified by running it, not recalled. Where something is
 still in flight it says so rather than being written as finished.
 
@@ -159,6 +167,12 @@ current duckdb refuses. Pinning is what let it build with nothing edited.
 
 ## WHAT IS NOT DONE
 
+0. **RELEASE 0.14.1 IS NOT CUT.** PR #26 is open with both version bumps and was
+   green on 12 of 17 checks when the session ended. **Until it ships, both PyPI
+   pages show 18 links that go nowhere and claimproof's hero image is broken** —
+   PyPI renders the description shipped inside the release, so fixing the repo
+   changed nothing on the pages. This is the single thing standing between today
+   and "ready for anyone to download".
 1. **Parquet sources are declined, not corrupted.** Recognised and reported, never
    silently skipped. Real work for whoever wants it.
 2. **No production dbt suite has ever been measured.** All three projects are
