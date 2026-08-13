@@ -26,6 +26,14 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8", "pyarrow>=14"]   # pyarrow reads the finding's dataset; the LIBRARY still has zero runtime deps
 
+# The same question asked of a data warehouse instead of an agent's reply. This
+# library refuses a claim of success carrying no evidence a machine can check;
+# "the data tests pass" is exactly such a claim, and green is also what a test
+# that cannot fail looks like. `deadcanary` breaks real data on purpose to tell
+# those apart, and ships a Gate that plugs in here. Lives in this repo, at
+# packages/deadcanary, and installs on its own too.
+dbt = ["deadcanary>=0.1"]
+
 [project.urls]
 Homepage = "https://github.com/Cshearer210/claimproof"
 Issues = "https://github.com/Cshearer210/claimproof/issues"

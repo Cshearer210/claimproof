@@ -13,3 +13,4 @@ full_run.txt
 *.duckdb
 demo/.user.yml
 demo/*.bak
+deadcanary-claims.json

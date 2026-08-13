@@ -292,6 +292,76 @@ It drops into the live-state harness, so the whole thing is one exit code:
 h.check("claims", "Every closed claim still rests on the evidence it cited")(basis.as_check())
 ```
 
+## The same question, asked of your data — `deadcanary`
+
+Everything above holds a claim to evidence. Here is a claim nobody thinks to question, because it
+arrives already looking like evidence:
+
+> **All 20 data tests pass.**
+
+A data test that has been green every morning for two years is green for one of two reasons: the
+data is healthy, or **the test cannot fail.** Nobody can tell those apart by looking, the sentence
+reads identically either way, and almost nobody checks. It is the same failure this whole library
+is about, one layer down — a check that has never been made to fail, trusted because it is quiet.
+
+`deadcanary` settles it the only way it can be settled: it corrupts the data on purpose, re-runs
+the suite, and reports which tests never noticed. **Dead canaries** — green every morning,
+protecting nothing.
+
+**Measured on dbt-labs' own current jaffle-shop template: 6 of its 20 green tests cannot be made to
+fail by any corruption in the catalogue.** Among them `unique_orders_order_id` and
+`not_null_orders_order_id`, the two most common tests in dbt. Full numbers, limits, and the
+commands that reproduce them: [packages/deadcanary/FINDINGS.md](packages/deadcanary/FINDINGS.md).
+
+```bash
+pip install claimproof[dbt]
+python -m deadcanary path/to/dbt/project
+```
+
+It lives in this repo at [`packages/deadcanary`](packages/deadcanary), installs on its own as
+`pip install deadcanary`, and joins here at exactly one seam:
+
+<!-- fresh-eyes: illustration -->
+```python
+from deadcanary.gate import GreenTestsUnproven
+
+gate = GreenTestsUnproven(project="warehouse/dbt")
+gate.inspect("All 20 dbt tests pass. Data quality is covered.")
+# -> these data tests have never been proved able to fail -- no deadcanary run
+#    backs this. Green is also what a test that cannot fail looks like.
+```
+
+It is a `Gate` like any other here, so it has to prove itself in both directions before it is
+allowed to refuse anything. Four of its six selftest cases are guards — a normal unit-test suite,
+an honest hedge, a reported failure, and someone asking the question rather than claiming the
+answer — because a gate that reaches into claims it has no business in gets switched off, and after
+that it catches nothing at all.
+
+### And the proof expires, which is the part neither half has alone
+
+`deadcanary` answers *can these tests fail?* for the suite as it stood the day it ran. Add a test
+tomorrow, wire in a new source next month, and that answer describes a suite that no longer exists.
+Nothing anywhere would say so — so it is recorded as a claim, against the machinery two sections up:
+
+<!-- fresh-eyes: illustration -->
+```bash
+python -m deadcanary warehouse/dbt --attest     # record what was proved
+python -m deadcanary warehouse/dbt --recheck    # 0 holds - 1 measure again - 2 cannot tell
+```
+
+```
+REOPENED  deadcanary:dbt
+          closed 2026-08-13T18:44:02Z on "the data tests in dbt were proved able to
+          fail (20 green, 0 dead)", but 1 of 2 piece(s) of evidence changed since
+          (dbt:test-suite), so it is UNVERIFIED until re-measured
+```
+
+The fingerprint covers what the suite **tests** — every test, what kind it is, what it hangs off,
+and every source — and deliberately ignores dbt's own run metadata. `manifest.json` carries a fresh
+timestamp and invocation id on every single build, so fingerprinting the file would reopen the
+claim after every run. That is a checker crying wolf, and this README already says what happens to
+those.
+
 ## "22 nodes, 0 broken" is not a result
 
 It reads as *the system is healthy*. It means *the 22 I chose are healthy*. Those are different
@@ -430,10 +500,14 @@ have caught the second one.
 ## Install
 
 ```bash
-pip install claimproof
+pip install claimproof          # the library. Python 3.10+, no runtime dependencies
+pip install claimproof[dbt]     # ...and deadcanary, for the data-test half
 ```
 
-Python 3.10+. No runtime dependencies.
+Two packages, one repo, one idea. `claimproof` holds a claim of success to evidence a machine can
+check. [`deadcanary`](packages/deadcanary) asks the same question of a dbt test suite, by breaking
+the data on purpose to find the tests that cannot fail. Either installs alone; together, "our data
+tests are green" stops counting as evidence until something has proved those tests can go red.
 
 ## Examples you can copy
 
