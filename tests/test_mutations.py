@@ -140,3 +140,27 @@ def test_every_corruption_explains_itself_in_plain_words(warehouse):
         assert len(m.story) > 20, f"{m.name} has no story"
         assert m.target.table in m.story or m.target.column in m.story, \
             f"{m.name} story does not say what it touched: {m.story!r}"
+
+
+def test_schemas_are_discovered_not_assumed(warehouse):
+    """A default schema name that matches your example project is a typed scope.
+
+    The first version hardcoded "main", which is jaffle_shop's default. The second
+    real project tried used "analytics", and the tool found no tables at all and
+    had nothing to say -- while looking like it had run fine.
+    """
+    warehouse.execute("create schema analytics")
+    warehouse.execute("create table analytics.customers (id integer, email varchar)")
+    warehouse.execute("insert into analytics.customers select i, 'a@b.c' from range(5) t(i)")
+
+    found = discover(warehouse)
+    assert {t.schema for t in found} == {"main", "analytics"}, \
+        "a table outside the default schema was invisible"
+    assert any(t.table == "customers" for t in found)
+
+
+def test_system_schemas_are_left_alone(warehouse):
+    """The guard case: discovering everything must not mean corrupting DuckDB itself."""
+    found = discover(warehouse)
+    assert all(t.schema not in ("information_schema", "pg_catalog") for t in found)
+    assert found, "discovery returned nothing at all, which cannot be right"

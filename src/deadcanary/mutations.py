@@ -61,18 +61,35 @@ TEMPORAL = ("DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE")
 BLAST = 3
 
 
-def discover(con, schema: str = "main") -> list[Target]:
-    """Every column of every real table, read out of the warehouse itself."""
+#: Schemas DuckDB keeps for itself. Everything else belongs to the project.
+SYSTEM_SCHEMAS = ("information_schema", "pg_catalog", "main.information_schema")
+
+
+def discover(con, schema: str | None = None) -> list[Target]:
+    """Every column of every real table, read out of the warehouse itself.
+
+    `schema=None` means every schema the project owns, DISCOVERED rather than
+    assumed. The first version hardcoded "main", which is jaffle_shop's default
+    and nothing more -- the second real project tried used "analytics" and the
+    tool found no tables at all, then had nothing to say. A default that happens
+    to match the example you developed against is a typed scope wearing a
+    sensible-looking name.
+    """
+    if schema is not None:
+        where, params = "c.table_schema = ?", [schema]
+    else:
+        marks = ", ".join("?" for _ in SYSTEM_SCHEMAS)
+        where, params = f"c.table_schema not in ({marks})", list(SYSTEM_SCHEMAS)
     rows = con.execute(
-        """
+        f"""
         select c.table_schema, c.table_name, c.column_name, c.data_type
           from information_schema.columns c
           join information_schema.tables t
             on t.table_schema = c.table_schema and t.table_name = c.table_name
-         where t.table_type = 'BASE TABLE' and c.table_schema = ?
-         order by c.table_name, c.ordinal_position
+         where t.table_type = 'BASE TABLE' and {where}
+         order by c.table_schema, c.table_name, c.ordinal_position
         """,
-        [schema],
+        params,
     ).fetchall()
     return [Target(*r) for r in rows]
 

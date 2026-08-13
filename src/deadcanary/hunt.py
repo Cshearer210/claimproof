@@ -71,7 +71,16 @@ class DbtProject:
         self.pristine = self.root / ".deadcanary-pristine.duckdb"
 
     def _find_database(self) -> Path:
-        found = sorted(self.root.glob("*.duckdb"))
+        """The warehouse file, wherever the project's profile decided to put it.
+
+        Searched recursively, because only the simplest projects keep it beside
+        dbt_project.yml -- dbt-labs' own template writes to ./reports/, and the
+        root-only glob found nothing and refused to run.
+        """
+        found = sorted(self.root.glob("*.duckdb")) or sorted(
+            p for p in self.root.rglob("*.duckdb")
+            if ".deadcanary-pristine" not in p.name
+            and "dbt_packages" not in p.parts and "target" not in p.parts)
         if not found:
             raise FileNotFoundError(
                 f"no .duckdb file in {self.root}. Run `dbt seed && dbt run` first, "
