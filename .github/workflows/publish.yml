@@ -13,8 +13,28 @@ on:
   # release, and the version number becomes a log of infrastructure mistakes.
   workflow_dispatch:
 
+# TWO PACKAGES LIVE HERE since 2026-08-13, so every job below is per-package.
+#
+# The alternative -- one job building both into one dist/ and one upload -- was
+# rejected because a single upload is all-or-nothing: a credential scoped to one
+# project would fail the whole step, and the log would not say which package was
+# refused. Separate jobs mean a failure names its package.
+#
+# `skip-existing` is what makes "publish both on every release" safe. A release
+# that only bumps one package re-uploads the other's unchanged version, and PyPI
+# rejects a duplicate; skip-existing turns that into a no-op instead of a red
+# build teaching everyone to ignore this workflow.
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: claimproof
+            path: .
+          - package: deadcanary
+            path: packages/deadcanary
+    name: build ${{ matrix.package }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,18 +43,26 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install build
       - run: python -m build
+        working-directory: ${{ matrix.path }}
       # The wheel that gets uploaded is the wheel that got smoke-tested,
       # not a sibling built from the same tree.
-      - run: |
+      - name: the built wheel imports and knows its own version
+        working-directory: ${{ matrix.path }}
+        run: |
           python -m pip install dist/*.whl
-          python -c "import claimproof; print('installs as', claimproof.__version__)"
+          python -c "import ${{ matrix.package }} as m; print('installs as', getattr(m, '__version__', 'unversioned'))"
       - uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: dist-${{ matrix.package }}
+          path: ${{ matrix.path }}/dist/
 
   publish:
     needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [claimproof, deadcanary]
+    name: publish ${{ matrix.package }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write   # trusted publishing: a short-lived identity proof
@@ -47,7 +75,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: dist
+          name: dist-${{ matrix.package }}
           path: dist/
 
       # Two routes, and whichever is configured wins. Trusted publishing is the
@@ -59,12 +87,21 @@ jobs:
       # So: if PYPI_API_TOKEN is set, use it. If not, fall back to trusted
       # publishing. Neither path is a silent default -- the step name says which
       # ran, so nobody has to guess afterwards which credential was used.
+      #
+      # NOTE for the first deadcanary publish: a token scoped to the claimproof
+      # PROJECT cannot create a new one. If this job fails with a 403 naming
+      # deadcanary while claimproof succeeds, that is the cause, and the fix is
+      # an account-scoped token or a pending publisher for `deadcanary` at
+      # pypi.org/manage/account/publishing/.
       - name: Publish with an API token
         if: env.HAS_TOKEN == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
 
       - name: Publish with trusted publishing (no token configured)
         if: env.HAS_TOKEN != 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
