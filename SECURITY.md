@@ -33,5 +33,19 @@ on a gate in a pipeline, run its `verify()` on a schedule, not only at import.
 
 ## Dependencies
 
-None at runtime. The only development dependency is `pytest`. That is on purpose: the fewer things
-in the tree, the less there is to audit.
+**`claimproof` has none at runtime**, and that is on purpose: the fewer things in the tree, the
+less there is to audit. Its development extras are `pytest` and `pyarrow` — the second only reads
+the public dataset behind the finding in `FINDINGS.md`, and the library itself never imports it.
+
+**`deadcanary`, the second package in this repo, is not dependency-free and cannot be.** It is
+stated here rather than left for you to discover, because someone auditing this tree reads the
+paragraph above and would otherwise take it to cover everything:
+
+| | why it is unavoidable |
+|---|---|
+| `duckdb` | it corrupts a real warehouse and reads the result back |
+| `dbt-duckdb` (extra) | it runs the project's own `dbt run` and `dbt test` |
+| `pyyaml` | it reads the dbt profile, which is the only authority on where the warehouse is |
+| `claimproof` | the gate it contributes is a `claimproof.Gate` |
+
+Installing `claimproof` alone brings none of these. `claimproof[dbt]` brings all of them.
