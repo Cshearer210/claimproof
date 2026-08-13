@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: stg_orders
+    columns:
+      - name: order_id
+        description: These two are ALIVE. Break the ids and they go red.
+        tests: [unique, not_null]
+      - name: status
+        description: >
+          DEAD CANARY. stg_orders filters to exactly these values, so a bad
+          status never reaches this test. Green forever, protecting nothing.
+        tests:
+          - accepted_values:
+              values: ['placed', 'shipped', 'completed']
+
+  - name: orders
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+      - name: customer_id
+        description: ALIVE. Blank these upstream and this goes red.
+        tests: [not_null]
+      - name: amount
+        description: >
+          DEAD CANARY. orders wraps amount in coalesce(amount, 0), so a NULL
+          arriving upstream becomes a zero before this test ever sees it.
+        tests: [not_null]
