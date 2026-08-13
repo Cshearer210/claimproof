@@ -12,6 +12,12 @@ Agents report work as finished when it isn't — not by lying, but because a flu
 correct one feel identical from the inside, and nothing in the loop is checking. This runs at the
 runtime layer, before the turn can end.
 
+**Two packages live here.** `claimproof` is the library above.
+[**`deadcanary`**](packages/deadcanary) asks the same question of a dbt project's data tests —
+[*"all 20 tests pass"* is a claim too](#the-same-question-asked-of-your-data--deadcanary), and it
+reads identically whether the data is healthy or the tests cannot fail. It breaks the data on
+purpose to find out which. `pip install claimproof[dbt]` gets both.
+
 ```bash
 pip install claimproof
 python -m claimproof.demo
