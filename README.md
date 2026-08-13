@@ -3,7 +3,7 @@
 [![CI](https://github.com/Cshearer210/claimproof/actions/workflows/ci.yml/badge.svg)](https://github.com/Cshearer210/claimproof/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/claimproof.svg)](https://pypi.org/project/claimproof/)
 [![Python](https://img.shields.io/pypi/pyversions/claimproof.svg)](https://pypi.org/project/claimproof/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Cshearer210/claimproof/blob/main/LICENSE)
 
 **claimproof stops an AI coding agent from ending its turn saying "done" until it shows proof a
 machine can check.**
@@ -13,7 +13,7 @@ correct one feel identical from the inside, and nothing in the loop is checking.
 runtime layer, before the turn can end.
 
 **Two packages live here.** `claimproof` is the library above.
-[**`deadcanary`**](packages/deadcanary) asks the same question of a dbt project's data tests —
+[**`deadcanary`**](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary) asks the same question of a dbt project's data tests —
 [*"all 20 tests pass"* is a claim too](#the-same-question-asked-of-your-data--deadcanary), and it
 reads identically whether the data is healthy or the tests cannot fail. It breaks the data on
 purpose to find out which. `pip install claimproof[dbt]` gets both.
@@ -23,7 +23,7 @@ pip install claimproof
 python -m claimproof.demo
 ```
 
-![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](assets/demo.svg)
+![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](https://raw.githubusercontent.com/Cshearer210/claimproof/main/assets/demo.svg)
 
 *The first four acts of `python -m claimproof.demo`, drawn from the demo's real output.
 `tools/render_demo_svg.py` regenerates this image from a live run and refuses to render if the
@@ -43,7 +43,7 @@ runs. And claims carrying no evidence failed 83.0% of the time against 69.2% for
 showed something, so an agent that shows its work is measurably more likely to be right.
 
 Measured with the gate below, unmodified, over a public CC-BY dataset. Method, limits and the
-script that reproduces it: **[FINDINGS.md](FINDINGS.md)**.
+script that reproduces it: **[FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/FINDINGS.md)**.
 
 Hedged language passes on purpose. A claim that admits its own uncertainty is the honest case,
 and a gate that punishes honesty teaches agents to be vague instead of accurate.
@@ -137,7 +137,7 @@ does not parse is refused loudly rather than replaced. Errors at runtime allow t
 so on stderr* — an announced skip, never a silent one, for exactly the reason `gates.SilentSkip`
 exists.
 
-[examples/claude_code_install.py](examples/claude_code_install.py) runs the whole journey in a
+[examples/claude_code_install.py](https://github.com/Cshearer210/claimproof/blob/main/examples/claude_code_install.py) runs the whole journey in a
 sandbox — install, a refused turn, the fix, uninstall — without touching your real settings.
 
 ## Wire it into any other runtime
@@ -317,14 +317,14 @@ protecting nothing.
 **Measured on dbt-labs' own current jaffle-shop template: 6 of its 20 green tests cannot be made to
 fail by any corruption in the catalogue.** Among them `unique_orders_order_id` and
 `not_null_orders_order_id`, the two most common tests in dbt. Full numbers, limits, and the
-commands that reproduce them: [packages/deadcanary/FINDINGS.md](packages/deadcanary/FINDINGS.md).
+commands that reproduce them: [packages/deadcanary/FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary/FINDINGS.md).
 
 ```bash
 pip install claimproof[dbt]
 python -m deadcanary path/to/dbt/project
 ```
 
-It lives in this repo at [`packages/deadcanary`](packages/deadcanary), installs on its own as
+It lives in this repo at [`packages/deadcanary`](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary), installs on its own as
 `pip install deadcanary`, and joins here at exactly one seam:
 
 <!-- fresh-eyes: illustration -->
@@ -511,34 +511,34 @@ pip install claimproof[dbt]     # ...and deadcanary, for the data-test half
 ```
 
 Two packages, one repo, one idea. `claimproof` holds a claim of success to evidence a machine can
-check. [`deadcanary`](packages/deadcanary) asks the same question of a dbt test suite, by breaking
+check. [`deadcanary`](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary) asks the same question of a dbt test suite, by breaking
 the data on purpose to find the tests that cannot fail. Either installs alone; together, "our data
 tests are green" stops counting as evidence until something has proved those tests can go red.
 
 ## Examples you can copy
 
-Six runnable files in [examples/](examples/):
+Six runnable files in [examples/](https://github.com/Cshearer210/claimproof/tree/main/examples):
 
-- **[stop_hook.py](examples/stop_hook.py)** is a complete hook. Copy it, point your runtime at it,
+- **[stop_hook.py](https://github.com/Cshearer210/claimproof/blob/main/examples/stop_hook.py)** is a complete hook. Copy it, point your runtime at it,
   done. Includes the `settings.json` block for Claude Code and a one-line way to try it with no
   agent involved.
-- **[custom_gate.py](examples/custom_gate.py)** shows how to write your own, and more usefully what
+- **[custom_gate.py](https://github.com/Cshearer210/claimproof/blob/main/examples/custom_gate.py)** shows how to write your own, and more usefully what
   a broken one looks like: a gate whose bug is `startswith` where it should be `in`, which passes
   review and approves everything.
-- **[live_checks.py](examples/live_checks.py)** runs checks against your actual machine, including
+- **[live_checks.py](https://github.com/Cshearer210/claimproof/blob/main/examples/live_checks.py)** runs checks against your actual machine, including
   two that deliberately report UNKNOWN.
-- **[claim_basis.py](examples/claim_basis.py)** builds a throwaway project, closes a claim against
+- **[claim_basis.py](https://github.com/Cshearer210/claimproof/blob/main/examples/claim_basis.py)** builds a throwaway project, closes a claim against
   real files, then does the two ordinary things that make an old claim false and shows it reopen
   itself both times.
-- **[coverage_ledger.py](examples/coverage_ledger.py)** runs the same trivial audit twice over one
+- **[coverage_ledger.py](https://github.com/Cshearer210/claimproof/blob/main/examples/coverage_ledger.py)** runs the same trivial audit twice over one
   project. The first pass reports `0 problems` and exits 0. The second finds a real defect in a
   directory the first never opened.
-- **[source_gates.py](examples/source_gates.py)** runs the two source gates through the pre-write
+- **[source_gates.py](https://github.com/Cshearer210/claimproof/blob/main/examples/source_gates.py)** runs the two source gates through the pre-write
   hook: two writes refused, and a third carrying both innocent twins allowed through.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: if you report a case this gets wrong,
+See [CONTRIBUTING.md](https://github.com/Cshearer210/claimproof/blob/main/CONTRIBUTING.md). The short version: if you report a case this gets wrong,
 paste the exact string. It usually becomes a test fixture verbatim.
 
 The one rule that is not negotiable is that a gate must be able to fail and you must prove it.
@@ -546,5 +546,5 @@ That applies to changes here as much as to gates you write with it.
 
 ## License
 
-MIT. See [CHANGELOG.md](CHANGELOG.md) for what changed and [SECURITY.md](SECURITY.md) for what
+MIT. See [CHANGELOG.md](https://github.com/Cshearer210/claimproof/blob/main/CHANGELOG.md) for what changed and [SECURITY.md](https://github.com/Cshearer210/claimproof/blob/main/SECURITY.md) for what
 this does and does not protect against.
