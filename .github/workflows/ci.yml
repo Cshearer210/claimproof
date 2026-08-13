@@ -199,3 +199,42 @@ jobs:
 
       - name: Be the stranger
         run: python tools/fresh_eyes.py
+
+  # The second package in this repo. It has its own tests, its own dependencies
+  # and its own reasons to break, so it gets its own job rather than being folded
+  # into the matrix above -- a failure here must name deadcanary, not look like
+  # claimproof going red.
+  deadcanary:
+    name: deadcanary ${{ matrix.os }} py${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.13"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Installed from THIS checkout, not from PyPI, so the seam between the two
+      # packages is tested as it is written here rather than as it was published.
+      - name: Install both halves from this repo
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install -e ./packages/deadcanary[dev]
+
+      - name: deadcanary's own suite
+        run: python -m pytest packages/deadcanary/tests -q
+
+      # The seam itself: the gate deadcanary contributes has to satisfy the same
+      # contract this library imposes on everyone else -- one case it must catch,
+      # one it must leave alone -- or it cannot be used at all.
+      - name: the contributed gate proves itself in both directions
+        run: |
+          python -c "from deadcanary.gate import GreenTestsUnproven; print(GreenTestsUnproven().verify())"

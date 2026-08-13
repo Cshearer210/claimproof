@@ -1,0 +1,9 @@
+id,customer_id,status,amount
+1,1,placed,10.00
+2,1,shipped,25.50
+3,2,completed,8.75
+4,2,placed,42.00
+5,3,shipped,17.25
+6,3,completed,99.99
+7,4,placed,5.00
+8,4,completed,63.10
