@@ -56,8 +56,8 @@ proof. The two questions are different: *can this test fail?* and *what is nobod
 watching?*
 
 All three are reproducible, the raw report for the newest is committed in
-[findings/](findings/), and the limits of what any of it means are stated:
-[FINDINGS.md](FINDINGS.md).
+[findings/](https://github.com/Cshearer210/claimproof/tree/main/packages/deadcanary/findings), and the limits of what any of it means are stated:
+[FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary/FINDINGS.md).
 
 ## Try it in one minute
 
