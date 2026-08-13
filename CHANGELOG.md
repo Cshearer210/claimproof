@@ -3,7 +3,19 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.0]
+
+**`deadcanary` ships alongside this library from here on.** Nothing about the
+`claimproof` package changes — same API, same zero runtime dependencies. What is
+new is a second package in the same repo and one extra to reach it.
+
+**The version bump is not cosmetic.** `pip install claimproof[dbt]` cannot work
+against 0.13.0, and it does not fail loudly when you try it — pip prints
+`WARNING: claimproof 0.13.0 does not provide the extra 'dbt'`, installs
+claimproof on its own, and exits 0. A command that looks like it succeeded while
+quietly doing half the job is the exact shape this library exists to catch, so
+publishing deadcanary without also republishing claimproof would have left that
+in place.
 
 ### Added
 - **`deadcanary` now lives in this repo**, at `packages/deadcanary`, brought in
