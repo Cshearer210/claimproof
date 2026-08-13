@@ -317,6 +317,58 @@ def test_the_cli_reports_that_as_cannot_tell_not_as_a_pass(tmp_path):
     assert main([str(root)]) == 2, "an unmeasurable project must not exit 0"
 
 
+def test_the_warehouse_is_found_where_the_PROFILE_puts_it(tmp_path):
+    """The profile says where the warehouse is. Searching for it is a guess.
+
+    Measured on `adityawarmanfw/dbt_duckdb_chinook`, whose profile writes to
+    `./target/chinook.duckdb`: the search skipped `target/` as a build artifact,
+    found nothing, and told the user to run `dbt seed && dbt run` -- which they
+    had just done. The tool refused to run on a perfectly healthy project and
+    blamed the project.
+
+    `matsonj/nba-monte-carlo` is the same class one step worse: its warehouse is
+    at `../data/data_catalog/mdsbox.duckdb`, OUTSIDE the project, where no
+    search under the project root can ever reach it.
+    """
+    root = tmp_path / "proj"
+    (root / "target").mkdir(parents=True)
+    (root / "dbt_project.yml").write_text("name: fake\nprofile: 'p'\n", encoding="utf-8")
+    duckdb.connect(str(root / "target" / "chinook.duckdb")).close()
+    (root / "profiles.yml").write_text(
+        "p:\n  target: dev\n  outputs:\n    dev:\n      type: duckdb\n"
+        "      path: './target/chinook.duckdb'\n", encoding="utf-8")
+
+    assert DbtProject(root).database == (root / "target" / "chinook.duckdb").resolve()
+
+
+def test_a_profile_path_that_is_not_a_plain_path_falls_back_to_searching(tmp_path):
+    """The guard case, and it is a real project, not a hypothetical.
+
+    dbt-labs/jaffle-shop-template writes
+    `path: "{{ env_var('JAFFLE_DB_PATH', './reports/jaffle_shop.duckdb') }}"`.
+    Reading that literally would hand back a filename with braces in it. Anything
+    this module cannot resolve for certain must fall back to the search that
+    already works, never guess.
+    """
+    root = _make_project(tmp_path)
+    (root / "profiles.yml").write_text(
+        "duckdb:\n  target: dev\n  outputs:\n    dev:\n      type: duckdb\n"
+        "      path: \"{{ env_var('JAFFLE_DB_PATH', './reports/jaffle_shop.duckdb') }}\"\n",
+        encoding="utf-8")
+
+    assert DbtProject(root).database.name == "w.duckdb"
+
+
+def test_a_profile_naming_a_file_that_does_not_exist_falls_back_too(tmp_path):
+    """A profile can name a warehouse nobody has built yet. That is not an answer."""
+    root = _make_project(tmp_path)
+    (root / "profiles.yml").write_text(
+        "p:\n  target: dev\n  outputs:\n    dev:\n      type: duckdb\n"
+        "      path: './never_built.duckdb'\n", encoding="utf-8")
+
+    assert DbtProject(root).database.name == "w.duckdb"
+
+
 def test_a_leftover_backup_is_never_mistaken_for_the_warehouse(tmp_path):
     """A crashed run leaves .deadcanary-pristine.duckdb behind.
 

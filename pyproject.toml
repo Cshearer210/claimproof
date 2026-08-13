@@ -10,7 +10,15 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Christopher Shearer", email = "cshearer210@gmail.com" }]
-dependencies = ["duckdb>=1.0"]
+# claimproof is the other half of this idea and it carries no dependencies of its
+# own: it holds a claim of success to evidence a machine can check, and a
+# deadcanary run is what makes "the data tests pass" mean anything. `gate.py` is
+# the seam. See README, "The two halves".
+# PyYAML reads the dbt profile, which is the only authority on where the
+# warehouse actually is. dbt brings it along, so it was invisible on a machine
+# with dbt installed and absent in CI -- where the profile reading silently did
+# nothing and the tool went back to guessing. Declared, so it cannot be absent.
+dependencies = ["duckdb>=1.0", "claimproof>=0.13", "pyyaml>=6"]
 
 [project.optional-dependencies]
 dbt = ["dbt-duckdb>=1.9"]

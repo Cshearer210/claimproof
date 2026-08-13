@@ -70,6 +70,78 @@ def test_a_project_with_no_external_sources_yields_nothing(tmp_path):
     assert discover_files(root) == []
 
 
+def test_a_bare_csv_path_is_discovered(tmp_path):
+    """Not every project wraps the file in read_csv_auto().
+
+    `sdebruyn/inzight` writes `external_location: "assets/fluvius.csv"` -- the bare
+    path, no function around it. dbt-duckdb accepts both, so a tool that only
+    recognises the wrapped form reports NOTHING TO CORRUPT on a project whose raw
+    data is sitting right there in a CSV.
+    """
+    root = tmp_path / "bare"
+    (root / "target").mkdir(parents=True)
+    (root / "data").mkdir()
+    with (root / "data" / "raw_orders.csv").open("w", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerows(ROWS)
+    (root / "target" / "manifest.json").write_text(json.dumps({"sources": {"s.1": {
+        "name": "raw_orders", "meta": {"external_location": "data/raw_orders.csv"}}}}),
+        encoding="utf-8")
+
+    assert {t.column for t in discover_files(root)} == {"id", "customer_id", "status", "amount"}
+
+
+def test_the_external_block_is_discovered(tmp_path):
+    """`dbt-external-tables` records the location somewhere else again.
+
+    Measured on `adityawarmanfw/dbt_duckdb_chinook`: its manifest carries
+    `external: {"location": "csvs/album.csv"}` and an empty `meta`, because the
+    location was written by the dbt-external-tables package rather than by hand.
+    Same file on disk, third place to look for it.
+    """
+    root = tmp_path / "ext"
+    (root / "target").mkdir(parents=True)
+    (root / "csvs").mkdir()
+    with (root / "csvs" / "album.csv").open("w", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerows(ROWS)
+    (root / "target" / "manifest.json").write_text(json.dumps({"sources": {"s.1": {
+        "name": "album", "meta": {}, "external": {"location": "csvs/album.csv"}}}}),
+        encoding="utf-8")
+
+    targets = discover_files(root)
+    assert targets, "the external block was not read"
+    assert all(t.path.name == "album.csv" for t in targets)
+
+
+def test_a_location_that_is_not_a_local_file_is_not_offered(tmp_path):
+    """The guard case, and the reason the bare form needs one.
+
+    Once a bare string counts as a path, every source location that is NOT a file
+    -- a bucket, a URL, a warehouse table name -- has to be turned away, or the
+    tool starts reporting targets it cannot touch.
+    """
+    root = tmp_path / "remote"
+    (root / "target").mkdir(parents=True)
+    (root / "target" / "manifest.json").write_text(json.dumps({"sources": {
+        "s.1": {"name": "a", "meta": {"external_location": "s3://bucket/orders.csv"}},
+        "s.2": {"name": "b", "meta": {"external_location": "https://x.test/orders.csv"}},
+        "s.3": {"name": "c", "meta": {"external_location": "raw.orders"}},
+        "s.4": {"name": "d", "meta": {"external_location": "./nowhere/orders.csv"}},
+    }}), encoding="utf-8")
+
+    assert discover_files(root) == []
+
+
+def test_a_bare_parquet_path_is_not_offered(tmp_path):
+    """Binary is out of scope in the bare form too, not only the wrapped one."""
+    root = tmp_path / "bpq"
+    (root / "target").mkdir(parents=True)
+    (root / "raw.parquet").write_bytes(b"PAR1")
+    (root / "target" / "manifest.json").write_text(json.dumps({"sources": {"s.1": {
+        "name": "raw", "meta": {"external_location": "raw.parquet"}}}}), encoding="utf-8")
+
+    assert discover_files(root) == []
+
+
 def test_parquet_is_recognised_but_not_corrupted(tmp_path):
     """Binary formats are out of scope, and being out of scope is not a silent skip."""
     root = tmp_path / "pq"

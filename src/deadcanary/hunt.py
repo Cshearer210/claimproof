@@ -87,6 +87,57 @@ class DbtProject:
         #: Source files copied aside before any of them is corrupted.
         self.file_backups: dict = {}
 
+    def _database_from_profile(self) -> Path | None:
+        """The path the profile NAMES, which is the only authority on this.
+
+        Searching the filesystem for a `.duckdb` is a guess, and it was wrong in
+        both directions on real projects: it skipped `target/` as a build artifact
+        on a project whose profile deliberately writes there, and it cannot reach
+        a warehouse kept outside the project at all.
+
+        Returns None whenever the answer is not certain -- no profile, templating
+        in the path, a file that has not been built -- so the search below stays
+        the fallback rather than being replaced by a worse guess.
+        """
+        profiles = self.root / "profiles.yml"
+        if not profiles.is_file():
+            return None
+        # Imported here rather than at module top so a project with no profile
+        # never needs it, and NOT wrapped in a try: PyYAML is a declared
+        # dependency, so a missing one is a broken install and must say so. It
+        # was swallowed for one commit, and the effect was that this whole method
+        # silently did nothing on any machine without dbt installed -- reverting
+        # to the guess it exists to replace, with nothing anywhere reporting it.
+        import yaml
+        try:
+            data = yaml.safe_load(profiles.read_text(encoding="utf-8")) or {}
+            project = yaml.safe_load(
+                (self.root / "dbt_project.yml").read_text(encoding="utf-8")) or {}
+        except Exception:
+            return None                      # malformed yaml is not an answer either
+
+        named = project.get("profile")
+        candidates = [k for k in data if k != "config" and isinstance(data[k], dict)]
+        block = data.get(named) if named in data else (
+            data[candidates[0]] if len(candidates) == 1 else None)
+        if not isinstance(block, dict):
+            return None
+
+        outputs = block.get("outputs") or {}
+        target = block.get("target")
+        output = outputs.get(target) if target in outputs else (
+            next(iter(outputs.values())) if len(outputs) == 1 else None)
+        if not isinstance(output, dict):
+            return None
+
+        path = str(output.get("path") or "")
+        if not path or "{{" in path or path.startswith(":"):   # templated, or :memory:
+            return None
+        found = (self.root / path).resolve()
+        if not found.is_file() or ".deadcanary-pristine" in found.name:
+            return None
+        return found
+
     def _find_database(self) -> Path:
         """The warehouse file, wherever the project's profile decided to put it.
 
@@ -94,6 +145,10 @@ class DbtProject:
         dbt_project.yml -- dbt-labs' own template writes to ./reports/, and the
         root-only glob found nothing and refused to run.
         """
+        named = self._database_from_profile()
+        if named is not None:
+            return named
+
         # The exclusion must apply to BOTH branches. It did not, so a run that
         # crashed and left .deadcanary-pristine.duckdb in the root caused the NEXT
         # run to adopt that backup as the warehouse -- and then fail trying to copy

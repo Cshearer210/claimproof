@@ -40,6 +40,31 @@ from deadcanary.mutations import BLAST
 #: a matched-but-unsupported file is reported rather than skipped in silence.
 _LOCATION = re.compile(r"""read_(csv|csv_auto|parquet)\s*\(\s*['"]([^'"]+)['"]""", re.I)
 
+#: Anything with a scheme in front of it is somebody else's storage: a bucket, a
+#: URL, an http-served file. Real and readable by dbt, and not a file this tool
+#: may edit. Needed only once bare strings count as paths -- see `_location_of`.
+_REMOTE = re.compile(r"^[a-z][a-z0-9+.-]*://", re.I)
+
+
+def _location_of(node: dict) -> str:
+    """Where dbt recorded the file this source reads. Three places, all real.
+
+    A source location is written in whichever of these the project happened to
+    use, and a tool that knows only one reports NOTHING TO CORRUPT on a project
+    whose raw data is sitting in plain sight:
+
+    ``meta.external_location``     hand-written, dbt-labs' own jaffle-shop template
+    ``config.external_location``   the same thing, moved by newer dbt versions
+    ``external.location``          written by the `dbt-external-tables` package
+
+    Measured: dbt-labs/jaffle-shop-template uses the first wrapped in
+    ``read_csv_auto()``, sdebruyn/inzight uses the first as a bare path, and
+    adityawarmanfw/dbt_duckdb_chinook uses the third with an empty ``meta``.
+    """
+    return str((node.get("meta") or {}).get("external_location")
+               or (node.get("config") or {}).get("external_location")
+               or (node.get("external") or {}).get("location") or "")
+
 
 @dataclasses.dataclass(frozen=True)
 class FileTarget:
@@ -74,14 +99,22 @@ def discover_files(project_root: Path) -> list[FileTarget]:
 
     out: list[FileTarget] = []
     for node in data.get("sources", {}).values():
-        location = (node.get("meta") or {}).get("external_location") \
-            or (node.get("config") or {}).get("external_location") or ""
-        m = _LOCATION.search(str(location))
-        if not m:
+        location = _location_of(node)
+        if not location:
             continue
-        kind, template = m.group(1).lower(), m.group(2)
-        if "parquet" in kind:
-            continue                    # binary; not corrupted by this module yet
+        m = _LOCATION.search(location)
+        if m:
+            kind, template = m.group(1).lower(), m.group(2)
+            if "parquet" in kind:
+                continue                # binary; not corrupted by this module yet
+        else:
+            # The bare form: the location IS the path. Everything that is not a
+            # local CSV has to be turned away here, or the tool starts naming
+            # targets it cannot touch -- a bucket, a URL, or a plain warehouse
+            # table name, which is what this field holds in most projects.
+            template = location.strip()
+            if _REMOTE.match(template) or not template.lower().endswith(".csv"):
+                continue
         path = (project_root / template.replace("{name}", node["name"])).resolve()
         if not path.is_file():
             continue

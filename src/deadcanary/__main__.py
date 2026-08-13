@@ -9,6 +9,9 @@ from pathlib import Path
 from deadcanary.hunt import (KILLED, NOOP, SURVIVED, UNDONE, DbtProject,
                              CannotMeasure, hunt)
 
+#: Where the recorded proof lives. Beside the report it is proof of.
+CLAIMS_NAME = "deadcanary-claims.json"
+
 
 def render(report: dict) -> str:
     out = []
@@ -73,7 +76,29 @@ def main(argv: list[str] | None = None) -> int:
                          "project carries two on purpose; CI asserts they are still "
                          "found, so a broken tool cannot pass while the README "
                          "still promises the demo works.")
+    ap.add_argument("--attest", action="store_true",
+                    help="record this run as a claimproof claim, fingerprinted against "
+                         "the test suite it measured. Add a test later and the claim "
+                         "reopens, because the old answer covers a suite that no longer "
+                         "exists.")
+    ap.add_argument("--recheck", action="store_true",
+                    help="do not measure anything: ask whether the proof recorded "
+                         "earlier still describes the suite that exists now. "
+                         "0 it holds, 1 measure again, 2 cannot tell.")
+    ap.add_argument("--claims", metavar="PATH",
+                    help=f"where the claim store lives (default: <project>/{CLAIMS_NAME})")
     args = ap.parse_args(argv)
+
+    root = Path(args.project)
+    store = Path(args.claims) if args.claims else root / CLAIMS_NAME
+
+    if args.recheck:
+        from deadcanary.gate import recheck
+        if not store.is_file():
+            print(f"deadcanary: no claim recorded for {root}. Nothing to re-check -- "
+                  f"run `python -m deadcanary {root} --attest` first.", file=sys.stderr)
+            return 2                  # never 0: nothing recorded is not "it holds"
+        return recheck(root, store, echo=not args.quiet)
 
     try:
         project = DbtProject(Path(args.project))
@@ -91,6 +116,20 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({k: v for k, v in report.items() if k != "outcomes"}, indent=2))
     elif not args.quiet:
         print(render(report))
+
+    if args.attest:
+        # Only a run that measured everything may be recorded as proof. A partial
+        # run names no dead canaries, which reads identically to finding none --
+        # recording that would put a false clean bill of health in the store.
+        if not report["coverage_complete"]:
+            print("deadcanary: coverage was not complete, so there is nothing to "
+                  "attest -- a partial run cannot prove a suite can fail.",
+                  file=sys.stderr)
+            return 2
+        from deadcanary.gate import attest
+        attest(project.root, store=store)
+        print(f"deadcanary: proof recorded in {store.name}. Re-check it any time with "
+              f"`python -m deadcanary {args.project} --recheck`.")
 
     if args.expect_dead is not None:
         found = len(report["dead_canaries"])
