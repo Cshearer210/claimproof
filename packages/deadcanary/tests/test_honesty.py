@@ -248,6 +248,34 @@ def test_the_warehouse_is_left_exactly_as_it_was_found(tmp_path):
     assert not (root / ".deadcanary-pristine.duckdb").exists(), "the backup was left behind"
 
 
+def test_models_are_never_counted_as_tests(tmp_path):
+    """"82 test(s) in the suite, 63 green" -- for a project with 63 tests.
+
+    `dbt build` writes models AND tests into run_results.json, and this read all
+    of them. So the headline inflated the suite by every model in the project and
+    made a completely green run read as 19 failures. Measured on
+    adityawarmanfw/dbt_duckdb_chinook: 19 models, 63 tests, nothing failing.
+
+    The verdicts were never wrong -- a model reports `success` where a test
+    reports `pass`, so the green set came out right by accident. The HEADLINE was
+    wrong, and in a tool whose entire argument is about not overstating what you
+    measured, the headline is the part that matters.
+    """
+    root = _make_project(tmp_path)
+    (root / "target" / "run_results.json").write_text(json.dumps({"results": [
+        {"unique_id": "model.p.customers", "status": "success"},
+        {"unique_id": "model.p.orders", "status": "success"},
+        {"unique_id": "test.p.not_null_orders_order_id", "status": "pass"},
+        {"unique_id": "test.p.unique_orders_order_id", "status": "pass"},
+    ]}), encoding="utf-8")
+
+    results = DbtProject(root).test_results()
+
+    assert set(results) == {"test.p.not_null_orders_order_id",
+                            "test.p.unique_orders_order_id"}, \
+        f"models counted as tests: {sorted(results)}"
+
+
 def test_a_project_without_dbt_is_refused_loudly(tmp_path):
     with pytest.raises(FileNotFoundError):
         DbtProject(tmp_path)
