@@ -3,6 +3,31 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1]
+
+A documentation-only release, and it exists because documentation cannot be
+fixed without one.
+
+### Fixed
+- **Every link on the PyPI pages, and the hero image.** PyPI renders the
+  description **shipped inside the release**, not the one in the repo, and it
+  does not rewrite relative links. It also does not 404 on them — it serves the
+  byte-identical project page for any sub-path, so all 18 returned HTTP 200 and
+  took the reader precisely nowhere. `![...](assets/demo.svg)` resolved to that
+  same HTML page, so the animated demo had been rendering as a broken image on
+  the published page since the project was first released. All links are
+  absolute now, and each was fetched rather than eyeballed — including checking
+  the image URL returns `<svg` and not `<!DOCTYPE html>`, which is exactly the
+  mistake that kept this invisible.
+- **The deadcanary README described two projects** and called them "both
+  numbers", after a third had been measured.
+
+### The part worth reading
+A status code is a proxy for the thing you care about, and this is the cheapest
+possible demonstration: every one of those dead links passed an HTTP check. The
+only way to catch it was to compare the bytes served at the link against the
+bytes served at the project page and notice they were identical.
+
 ## [0.14.0]
 
 **`deadcanary` ships alongside this library from here on.** Nothing about the
