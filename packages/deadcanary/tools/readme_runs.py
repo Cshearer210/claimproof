@@ -65,11 +65,22 @@ def _rewrite_for_a_local_copy(script: str, clone: Path) -> str:
     The clone and cd lines are replaced with the checkout under test -- otherwise
     this would verify whatever is on main rather than the change being reviewed,
     which is the opposite of what a pre-merge check is for.
+
+    Matched on where the `cd` LANDS rather than on its literal text. The first
+    version compared against the exact string `cd deadcanary`, which stopped
+    being what the README says the day this package moved into the claimproof
+    repo -- and a stale two-line helper would then have failed as though the
+    quickstart itself were broken.
     """
     out = []
     for line in script.splitlines():
         s = line.strip()
-        if s.startswith("git clone") or s == "cd deadcanary":
+        # A bare `cd` INTO this package, however deep it sits. Anything with a
+        # `&&` in it is real quickstart work (`cd demo && dbt build ...`) and is
+        # never dropped -- without the demo build there is nothing to measure.
+        entering = (s.startswith("cd ") and "&&" not in s
+                    and s.split(maxsplit=1)[1].rstrip("/").endswith("deadcanary"))
+        if s.startswith("git clone") or entering:
             continue
         out.append(line)
     return "\n".join(out)
@@ -196,6 +207,23 @@ def selftest() -> int:
     ok &= say("git clone" not in _rewrite_for_a_local_copy(
         "git clone https://x/y\ncd deadcanary\npip install -e .", Path(".")),
         "the clone step is replaced by the checkout under test")
+
+    # The same quickstart after this package moved into the claimproof repo. The
+    # rewriter matched the literal string `cd deadcanary`, so the moment the
+    # README said `cd claimproof/packages/deadcanary` instead, CI would have
+    # tried to enter a directory that does not exist inside the temporary
+    # checkout -- and the failure would have read as a broken quickstart rather
+    # than a stale two-line helper.
+    moved = _rewrite_for_a_local_copy(
+        "git clone https://x/y\ncd claimproof/packages/deadcanary\npip install -e .", Path("."))
+    ok &= say("cd claimproof" not in moved and "pip install -e ." in moved,
+              "the clone step is replaced wherever this package lives in the repo")
+
+    # The guard: a `cd` that is part of the real quickstart must survive, or the
+    # demo never gets built and the check silently measures nothing.
+    kept = _rewrite_for_a_local_copy("cd demo && dbt build --profiles-dir . && cd ..", Path("."))
+    ok &= say(kept.strip() == "cd demo && dbt build --profiles-dir . && cd ..",
+              "GUARD: a working `cd` inside the quickstart is left alone")
 
     # A finding is not an error, but a real error still is.
     with tempfile.TemporaryDirectory() as _d:

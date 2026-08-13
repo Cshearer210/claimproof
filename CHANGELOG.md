@@ -3,6 +3,37 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`deadcanary` now lives in this repo**, at `packages/deadcanary`, brought in
+  with `git subtree` so its history came with it. It is the same idea one layer
+  down: this library refuses a claim of success that carries no evidence a
+  machine can check, and *"all 20 data tests pass"* is exactly such a claim —
+  green is equally what a test that **cannot fail** looks like. deadcanary
+  settles which one you have by corrupting the data on purpose.
+  `pip install claimproof[dbt]` installs both; `pip install deadcanary` still
+  works alone. **Nothing about the `claimproof` distribution changes** — same
+  package, same zero runtime dependencies.
+- **`GreenTestsUnproven`**, a `Gate` deadcanary contributes: it refuses a claim
+  of data-test health unless a complete deadcanary run backs it. Six selftest
+  cases, four of them guards.
+- **`deadcanary --attest` / `--recheck`**, which put a measurement under
+  `ClaimBasis` so it expires. The proof is fingerprinted against the test
+  *suite* — every test, its kind, what it hangs off, every source — so adding a
+  test reopens the claim on its own. It deliberately ignores dbt's run metadata,
+  because `manifest.json` carries a fresh timestamp and invocation id on every
+  build and fingerprinting the file would reopen the claim after every run.
+
+### The part worth reading
+The subtree brought `packages/deadcanary/.github/workflows/ci.yml` with it, and
+GitHub runs only workflows at the repository **root**. Two checks — the demo
+still finding its two planted dead canaries, and the README rehearsal — stopped
+running the moment the merge landed, while their file sat in the tree looking
+exactly like coverage. Both are now root jobs and the orphaned file is deleted.
+A workflow that cannot run is worse than none, because it reads as protection
+and nothing reports that it is inert.
+
 ## [0.13.0]
 
 The gate was refusing turns that had already shown their working. Measured over

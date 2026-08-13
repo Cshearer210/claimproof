@@ -238,3 +238,44 @@ jobs:
       - name: the contributed gate proves itself in both directions
         run: |
           python -c "from deadcanary.gate import GreenTestsUnproven; print(GreenTestsUnproven().verify())"
+
+  # THE TWO CHECKS THE SUBTREE MERGE NEARLY LOST.
+  #
+  # deadcanary arrived carrying its own .github/workflows/ci.yml, which GitHub
+  # does not run: only workflows at the REPOSITORY ROOT execute. So the moment it
+  # moved in here, the check that proves the demo still finds its planted dead
+  # canaries, and the one that types what its README says, silently stopped
+  # running -- while the file sat in the tree looking exactly like coverage.
+  # That file is deleted in the same commit as this. A workflow that cannot run
+  # is worse than no workflow, because it reads as protection.
+  deadcanary-demo:
+    name: the deadcanary demo still finds its planted dead canaries
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/deadcanary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e .[dbt]
+      - name: build the demo warehouse
+        run: cd demo && dbt build --profiles-dir .
+      # Two canaries are planted in demo/ on purpose. If this stops finding
+      # exactly two, either the tool broke or the demo did -- and either way the
+      # README is lying to everyone who reads it.
+      - run: python -m deadcanary demo --expect-dead 2
+
+  deadcanary-readme:
+    name: a stranger following the deadcanary README gets a working tool
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/deadcanary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e .[dbt]
+      - run: python tools/readme_runs.py --selftest
+      - run: python tools/readme_runs.py

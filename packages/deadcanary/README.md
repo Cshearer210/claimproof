@@ -54,8 +54,8 @@ it**, so you can see the point without wiring anything up.
 
 <!-- readme: run -->
 ```bash
-git clone https://github.com/Cshearer210/deadcanary
-cd deadcanary
+git clone https://github.com/Cshearer210/claimproof
+cd claimproof/packages/deadcanary
 pip install -e .[dbt]
 
 cd demo && dbt build --profiles-dir . && cd ..   # 10 green tests
@@ -86,11 +86,64 @@ killed each one.
 
 <!-- readme: illustration -->
 ```bash
-pip install -e .[dbt]          # from a clone
+pip install deadcanary[dbt]         # this package alone
+pip install claimproof[dbt]         # ...or both halves, see below
 ```
 
-Not on PyPI yet. Runs locally against DuckDB: no warehouse credentials, no cloud
-spend, no model calls.
+Runs locally against DuckDB: no warehouse credentials, no cloud spend, no model
+calls.
+
+## The other half: `claimproof`
+
+deadcanary lives in the [claimproof](https://github.com/Cshearer210/claimproof) repo
+because it is the same idea one layer down. **A check nobody has ever made fail is not
+a check.** claimproof enforces that on gates — it refuses one at construction unless
+the gate can demonstrate both a case it catches and a guard case it leaves alone.
+deadcanary asks it of a whole dbt test suite, and answers with real corrupted data
+instead of fixtures.
+
+They join at one seam, and it does two things neither does alone.
+
+**"The data tests pass" stops being accepted as evidence.** It is a claim like any
+other, and it reads identically whether the data is healthy or the tests cannot fail:
+
+<!-- readme: illustration -->
+```python
+from deadcanary.gate import GreenTestsUnproven
+
+GreenTestsUnproven(project="warehouse/dbt").inspect("All 20 dbt tests pass.")
+# -> these data tests have never been proved able to fail -- no deadcanary run
+#    backs this. Green is also what a test that cannot fail looks like.
+```
+
+It is a claimproof `Gate`, so it had to prove itself in both directions before it was
+allowed to refuse anything. Four of its six cases are guards — an ordinary unit-test
+suite, an honest hedge, a reported failure, and somebody asking the question rather
+than claiming the answer — because a gate that reaches into claims it has no business
+in gets switched off, and after that it catches nothing at all.
+
+**And the proof expires.** This answers *can these tests fail?* for the suite as it
+stood on the day it ran. Add a test next month and that answer describes a suite that
+no longer exists, and nothing anywhere would say so:
+
+<!-- readme: illustration -->
+```bash
+python -m deadcanary warehouse/dbt --attest     # record what was proved
+python -m deadcanary warehouse/dbt --recheck    # 0 holds - 1 measure again - 2 cannot tell
+```
+
+```
+REOPENED  deadcanary:dbt
+          closed 2026-08-13T19:09:25Z on "the data tests in dbt were proved able to
+          fail (20 green, 0 dead)", but 1 of 2 piece(s) of evidence changed since
+          (dbt:test-suite), so it is UNVERIFIED until re-measured
+```
+
+The fingerprint covers what the suite **tests** — every test, its kind, what it hangs
+off, and every source — and deliberately ignores dbt's run metadata. `manifest.json`
+carries a fresh timestamp and invocation id on every build, so fingerprinting the file
+would reopen the claim after every single run. A checker that cries wolf gets switched
+off within a week, and then the one time it is right is ignored too.
 
 ## Two kinds of project, one report
 
