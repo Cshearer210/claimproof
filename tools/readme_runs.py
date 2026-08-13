@@ -75,7 +75,7 @@ def _rewrite_for_a_local_copy(script: str, clone: Path) -> str:
     return "\n".join(out)
 
 
-def _run_lines(script: str, cwd: Path) -> tuple[int, str]:
+def _run_lines(script: str, cwd: Path, python: Path | None = None) -> tuple[int, str]:
     """Execute the block a line at a time, with no shell involved.
 
     Shelling out to `bash` looked simpler and was wrong: on Windows `bash`
@@ -108,14 +108,15 @@ def _run_lines(script: str, cwd: Path) -> tuple[int, str]:
         if parts[0] == "cd":
             cwd = (cwd / parts[1].strip('"')).resolve()
             continue
+        exe = str(python or sys.executable)
         if parts[0] in ("python", "python3", "py"):
-            parts[0:1] = [sys.executable]
+            parts[0:1] = [exe]
         elif parts[0] == "pip":
-            parts[0:1] = [sys.executable, "-m", "pip"]
+            parts[0:1] = [exe, "-m", "pip"]
         elif parts[0] == "dbt":
-            parts[0:1] = [sys.executable, "-m", "dbt.cli.main"]
+            parts[0:1] = [exe, "-m", "dbt.cli.main"]
         elif parts[0] == "deadcanary":
-            parts[0:1] = [sys.executable, "-m", "deadcanary"]
+            parts[0:1] = [exe, "-m", "deadcanary"]
         r = subprocess.run(parts, cwd=str(cwd), capture_output=True, text=True, timeout=3600)
         log.append(f"$ {line}\n{(r.stdout or '')[-400:]}{(r.stderr or '')[-400:]}")
 
@@ -151,10 +152,25 @@ def run_quickstart() -> None:
             ".git", "__pycache__", "*.egg-info", ".pytest_cache", "dist", "build",
             "target", "*.duckdb", ".venv"))
 
+        # A THROWAWAY interpreter, not the one running this file.
+        #
+        # The quickstart contains `pip install -e .`, and the first version ran it
+        # with the ambient python. That repointed the developer's own editable
+        # install at this temp copy, which was then deleted -- so running the check
+        # BROKE the working environment of anyone who ran it, silently, and the
+        # next `pytest` could not import the package at all. A check that damages
+        # the machine it runs on is worse than no check.
+        venv = Path(tmp) / "venv"
+        subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True, timeout=900)
+        python = venv / ("Scripts" if sys.platform == "win32" else "bin") / (
+            "python.exe" if sys.platform == "win32" else "python")
+        say(python.is_file(), "a throwaway environment, so the quickstart cannot "
+                              "touch the one you are working in")
+
         for i, body in enumerate(runnable, 1):
             script = _rewrite_for_a_local_copy(body, room)
             first = script.strip().splitlines()[0][:52] if script.strip() else "<empty>"
-            code, out = _run_lines(script, room)
+            code, out = _run_lines(script, room, python=python)
             if not say(code == 0, f"quickstart block {i}: {first}", f"exit {code}"):
                 print(out[-1200:])
 
@@ -187,6 +203,13 @@ def selftest() -> int:
         ok &= say(code == 0, "a normal command must still exit 0")
         code, _ = _run_lines("python -c \"raise SystemExit(3)\"", Path(_d))
         ok &= say(code == 3, "a genuinely failing command is still a failure")
+
+    # The environment this check runs in must be exactly as it was afterwards.
+    import importlib.metadata as _md
+    where_before = _md.distribution("deadcanary").locate_file("")
+    ok &= say("Temp" not in str(where_before) and "tmp" not in str(where_before).lower(),
+              "the installed package is not pointing at a temp directory",
+              str(where_before)[-60:])
 
     before = len(FAILURES)
     say(False, "a deliberately failed check is recorded")
