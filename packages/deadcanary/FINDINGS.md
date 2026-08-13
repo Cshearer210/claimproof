@@ -75,11 +75,57 @@ leaves all 20 tests green.** A test suite that cannot tell the difference betwee
 a full table and an empty one is not watching for the failure most likely to
 actually happen.
 
-## adityawarmanfw/dbt_duckdb_chinook — RESULTS PENDING
+## adityawarmanfw/dbt_duckdb_chinook — 0 dead canaries, and 182 corruptions nothing caught
 
-**The measurement is running as this is written and no number is claimed here
-yet.** This section exists so the setup is not re-derived; it will carry a
-results table exactly like the two above, or it will be deleted.
+**Every test in this suite can be made to fail. Not one is decorative.** And the
+suite still missed **182 of the 255 corruptions actually applied — 71%** —
+including emptying every single one of its eleven source tables.
+
+| | |
+|---|---|
+| Green tests before anything is touched | 63 |
+| **Tests no corruption could make fail** | **0** |
+| Corruptions planned | 289 |
+| Corruptions actually applied | 255 |
+| **Corruptions nothing caught** | **182 — 71%** |
+| Corruptions that changed no rows, not counted either way | 34 |
+| Corruptions wiped by a rebuild, not counted either way | 0 |
+| Coverage | complete — every discovered source was corrupted |
+| Run time | 115 minutes |
+
+**This is the more useful finding of the three, and it is not the flattering one.**
+A dead-canary count answers *is this test decorative?* This answers the question
+underneath it: *what does a green suite actually protect you from?*
+
+The suite is 53 `not_null` tests and 10 `unique` tests. What it caught:
+
+```
+53  blank_required     a required column arrives empty
+10  duplicate_key      a row is loaded twice
+10  break_reference    a key points at a row that does not exist
+```
+
+What walked straight through it:
+
+```
+64  unexpected_category  a column starts arriving as an unagreed value
+54  break_reference      a key pointing at nothing, everywhere the joins tolerate it
+30  negative_amount      a number arrives with its sign reversed
+11  drop_rows            rows never arrive, and nothing errors
+11  empty_table          the ENTIRE table is empty
+11  blank_required       a required column empty, where no not_null watches it
+```
+
+**A suite of `not_null` and `unique` tests catches nulls and duplicates.** Said
+aloud it is obvious. What nobody had measured is the size of the remainder, and
+on this project the remainder is seven corruptions in ten.
+
+**The starkest single result:** *every one of the eleven source tables can be
+emptied completely — album, artist, customer, employee, genre, invoice,
+invoice_line, media_type, playlist, playlist_track, track — and all 63 tests
+stay green.* A suite that cannot tell a full table from an empty one is not
+watching for the failure most likely to actually happen. The smaller
+`jaffle_shop_duckdb` showed the same thing on one table; here it is all of them.
 
 The first project measured here that is **not** from dbt-labs. Different author,
 different dataset — the Chinook music store, a schema with real referential
@@ -130,6 +176,14 @@ measurement above, where a withdrawn dependency had to be removed first.
   catch something not modelled here.
 - **A dead test is not always a useless test.** It documents intent, and intent
   has value. What it does not do is warn you.
+- **Zero dead canaries is not a clean bill of health, and the third project is
+  the proof.** Every one of its 63 tests can be made to fail, and 71% of the
+  damage thrown at it still went unnoticed. Reading "0 dead" as "well covered"
+  gets that exactly backwards. The two questions are different: *can this test
+  fail?* and *what is nobody watching?*
+- **The 71% figure is a fraction of what THIS CATALOGUE tried**, not of all
+  possible damage. A different catalogue would produce a different denominator.
+  It is a floor on what the suite misses, never a ceiling.
 
 ## Why the method can be trusted, in four numbers this tool refuses to fudge
 
@@ -138,7 +192,7 @@ the truth, and each is now a verdict of its own rather than a silent assumption:
 
 | | |
 |---|---|
-| **20** corruptions on the template changed no rows | counted as NO-OP, never as "nothing caught it" |
+| **20** on the template and **34** on chinook changed no rows | counted as NO-OP, never as "nothing caught it" |
 | corruptions wiped by a dbt rebuild | counted as UNDONE, never as a miss |
 | tests dbt skipped after another test failed | never credited with a catch, and never called dead |
 | a project with nothing corruptible | refused with exit 2, cannot tell, never exit 0 |
@@ -147,3 +201,13 @@ The first version of this tool reported **20 of 20 tests dead** on jaffle_shop.
 That was an artifact: it was corrupting models, which dbt rebuilds from source, so
 the damage was gone before a single test ran. It read as a spectacular finding.
 The difference between that and the numbers above is the four rules in this table.
+
+**And a fifth found while measuring the third project, in the same direction.**
+The run announced *"82 test(s) in the suite, 63 green"* for a project with 63
+tests and nothing failing: `dbt build` writes models and tests into the same
+artifact, and this counted both. It inflated the suite by every model in the
+project and made a completely green run read as 19 failures. The verdicts were
+never affected -- a model reports `success` where a test reports `pass`, so the
+green set was right by accident -- but the headline was wrong, and the headline
+is the number a reader takes away. Held down now by
+`test_models_are_never_counted_as_tests`.
