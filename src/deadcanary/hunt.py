@@ -26,13 +26,16 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import pathlib
 import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-from deadcanary.mutations import Mutation, discover, plan
+from deadcanary.mutations import Mutation, Target, discover, plan
+from deadcanary.sources import (FILE_CORRUPTIONS, PER_FILE, apply_to_file,
+                                discover_files, restore_files, snapshot_files)
 
 KILLED, SURVIVED, NOOP, BROKE = "KILLED", "SURVIVED", "NO-OP", "BROKE-THE-RUN"
 
@@ -81,6 +84,8 @@ class DbtProject:
             raise FileNotFoundError(f"no dbt_project.yml in {self.root}")
         self.database = Path(database) if database else self._find_database()
         self.pristine = self.root / ".deadcanary-pristine.duckdb"
+        #: Source files copied aside before any of them is corrupted.
+        self.file_backups: dict = {}
 
     def _find_database(self) -> Path:
         """The warehouse file, wherever the project's profile decided to put it.
@@ -89,10 +94,17 @@ class DbtProject:
         dbt_project.yml -- dbt-labs' own template writes to ./reports/, and the
         root-only glob found nothing and refused to run.
         """
-        found = sorted(self.root.glob("*.duckdb")) or sorted(
-            p for p in self.root.rglob("*.duckdb")
-            if ".deadcanary-pristine" not in p.name
-            and "dbt_packages" not in p.parts and "target" not in p.parts)
+        # The exclusion must apply to BOTH branches. It did not, so a run that
+        # crashed and left .deadcanary-pristine.duckdb in the root caused the NEXT
+        # run to adopt that backup as the warehouse -- and then fail trying to copy
+        # a file onto itself. A tool's own leftovers are the one thing it should
+        # never mistake for the user's data.
+        def usable(q: pathlib.Path) -> bool:
+            return (".deadcanary-pristine" not in q.name
+                    and "dbt_packages" not in q.parts and "target" not in q.parts)
+
+        found = sorted(q for q in self.root.glob("*.duckdb") if usable(q)) or sorted(
+            q for q in self.root.rglob("*.duckdb") if usable(q))
         if not found:
             raise FileNotFoundError(
                 f"no .duckdb file in {self.root}. Run `dbt seed && dbt run` first, "
@@ -201,6 +213,9 @@ def apply_one(project: DbtProject, mutation: Mutation, healthy: dict[str, str]) 
     """Corrupt, rebuild, compare. Always leaves the warehouse pristine again."""
     project.restore()
 
+    if getattr(mutation.target, "schema", None) == "file":
+        return _apply_to_source_file(project, mutation, healthy)
+
     con = _connect(project.database)
     try:
         before = con.execute(f"select count(*) from {mutation.target.fqn}").fetchone()[0]
@@ -262,6 +277,46 @@ def apply_one(project: DbtProject, mutation: Mutation, healthy: dict[str, str]) 
                    detail="every test still passed with corrupted data in the warehouse")
 
 
+def _apply_to_source_file(project: "DbtProject", mutation, healthy: dict[str, str]) -> Outcome:
+    """The file version of the same three questions: did it change, did it survive
+    the rebuild, did anything notice."""
+    restore_files(project.file_backups)
+    changed = apply_to_file(mutation.target, mutation.name)
+    if not changed:
+        return Outcome(mutation, NOOP, 0,
+                       detail="the corruption matched no rows in the file, so nothing "
+                              "was measured")
+
+    r = rebuild_and_test(project)
+    after_status = project.test_results()
+    restore_files(project.file_backups)
+
+    if not after_status:
+        return Outcome(mutation, BROKE, changed,
+                       detail=f"dbt produced no results at all (exit {r.returncode})")
+
+    now_failing = tuple(sorted(tid for tid, st in after_status.items()
+                               if st == "fail" and healthy.get(tid) == "pass"))
+    ran = frozenset(tid for tid, st in after_status.items() if st in ("pass", "fail"))
+    if now_failing:
+        return Outcome(mutation, KILLED, changed, now_failing, ran=ran)
+    return Outcome(mutation, SURVIVED, changed, ran=ran,
+                   detail="every test still passed with corrupted data in the source file")
+
+
+def _file_plan(targets) -> list[Mutation]:
+    """Every file corruption that makes sense, deduped per file where it belongs."""
+    out, seen = [], set()
+    for t in targets:
+        for name, (_edit, story) in FILE_CORRUPTIONS.items():
+            if name in PER_FILE:
+                if (t.path, name) in seen:
+                    continue
+                seen.add((t.path, name))
+            out.append(Mutation(name, story.format(n=3, t=t.table, c=t.column), t, ""))
+    return out
+
+
 def _checksum(con, fqn: str) -> str:
     """Content fingerprint, so an UPDATE that changes values but not the row count
     is still recognised as a real change."""
@@ -297,7 +352,15 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
         skipped = sorted({t.table for t in found if t.table in rebuilt})
         print(f"  not aiming at {len(skipped)} table(s) dbt rebuilds: {', '.join(skipped)}")
 
-    if not targets:
+    # Files a source reads DIRECTLY are raw data too, and for a project built that
+    # way they are the only raw data there is. Discovered alongside the tables so a
+    # project that mixes both is measured whole.
+    file_targets = discover_files(project.root)
+    if echo and file_targets:
+        files = sorted({t.path.name for t in file_targets})
+        print(f"  {len(files)} source file(s) read directly from disk: {', '.join(files)}")
+
+    if not targets and not file_targets:
         # NOTHING TO CORRUPT IS NOT A CLEAN RESULT. Measured on
         # dbt-labs/jaffle-shop-template: every table in its warehouse is a model,
         # because its raw data is read straight from CSV via an external source and
@@ -315,8 +378,9 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
         )
 
     project.snapshot()          # only once we know there is something to measure
+    project.file_backups = snapshot_files(file_targets, project.root / ".deadcanary-files")
 
-    mutations = plan(targets)
+    mutations = plan(targets) + _file_plan(file_targets)
     if limit:
         mutations = mutations[:limit]
     if echo:
@@ -336,7 +400,9 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
                 print(f"  [{i:3}/{len(mutations)}] {mark} {out.mutation}")
     finally:
         project.restore()
+        restore_files(project.file_backups)
         project.cleanup()
+        shutil.rmtree(project.root / ".deadcanary-files", ignore_errors=True)
 
     # A test may only be called a dead canary if the run actually gave it a chance
     # to fire. Cut the run short -- or skip a table -- and the untouched tests look
@@ -345,7 +411,7 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
     # yet. So coverage is recorded, and the headline is withheld unless it is whole.
     corrupted_tables = {o.mutation.target.table for o in outcomes
                         if o.verdict in (KILLED, SURVIVED, BROKE)}
-    available_tables = {t.table for t in targets}
+    available_tables = {t.table for t in targets} | {t.table for t in file_targets}
     complete = (not limit) and corrupted_tables >= available_tables
 
     # A test that dbt SKIPPED in every corruption never executed, so it cannot be

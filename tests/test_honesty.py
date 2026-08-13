@@ -315,3 +315,19 @@ def test_the_cli_reports_that_as_cannot_tell_not_as_a_pass(tmp_path):
 
     from deadcanary.__main__ import main
     assert main([str(root)]) == 2, "an unmeasurable project must not exit 0"
+
+
+def test_a_leftover_backup_is_never_mistaken_for_the_warehouse(tmp_path):
+    """A crashed run leaves .deadcanary-pristine.duckdb behind.
+
+    The recursive search excluded it, the root-level search did not, so the next
+    run adopted the tool's own backup as the user's warehouse and then failed
+    copying a file onto itself. A tool's leftovers are the one thing it must never
+    confuse with real data.
+    """
+    root = _make_project(tmp_path)
+    shutil.copy2(root / "w.duckdb", root / ".deadcanary-pristine.duckdb")
+
+    p = DbtProject(root)
+
+    assert p.database.name == "w.duckdb", f"adopted {p.database.name} as the warehouse"
