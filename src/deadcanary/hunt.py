@@ -36,6 +36,18 @@ from deadcanary.mutations import Mutation, discover, plan
 
 KILLED, SURVIVED, NOOP, BROKE = "KILLED", "SURVIVED", "NO-OP", "BROKE-THE-RUN"
 
+
+class CannotMeasure(RuntimeError):
+    """The run could not be performed at all. Reported as UNKNOWN, never as a pass."""
+
+
+class NothingToCorrupt(CannotMeasure):
+    """There was no raw data in the warehouse to break, so nothing was measured.
+
+    Raised rather than returning an empty report, because an empty report reads as
+    "your tests are fine" and the truth is "this tool could not tell you anything".
+    """
+
 #: The corruption was applied, and then dbt rebuilt the table from its source and
 #: wiped it before a single test ran. Nothing was measured.
 #:
@@ -125,7 +137,17 @@ class DbtProject:
 
     # -- warehouse state ---------------------------------------------------
     def snapshot(self) -> None:
-        shutil.copy2(self.database, self.pristine)
+        try:
+            shutil.copy2(self.database, self.pristine)
+        except PermissionError as exc:
+            # Windows locks the file while any connection is open, including one
+            # left by a crashed earlier run. Crashing here would look like a tool
+            # bug; the truth is that nothing could be measured.
+            raise CannotMeasure(
+                f"{self.database.name} is locked by another process, so it cannot "
+                f"be copied or safely corrupted. Close anything holding it open "
+                f"(a dbt run, a DuckDB shell, an editor preview) and try again."
+            ) from exc
 
     def restore(self) -> None:
         shutil.copy2(self.pristine, self.database)
@@ -259,7 +281,6 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
     if not live:
         raise RuntimeError("no passing tests to evaluate -- fix the suite first")
 
-    project.snapshot()
     con = _connect(project.database)
     try:
         found = discover(con)
@@ -275,6 +296,25 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
     if echo and rebuilt:
         skipped = sorted({t.table for t in found if t.table in rebuilt})
         print(f"  not aiming at {len(skipped)} table(s) dbt rebuilds: {', '.join(skipped)}")
+
+    if not targets:
+        # NOTHING TO CORRUPT IS NOT A CLEAN RESULT. Measured on
+        # dbt-labs/jaffle-shop-template: every table in its warehouse is a model,
+        # because its raw data is read straight from CSV via an external source and
+        # never lands in the database at all. The run produced no findings and
+        # looked exactly like a healthy project -- which is the shape of silent
+        # failure this whole tool exists to shout about, occurring in itself.
+        raise NothingToCorrupt(
+            f"every table in this warehouse is one dbt rebuilds, so there is nothing "
+            f"to corrupt. Tables seen: {', '.join(sorted(rebuilt)) or 'none'}. "
+            f"This usually means the project reads its raw data from files "
+            f"(read_csv/read_parquet in a source's external_location) rather than "
+            f"loading it into the warehouse. Corrupting those files is not supported "
+            f"yet, so this project cannot be measured -- which is different from "
+            f"measuring it and finding nothing."
+        )
+
+    project.snapshot()          # only once we know there is something to measure
 
     mutations = plan(targets)
     if limit:

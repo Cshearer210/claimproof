@@ -17,7 +17,8 @@ import duckdb
 import pytest
 
 from deadcanary.hunt import (
-    BROKE, KILLED, NOOP, SURVIVED, UNDONE, DbtProject, apply_one, hunt,
+    BROKE, KILLED, NOOP, SURVIVED, UNDONE, DbtProject, NothingToCorrupt,
+    apply_one, hunt,
 )
 from deadcanary.mutations import Mutation, Target
 
@@ -284,3 +285,33 @@ def test_the_report_records_a_partial_run_as_partial(tmp_path):
     saved = json.loads((root / "deadcanary-report.json").read_text(encoding="utf-8"))
     assert saved["coverage_complete"] is False
     assert saved["dead_canaries"] == []
+
+
+def test_a_project_with_nothing_to_corrupt_refuses_loudly(tmp_path):
+    """Nothing to corrupt is NOT a clean bill of health.
+
+    Measured on dbt-labs/jaffle-shop-template: every table in its warehouse is a
+    model, because its raw data is read straight from CSV via an external source
+    and never lands in the database. The run produced no findings and looked
+    exactly like a healthy project -- the shape of silent failure this tool
+    exists to shout about, happening in the tool itself.
+    """
+    root = _make_project(tmp_path)
+    p = StubProject(root, HEALTHY, rebuilds={"raw_orders", "blanks"})
+
+    with pytest.raises(NothingToCorrupt, match="nothing to corrupt"):
+        hunt(p, echo=False)
+
+
+def test_the_cli_reports_that_as_cannot_tell_not_as_a_pass(tmp_path):
+    """Exit 0 would mean 'no dead canaries'. The truth is 'no measurement'."""
+    root = _make_project(tmp_path)
+    (root / "target" / "manifest.json").write_text(json.dumps({"nodes": {
+        "m.1": {"name": "raw_orders", "resource_type": "model"},
+        "m.2": {"name": "blanks", "resource_type": "model"},
+    }}), encoding="utf-8")
+    (root / "target" / "run_results.json").write_text(json.dumps({"results": [
+        {"unique_id": "test.a", "status": "pass"}]}), encoding="utf-8")
+
+    from deadcanary.__main__ import main
+    assert main([str(root)]) == 2, "an unmeasurable project must not exit 0"

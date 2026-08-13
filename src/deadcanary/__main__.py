@@ -6,7 +6,8 @@ import json
 import sys
 from pathlib import Path
 
-from deadcanary.hunt import KILLED, NOOP, SURVIVED, UNDONE, DbtProject, hunt
+from deadcanary.hunt import (KILLED, NOOP, SURVIVED, UNDONE, DbtProject,
+                             CannotMeasure, hunt)
 
 
 def render(report: dict) -> str:
@@ -22,7 +23,8 @@ def render(report: dict) -> str:
         missing = sorted(set(report["tables_available"]) - set(report["tables_corrupted"]))
         lines("  PARTIAL RUN -- no dead-canary figure is claimed.")
         lines(f"  {len(dead)} test(s) never failed, but the run did not corrupt every table"
-              + (f" (untouched: {', '.join(missing)})" if missing else " (--limit was used)") + ".")
+              + (f" (untouched: {', '.join(missing)})" if missing
+                 else " (the run was cut short)") + ".")
         lines("  A test that was never given a chance to fire looks exactly like a dead one.")
     elif dead:
         pct = len(dead) / green * 100
@@ -79,7 +81,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"deadcanary: {exc}", file=sys.stderr)
         return 2
 
-    report = hunt(project, limit=args.limit, echo=not (args.json or args.quiet))
+    try:
+        report = hunt(project, limit=args.limit, echo=not (args.json or args.quiet))
+    except CannotMeasure as exc:
+        print(f"deadcanary: {exc}", file=sys.stderr)
+        return 2                      # cannot tell -- never 0, which would read as a pass
 
     if args.json:
         print(json.dumps({k: v for k, v in report.items() if k != "outcomes"}, indent=2))
