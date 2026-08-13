@@ -35,7 +35,7 @@ from deadcanary.gate import (GreenTestsUnproven, attest, current_values, recheck
 from deadcanary.hunt import BROKE, KILLED, NOOP, SURVIVED, DbtProject, Outcome, hunt
 from deadcanary.mutations import CATALOGUE, Mutation, Target, discover, plan
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __all__ = [
     "DbtProject", "hunt", "Outcome",
     "KILLED", "SURVIVED", "NOOP", "BROKE",
