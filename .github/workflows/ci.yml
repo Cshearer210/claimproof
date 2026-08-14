@@ -260,34 +260,34 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -e .[dbt]
       - name: build the demo warehouse
-        run: cd demo && dbt build --profiles-dir .
-      # Two canaries are planted in demo/ on purpose. If this stops finding
+        run: cd src/deadcanary/_demo && dbt build --profiles-dir .
+      # Two canaries are planted in the demo on purpose. If this stops finding
       # exactly two, either the tool broke or the demo did -- and either way the
       # README is lying to everyone who reads it.
       #
       # `--attest` rides along on the SAME hunt rather than costing a second one,
       # so recording the proof is free here.
-      - run: python -m deadcanary demo --expect-dead 2 --attest
+      - run: python -m deadcanary src/deadcanary/_demo --expect-dead 2 --attest
 
       # THE SEAM, exercised for real rather than against fixtures. The unit tests
       # prove the bookkeeping; this proves the thing an actual user does. Both
       # directions, because a claim that can only ever say HOLDS is not checking
       # anything -- it is a green light wired to nothing.
       - name: the recorded proof holds against the suite it measured
-        run: python -m deadcanary demo --recheck
+        run: python -m deadcanary src/deadcanary/_demo --recheck
 
       - name: ...and reopens the moment a test it never saw is added
         run: |
           python - <<'PY'
           import pathlib
-          p = pathlib.Path("demo/models/schema.yml")
+          p = pathlib.Path("src/deadcanary/_demo/models/schema.yml")
           s = p.read_text(encoding="utf-8")
           old = "      - name: customer_id\n        description: ALIVE. Blank these upstream and this goes red.\n        tests: [not_null]"
           assert old in s, "the demo's schema.yml changed shape; this step is now testing nothing"
           p.write_text(s.replace(old, old.replace("[not_null]", "[not_null, unique]")), encoding="utf-8")
           PY
-          cd demo && dbt parse --profiles-dir . && cd ..
-          if python -m deadcanary demo --recheck; then
+          cd src/deadcanary/_demo && dbt parse --profiles-dir . && cd ../../..
+          if python -m deadcanary src/deadcanary/_demo --recheck; then
             echo "FAILED: a test nothing has ever tried to kill was added, and the"
             echo "recorded proof still reported HOLDS. The claim does not expire."
             exit 1
@@ -307,3 +307,8 @@ jobs:
       - run: pip install -e .[dbt]
       - run: python tools/readme_runs.py --selftest
       - run: python tools/readme_runs.py
+      # The command the README tells a stranger to run FIRST. It exits
+      # non-zero unless it finds the two planted canaries, so it is a check
+      # and a demonstration at once.
+      - name: python -m deadcanary.demo works for someone with nothing set up
+        run: python -m deadcanary.demo

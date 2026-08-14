@@ -322,6 +322,9 @@ commands that reproduce them: [packages/deadcanary/FINDINGS.md](https://github.c
 ```bash
 pip install claimproof[dbt]
 python -m deadcanary path/to/dbt/project
+
+# no dbt project handy? a tiny one ships inside the package:
+pip install deadcanary[demo] && python -m deadcanary.demo
 ```
 
 It lives in this repo at [`packages/deadcanary`](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary), installs on its own as

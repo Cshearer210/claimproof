@@ -59,10 +59,22 @@ All three are reproducible, the raw report for the newest is committed in
 [findings/](https://github.com/Cshearer210/claimproof/tree/main/packages/deadcanary/findings), and the limits of what any of it means are stated:
 [FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary/FINDINGS.md).
 
-## Try it in one minute
+## Try it without a dbt project of your own
 
-The repo ships a tiny dbt project with **two deliberately useless tests planted in
-it**, so you can see the point without wiring anything up.
+A tiny dbt project with **two deliberately useless tests planted in it** ships
+inside the package, so there is nothing to clone and nothing to wire up.
+
+```bash
+pip install deadcanary[demo]
+python -m deadcanary.demo
+```
+
+It builds a small warehouse, corrupts it fourteen ways, and re-runs the suite
+against each one. **Give it five to ten minutes** and watch the corruptions go by:
+every line is a real dbt run, which is the only way this question can be answered
+honestly. Nothing is pre-recorded.
+
+Already have a dbt project? Skip the demo:
 
 <!-- readme: run -->
 ```bash
@@ -70,8 +82,8 @@ git clone https://github.com/Cshearer210/claimproof
 cd claimproof/packages/deadcanary
 pip install -e .[dbt]
 
-cd demo && dbt build --profiles-dir . && cd ..   # 10 green tests
-python -m deadcanary demo
+cd src/deadcanary/_demo && dbt build --profiles-dir . && cd ../../..   # 10 green tests
+python -m deadcanary src/deadcanary/_demo
 ```
 
 It finds both:
@@ -84,10 +96,10 @@ It finds both:
     x not_null_orders_amount
 ```
 
-Neither is contrived. Look at `demo/models/stg_orders.sql`: it filters to
+Neither is contrived. Look at `src/deadcanary/_demo/models/stg_orders.sql`: it filters to
 `status in ('placed','shipped','completed')`, so the `accepted_values` test on
 that column can never see a bad value however broken the upstream data gets.
-And `demo/models/orders.sql` wraps the amount in `coalesce(amount, 0)`, so a NULL
+And `src/deadcanary/_demo/models/orders.sql` wraps the amount in `coalesce(amount, 0)`, so a NULL
 arriving from upstream becomes a zero before the `not_null` test ever looks. Both
 are ordinary, sensible-looking SQL. Both quietly disarm the test above them.
 
