@@ -221,8 +221,8 @@ def selftest() -> int:
 
     # The guard: a `cd` that is part of the real quickstart must survive, or the
     # demo never gets built and the check silently measures nothing.
-    kept = _rewrite_for_a_local_copy("cd demo && dbt build --profiles-dir . && cd ..", Path("."))
-    ok &= say(kept.strip() == "cd demo && dbt build --profiles-dir . && cd ..",
+    kept = _rewrite_for_a_local_copy("cd src/deadcanary/_demo && dbt build --profiles-dir . && cd ../../..", Path("."))
+    ok &= say(kept.strip() == "cd src/deadcanary/_demo && dbt build --profiles-dir . && cd ../../..",
               "GUARD: a working `cd` inside the quickstart is left alone")
 
     # A finding is not an error, but a real error still is.

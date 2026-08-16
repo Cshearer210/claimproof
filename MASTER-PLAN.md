@@ -30,7 +30,15 @@ pip install deadcanary        ->  works alone
 
 ## TIER 1 — BLOCKS "READY FOR ANYONE TO DOWNLOAD"
 
-### 1.1 Cut release 0.14.1 / deadcanary 0.1.1  ·  **PR #26 open, CI running**
+**1.1 is done. 1.2 is the only Tier 1 item left, and it is the one that matters
+most: nobody has watched a stranger use this on their own project.**
+
+### 1.1 Cut release 0.14.1 / deadcanary 0.1.1  ·  **DONE 2026-08-13**
+
+**Shipped and verified on the live pages:** both descriptions carry 0 dead
+relative links, the hero image URL returns `<svg` rather than an HTML page, and a
+fresh `pip install claimproof[dbt]` in a clean venv resolves claimproof 0.14.1 +
+deadcanary 0.1.1 with the gate verifying its 6 cases.
 
 **Why it blocks:** PyPI renders the description **shipped inside the release**, not
 the one in the repo. Both pages currently show **18 links that go nowhere** and
@@ -41,11 +49,16 @@ The links return HTTP 200 and serve the byte-identical project page, so every
 automated check passes while a human goes in circles. That is the whole reason it
 survived this long.
 
-- [ ] Merge PR #26 when CI is green
-- [ ] `gh release create v0.14.1` — the publish workflow does both packages
-- [ ] Verify from PyPI: `pip install --no-cache-dir claimproof[dbt]` in a clean venv
-- [ ] Verify the rendered page: fetch `pypi.org/project/claimproof`, assert the
-      demo image URL returns `<svg` and not `<!DOCTYPE html>`
+- [x] Merge PR #26 — 17 checks green
+- [x] `gh release create v0.14.1` — publish workflow: 4 jobs, all success
+- [x] Fresh clean venv: claimproof 0.14.1 + deadcanary 0.1.1
+- [x] Live pages: 0 dead links on both, hero image returns real SVG
+
+**One thing to know for next time:** PyPI's JSON summary lagged for a few minutes
+after upload and still reported the OLD version's description. Checking the
+version-specific endpoint (`/pypi/<pkg>/<version>/json`) gives the truth
+immediately. A check that reads only `info.description` will report a fixed page
+as still broken.
 
 ### 1.2 A first-time user cannot currently succeed without dbt knowledge
 
