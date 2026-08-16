@@ -64,6 +64,7 @@ All three are reproducible, the raw report for the newest is committed in
 A tiny dbt project with **two deliberately useless tests planted in it** ships
 inside the package, so there is nothing to clone and nothing to wire up.
 
+<!-- readme: illustration -->
 ```bash
 pip install deadcanary[demo]
 python -m deadcanary.demo
