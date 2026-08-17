@@ -1,5 +1,13 @@
 # HANDOFF — claimproof and deadcanary, 2026-08-13 (evening)
 
+> **FINAL STATE, 2026-08-13 evening. Both packages are PUBLISHED and verified:**
+> claimproof **0.14.1**, deadcanary **0.1.1**, 0 dead links on either published
+> page, hero image renders, and a clean-venv `pip install claimproof[dbt]`
+> resolves both. The session ledger closed 10 of 10 items.
+>
+> **One thing open: PR #28**, this project's own plan update. Merge it and the
+> repo matches reality.
+>
 > **THE PLAN IS `../../MASTER-PLAN.md`.** Read it first. It is the one list for
 > this project, written after Chris said this had taken too long to become
 > downloadable. This file is the state and the traps; that file is the work.
