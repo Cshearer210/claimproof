@@ -76,12 +76,16 @@ crashes the agent on every turn gets deleted within the hour, and a deleted hook
 ## crewai_guardrail.py
 
 `stop_hook.py` refuses an agent's turn from the outside. This wires the same claims gate into
-CrewAI's own retry mechanism instead: `gate_task(task)` sets `task.guardrail`, so a blocked task
+CrewAI's own retry mechanism instead: `gate_task(task)` sets both `task.guardrail` and
+`task._guardrail` (the private attribute CrewAI's execution actually reads), so a blocked task
 gets fed the reason and a real retry, courtesy of CrewAI's `guardrail_max_retries`, rather than a
 one-shot refusal.
 
-It only gates tasks that used real tools -- a task with fewer than `WORK_THRESHOLD` tool calls is
-left alone, because a claim from a task that never touched anything is not this gate's problem.
+By default, `gate_task()` only gates tasks that made at least `WORK_THRESHOLD` tool calls -- a
+deliberately conservative heuristic: tool-call count is used as a proxy for substantive work, not
+a judgment of what those calls did, so a task that stayed under the threshold is left alone even if
+its claim would otherwise look unbacked. Override it with `gate_task(task, work_threshold=...)`, or
+pass `work_threshold=1` to gate on any tool use at all.
 
 Needs the `crewai` extra: `pip install claimproof[crewai]`.
 
