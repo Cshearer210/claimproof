@@ -1,0 +1,2991 @@
+{
+  "corruptions": [
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_album_album_id.5b25d99261"
+      ],
+      "column": "album_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of album arrive with album_id empty",
+      "table": "album",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_album_album_id.d12f7c9e1f"
+      ],
+      "column": "album_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of album is loaded twice, so album_id is no longer unique",
+      "table": "album",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "album_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of album never arrive, and nothing errors",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "album_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "album is empty -- the file is there and the rows are gone",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "album_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "album_id starts arriving as an unagreed value from upstream",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "album_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "album_id comes through negative, reversing the sign",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_album_album_id.d12f7c9e1f"
+      ],
+      "column": "album_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a album_id that does not exist anywhere",
+      "table": "album",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_album_album_title.1ecdc1080a"
+      ],
+      "column": "title",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of album arrive with title empty",
+      "table": "album",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "title",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "title starts arriving as an unagreed value from upstream",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "title",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "title comes through negative, reversing the sign",
+      "table": "album",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "title",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a title that does not exist anywhere",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_album_artist_id.4a798deacb"
+      ],
+      "column": "artist_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of album arrive with artist_id empty",
+      "table": "album",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "artist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "artist_id starts arriving as an unagreed value from upstream",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "artist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "artist_id comes through negative, reversing the sign",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "artist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a artist_id that does not exist anywhere",
+      "table": "album",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_artist_artist_id.a7b197e381"
+      ],
+      "column": "artist_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of artist arrive with artist_id empty",
+      "table": "artist",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_artist_artist_id.be6d44e19a"
+      ],
+      "column": "artist_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of artist is loaded twice, so artist_id is no longer unique",
+      "table": "artist",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "artist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of artist never arrive, and nothing errors",
+      "table": "artist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "artist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "artist is empty -- the file is there and the rows are gone",
+      "table": "artist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "artist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "artist_id starts arriving as an unagreed value from upstream",
+      "table": "artist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "artist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "artist_id comes through negative, reversing the sign",
+      "table": "artist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_artist_artist_id.be6d44e19a"
+      ],
+      "column": "artist_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a artist_id that does not exist anywhere",
+      "table": "artist",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_artist_artist_name.96f41e5e0a"
+      ],
+      "column": "name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of artist arrive with name empty",
+      "table": "artist",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "name starts arriving as an unagreed value from upstream",
+      "table": "artist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "name comes through negative, reversing the sign",
+      "table": "artist",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a name that does not exist anywhere",
+      "table": "artist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_customer_customer_id.4721d3b88d"
+      ],
+      "column": "customer_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with customer_id empty",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_customer_customer_id.310773d0ea"
+      ],
+      "column": "customer_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of customer is loaded twice, so customer_id is no longer unique",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "customer_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of customer never arrive, and nothing errors",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "customer_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "customer is empty -- the file is there and the rows are gone",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "customer_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "customer_id starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "customer_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "customer_id comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_customer_customer_id.310773d0ea"
+      ],
+      "column": "customer_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a customer_id that does not exist anywhere",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_customer_customer_first_name.0f590c04e3"
+      ],
+      "column": "first_name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with first_name empty",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "first_name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "first_name starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "first_name",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "first_name comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "first_name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a first_name that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_customer_customer_last_name.15080c06e8"
+      ],
+      "column": "last_name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with last_name empty",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "last_name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "last_name starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "last_name",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "last_name comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "last_name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a last_name that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "company",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with company empty",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "company",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "company starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "company",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "company comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "company",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a company that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_customer_customer_address.852191b5ef"
+      ],
+      "column": "address",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with address empty",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "address",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "address starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "address",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "address comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "address",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a address that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_customer_customer_city.07d3671de3"
+      ],
+      "column": "city",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with city empty",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "city",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "city starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "city",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "city comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "city",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a city that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with state empty",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "state starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "state",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "state comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a state that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_customer_customer_country.3917a1df1f"
+      ],
+      "column": "country",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with country empty",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "country",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "country starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "country",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "country comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "country",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a country that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with postal_code empty",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "postal_code starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "postal_code comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a postal_code that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "phone",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with phone empty",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "phone",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "phone starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "phone",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "phone comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "phone",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a phone that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "fax",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with fax empty",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "fax",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "fax starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "fax",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "fax comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "fax",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a fax that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_customer_customer_email.2a1ad070ed"
+      ],
+      "column": "email",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with email empty",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "email",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "email starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "email",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "email comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "email",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a email that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_customer_employee_id.01436fa1bd"
+      ],
+      "column": "support_rep_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of customer arrive with support_rep_id empty",
+      "table": "customer",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "support_rep_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "support_rep_id starts arriving as an unagreed value from upstream",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "support_rep_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "support_rep_id comes through negative, reversing the sign",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "support_rep_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a support_rep_id that does not exist anywhere",
+      "table": "customer",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_id.102880b2ef"
+      ],
+      "column": "employee_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with employee_id empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_employee_employee_id.756815244f"
+      ],
+      "column": "employee_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of employee is loaded twice, so employee_id is no longer unique",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "employee_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of employee never arrive, and nothing errors",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "employee_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "employee is empty -- the file is there and the rows are gone",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "employee_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "employee_id starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "employee_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "employee_id comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_employee_employee_id.756815244f"
+      ],
+      "column": "employee_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a employee_id that does not exist anywhere",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_last_name.4f5cf3091b"
+      ],
+      "column": "last_name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with last_name empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "last_name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "last_name starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "last_name",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "last_name comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "last_name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a last_name that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_first_name.321f1468a0"
+      ],
+      "column": "first_name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with first_name empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "first_name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "first_name starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "first_name",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "first_name comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "first_name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a first_name that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_title.0728ddb0bb"
+      ],
+      "column": "title",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with title empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "title",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "title starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "title",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "title comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "title",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a title that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "reports_to",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with reports_to empty",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "reports_to",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "reports_to starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "reports_to",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "reports_to comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "reports_to",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a reports_to that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_birth_date.0ad7e2d6b1"
+      ],
+      "column": "birth_date",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with birth_date empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "birth_date",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "birth_date starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "birth_date",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "birth_date comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "birth_date",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a birth_date that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_hire_date.3dc5845e12"
+      ],
+      "column": "hire_date",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with hire_date empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "hire_date",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "hire_date starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "hire_date",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "hire_date comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "hire_date",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a hire_date that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_address.9b407327ef"
+      ],
+      "column": "address",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with address empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "address",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "address starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "address",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "address comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "address",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a address that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "city",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with city empty",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "city",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "city starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "city",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "city comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "city",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a city that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with state empty",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "state starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "state",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "state comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a state that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_country.56ae97c8ed"
+      ],
+      "column": "country",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with country empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "country",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "country starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "country",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "country comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "country",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a country that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_postal_code.5963c5a4fa"
+      ],
+      "column": "postal_code",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with postal_code empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "postal_code starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "postal_code",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "postal_code comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a postal_code that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_phone.b595dd7454"
+      ],
+      "column": "phone",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with phone empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "phone",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "phone starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "phone",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "phone comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "phone",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a phone that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_fax.5e0929e06a"
+      ],
+      "column": "fax",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with fax empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "fax",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "fax starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "fax",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "fax comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "fax",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a fax that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_employee_employee_email.31c182658d"
+      ],
+      "column": "email",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of employee arrive with email empty",
+      "table": "employee",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "email",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "email starts arriving as an unagreed value from upstream",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "email",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "email comes through negative, reversing the sign",
+      "table": "employee",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "email",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a email that does not exist anywhere",
+      "table": "employee",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_genre_genre_id.5f523677de"
+      ],
+      "column": "genre_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of genre arrive with genre_id empty",
+      "table": "genre",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_genre_genre_id.afd28bdf4f"
+      ],
+      "column": "genre_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of genre is loaded twice, so genre_id is no longer unique",
+      "table": "genre",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "genre_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of genre never arrive, and nothing errors",
+      "table": "genre",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "genre_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "genre is empty -- the file is there and the rows are gone",
+      "table": "genre",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "genre_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "genre_id starts arriving as an unagreed value from upstream",
+      "table": "genre",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "genre_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "genre_id comes through negative, reversing the sign",
+      "table": "genre",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_genre_genre_id.afd28bdf4f"
+      ],
+      "column": "genre_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a genre_id that does not exist anywhere",
+      "table": "genre",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_genre_genre_name.fd5fe8d5db"
+      ],
+      "column": "name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of genre arrive with name empty",
+      "table": "genre",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "name starts arriving as an unagreed value from upstream",
+      "table": "genre",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "name comes through negative, reversing the sign",
+      "table": "genre",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a name that does not exist anywhere",
+      "table": "genre",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_line_invoice_line_id.c9cc6cb0b8"
+      ],
+      "column": "invoice_line_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice_line arrive with invoice_line_id empty",
+      "table": "invoice_line",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_invoice_line_invoice_line_id.77928a3e6b"
+      ],
+      "column": "invoice_line_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of invoice_line is loaded twice, so invoice_line_id is no longer unique",
+      "table": "invoice_line",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_line_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of invoice_line never arrive, and nothing errors",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_line_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "invoice_line is empty -- the file is there and the rows are gone",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_line_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "invoice_line_id starts arriving as an unagreed value from upstream",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_line_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "invoice_line_id comes through negative, reversing the sign",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_invoice_line_invoice_line_id.77928a3e6b"
+      ],
+      "column": "invoice_line_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a invoice_line_id that does not exist anywhere",
+      "table": "invoice_line",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_line_invoice_id.50f6562bf0"
+      ],
+      "column": "invoice_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice_line arrive with invoice_id empty",
+      "table": "invoice_line",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "invoice_id starts arriving as an unagreed value from upstream",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "invoice_id comes through negative, reversing the sign",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a invoice_id that does not exist anywhere",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_line_track_id.5d35924e21"
+      ],
+      "column": "track_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice_line arrive with track_id empty",
+      "table": "invoice_line",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "track_id starts arriving as an unagreed value from upstream",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "track_id comes through negative, reversing the sign",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a track_id that does not exist anywhere",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_line_track_unit_price.12de227af6"
+      ],
+      "column": "unit_price",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice_line arrive with unit_price empty",
+      "table": "invoice_line",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "unit_price",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "unit_price starts arriving as an unagreed value from upstream",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "unit_price",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "unit_price comes through negative, reversing the sign",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "unit_price",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a unit_price that does not exist anywhere",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_line_track_quantity.ae23361304"
+      ],
+      "column": "quantity",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice_line arrive with quantity empty",
+      "table": "invoice_line",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "quantity",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "quantity starts arriving as an unagreed value from upstream",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "quantity",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "quantity comes through negative, reversing the sign",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "quantity",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a quantity that does not exist anywhere",
+      "table": "invoice_line",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_id.01df371aae"
+      ],
+      "column": "invoice_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with invoice_id empty",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_invoice_invoice_id.ff62a93d3b"
+      ],
+      "column": "invoice_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of invoice is loaded twice, so invoice_id is no longer unique",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of invoice never arrive, and nothing errors",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "invoice is empty -- the file is there and the rows are gone",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "invoice_id starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "invoice_id comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_invoice_invoice_id.ff62a93d3b"
+      ],
+      "column": "invoice_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a invoice_id that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_customer_id.ad43fc527b"
+      ],
+      "column": "customer_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with customer_id empty",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "customer_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "customer_id starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "customer_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "customer_id comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "customer_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a customer_id that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_date.b071eb8986"
+      ],
+      "column": "invoice_date",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with invoice_date empty",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_date",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "invoice_date starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_date",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "invoice_date comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "invoice_date",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a invoice_date that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_billing_address.9f742a461f"
+      ],
+      "column": "billing_address",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with billing_address empty",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_address",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "billing_address starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_address",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "billing_address comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_address",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a billing_address that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_billing_city.8a10b5ac4d"
+      ],
+      "column": "billing_city",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with billing_city empty",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_city",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "billing_city starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_city",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "billing_city comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_city",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a billing_city that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with billing_state empty",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "billing_state starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_state",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "billing_state comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_state",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a billing_state that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_billing_country.f58eed528f"
+      ],
+      "column": "billing_country",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with billing_country empty",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_country",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "billing_country starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_country",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "billing_country comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_country",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a billing_country that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with billing_postal_code empty",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "billing_postal_code starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "billing_postal_code comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "billing_postal_code",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a billing_postal_code that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_total.9f7574ef23"
+      ],
+      "column": "total",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of invoice arrive with total empty",
+      "table": "invoice",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "total",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "total starts arriving as an unagreed value from upstream",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "total",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "total comes through negative, reversing the sign",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "total",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a total that does not exist anywhere",
+      "table": "invoice",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_media_type_media_type_id.7826e42fc1"
+      ],
+      "column": "media_type_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of media_type arrive with media_type_id empty",
+      "table": "media_type",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_media_type_media_type_id.6cc267ef44"
+      ],
+      "column": "media_type_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of media_type is loaded twice, so media_type_id is no longer unique",
+      "table": "media_type",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "media_type_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of media_type never arrive, and nothing errors",
+      "table": "media_type",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "media_type_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "media_type is empty -- the file is there and the rows are gone",
+      "table": "media_type",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "media_type_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "media_type_id starts arriving as an unagreed value from upstream",
+      "table": "media_type",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "media_type_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "media_type_id comes through negative, reversing the sign",
+      "table": "media_type",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_media_type_media_type_id.6cc267ef44"
+      ],
+      "column": "media_type_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a media_type_id that does not exist anywhere",
+      "table": "media_type",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_media_type_media_type_name.13041c7733"
+      ],
+      "column": "name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of media_type arrive with name empty",
+      "table": "media_type",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "name starts arriving as an unagreed value from upstream",
+      "table": "media_type",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "name comes through negative, reversing the sign",
+      "table": "media_type",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a name that does not exist anywhere",
+      "table": "media_type",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_playlist_track_playlist_id.a509a68ada"
+      ],
+      "column": "playlist_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of playlist_track arrive with playlist_id empty",
+      "table": "playlist_track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "duplicate_key",
+      "story": "one row of playlist_track is loaded twice, so playlist_id is no longer unique",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of playlist_track never arrive, and nothing errors",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "playlist_track is empty -- the file is there and the rows are gone",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "playlist_id starts arriving as an unagreed value from upstream",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "playlist_id comes through negative, reversing the sign",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a playlist_id that does not exist anywhere",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_playlist_track_track_id.971e5c3ed1"
+      ],
+      "column": "track_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of playlist_track arrive with track_id empty",
+      "table": "playlist_track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "track_id starts arriving as an unagreed value from upstream",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "track_id comes through negative, reversing the sign",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a track_id that does not exist anywhere",
+      "table": "playlist_track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_playlist_playlist_id.ce164d9d24"
+      ],
+      "column": "playlist_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of playlist arrive with playlist_id empty",
+      "table": "playlist",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_playlist_playlist_id.6f899c44f6"
+      ],
+      "column": "playlist_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of playlist is loaded twice, so playlist_id is no longer unique",
+      "table": "playlist",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of playlist never arrive, and nothing errors",
+      "table": "playlist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "playlist is empty -- the file is there and the rows are gone",
+      "table": "playlist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "playlist_id starts arriving as an unagreed value from upstream",
+      "table": "playlist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "playlist_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "playlist_id comes through negative, reversing the sign",
+      "table": "playlist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_playlist_playlist_id.6f899c44f6"
+      ],
+      "column": "playlist_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a playlist_id that does not exist anywhere",
+      "table": "playlist",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_playlist_playlist_name.ee2cc91336"
+      ],
+      "column": "name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of playlist arrive with name empty",
+      "table": "playlist",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "name starts arriving as an unagreed value from upstream",
+      "table": "playlist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "name comes through negative, reversing the sign",
+      "table": "playlist",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a name that does not exist anywhere",
+      "table": "playlist",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_track_track_id.176bd09265"
+      ],
+      "column": "track_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with track_id empty",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_track_track_id.39ecf945cc"
+      ],
+      "column": "track_id",
+      "detail": "",
+      "name": "duplicate_key",
+      "story": "one row of track is loaded twice, so track_id is no longer unique",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "drop_rows",
+      "story": "3 rows of track never arrive, and nothing errors",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "empty_table",
+      "story": "track is empty -- the file is there and the rows are gone",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "track_id starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "track_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "track_id comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.unique_stg_track_track_id.39ecf945cc"
+      ],
+      "column": "track_id",
+      "detail": "",
+      "name": "break_reference",
+      "story": "3 rows point at a track_id that does not exist anywhere",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_track_track_name.9190c61d6c"
+      ],
+      "column": "name",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with name empty",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "name starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "name comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "name",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a name that does not exist anywhere",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_track_album_id.8e679e40b6"
+      ],
+      "column": "album_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with album_id empty",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "album_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "album_id starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "album_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "album_id comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "album_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a album_id that does not exist anywhere",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_track_media_type_id.8d676c31f1"
+      ],
+      "column": "media_type_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with media_type_id empty",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "media_type_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "media_type_id starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "media_type_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "media_type_id comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "media_type_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a media_type_id that does not exist anywhere",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_track_genre_id.cf83941793"
+      ],
+      "column": "genre_id",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with genre_id empty",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "genre_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "genre_id starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "genre_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "genre_id comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "genre_id",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a genre_id that does not exist anywhere",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "composer",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with composer empty",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "composer",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "composer starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "composer",
+      "detail": "the corruption matched no rows in the file, so nothing was measured",
+      "name": "negative_amount",
+      "story": "composer comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "NO-OP"
+    },
+    {
+      "caught_by": [],
+      "column": "composer",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a composer that does not exist anywhere",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_track_track_milliseconds.578ce7a180"
+      ],
+      "column": "milliseconds",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with milliseconds empty",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "milliseconds",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "milliseconds starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "milliseconds",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "milliseconds comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "milliseconds",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a milliseconds that does not exist anywhere",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_track_track_bytes.0f9f9470d9"
+      ],
+      "column": "bytes",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with bytes empty",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "bytes",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "bytes starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "bytes",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "bytes comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "bytes",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a bytes that does not exist anywhere",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [
+        "test.dbt_duckdb_chinook.not_null_stg_track_track_unit_price.3541e4453d"
+      ],
+      "column": "unit_price",
+      "detail": "",
+      "name": "blank_required",
+      "story": "3 rows of track arrive with unit_price empty",
+      "table": "track",
+      "verdict": "KILLED"
+    },
+    {
+      "caught_by": [],
+      "column": "unit_price",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "unexpected_category",
+      "story": "unit_price starts arriving as an unagreed value from upstream",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "unit_price",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "negative_amount",
+      "story": "unit_price comes through negative, reversing the sign",
+      "table": "track",
+      "verdict": "SURVIVED"
+    },
+    {
+      "caught_by": [],
+      "column": "unit_price",
+      "detail": "every test still passed with corrupted data in the source file",
+      "name": "break_reference",
+      "story": "3 rows point at a unit_price that does not exist anywhere",
+      "table": "track",
+      "verdict": "SURVIVED"
+    }
+  ],
+  "coverage_complete": true,
+  "dead_canaries": [],
+  "dead_canaries_provisional": [],
+  "killers": {
+    "test.dbt_duckdb_chinook.not_null_stg_album_album_id.5b25d99261": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_album_album_title.1ecdc1080a": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_album_artist_id.4a798deacb": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_artist_artist_id.a7b197e381": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_artist_artist_name.96f41e5e0a": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_customer_customer_address.852191b5ef": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_customer_customer_city.07d3671de3": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_customer_customer_country.3917a1df1f": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_customer_customer_email.2a1ad070ed": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_customer_customer_first_name.0f590c04e3": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_customer_customer_id.4721d3b88d": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_customer_customer_last_name.15080c06e8": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_customer_employee_id.01436fa1bd": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_address.9b407327ef": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_birth_date.0ad7e2d6b1": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_country.56ae97c8ed": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_email.31c182658d": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_fax.5e0929e06a": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_first_name.321f1468a0": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_hire_date.3dc5845e12": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_id.102880b2ef": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_last_name.4f5cf3091b": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_phone.b595dd7454": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_postal_code.5963c5a4fa": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_employee_employee_title.0728ddb0bb": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_genre_genre_id.5f523677de": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_genre_genre_name.fd5fe8d5db": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_customer_id.ad43fc527b": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_billing_address.9f742a461f": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_billing_city.8a10b5ac4d": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_billing_country.f58eed528f": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_date.b071eb8986": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_id.01df371aae": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_invoice_total.9f7574ef23": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_line_invoice_id.50f6562bf0": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_line_invoice_line_id.c9cc6cb0b8": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_line_track_id.5d35924e21": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_line_track_quantity.ae23361304": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_invoice_line_track_unit_price.12de227af6": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_media_type_media_type_id.7826e42fc1": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_media_type_media_type_name.13041c7733": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_playlist_playlist_id.ce164d9d24": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_playlist_playlist_name.ee2cc91336": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_playlist_track_playlist_id.a509a68ada": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_playlist_track_track_id.971e5c3ed1": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_track_album_id.8e679e40b6": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_track_genre_id.cf83941793": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_track_media_type_id.8d676c31f1": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_track_track_bytes.0f9f9470d9": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_track_track_id.176bd09265": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_track_track_milliseconds.578ce7a180": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_track_track_name.9190c61d6c": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.not_null_stg_track_track_unit_price.3541e4453d": [
+      "blank_required"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_album_album_id.d12f7c9e1f": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_artist_artist_id.be6d44e19a": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_customer_customer_id.310773d0ea": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_employee_employee_id.756815244f": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_genre_genre_id.afd28bdf4f": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_invoice_invoice_id.ff62a93d3b": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_invoice_line_invoice_line_id.77928a3e6b": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_media_type_media_type_id.6cc267ef44": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_playlist_playlist_id.6f899c44f6": [
+      "break_reference",
+      "duplicate_key"
+    ],
+    "test.dbt_duckdb_chinook.unique_stg_track_track_id.39ecf945cc": [
+      "break_reference",
+      "duplicate_key"
+    ]
+  },
+  "mutations_applied": 255,
+  "mutations_missed": 182,
+  "mutations_noop": 34,
+  "mutations_planned": 289,
+  "mutations_undone": 0,
+  "never_executed": [],
+  "project": "C:\\Users\\Owner\\PureEuphoria\\deadcanary\\projects\\dbt_duckdb_chinook",
+  "seconds": 6914.8,
+  "tables_available": [
+    "album",
+    "artist",
+    "customer",
+    "employee",
+    "genre",
+    "invoice",
+    "invoice_line",
+    "media_type",
+    "playlist",
+    "playlist_track",
+    "track"
+  ],
+  "tables_corrupted": [
+    "album",
+    "artist",
+    "customer",
+    "employee",
+    "genre",
+    "invoice",
+    "invoice_line",
+    "media_type",
+    "playlist",
+    "playlist_track",
+    "track"
+  ],
+  "tests_green": 63,
+  "tests_total": 82
+}

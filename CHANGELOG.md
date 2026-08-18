@@ -3,6 +3,272 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1]
+
+A documentation-only release, and it exists because documentation cannot be
+fixed without one.
+
+### Fixed
+- **Every link on the PyPI pages, and the hero image.** PyPI renders the
+  description **shipped inside the release**, not the one in the repo, and it
+  does not rewrite relative links. It also does not 404 on them — it serves the
+  byte-identical project page for any sub-path, so all 18 returned HTTP 200 and
+  took the reader precisely nowhere. `![...](assets/demo.svg)` resolved to that
+  same HTML page, so the animated demo had been rendering as a broken image on
+  the published page since the project was first released. All links are
+  absolute now, and each was fetched rather than eyeballed — including checking
+  the image URL returns `<svg` and not `<!DOCTYPE html>`, which is exactly the
+  mistake that kept this invisible.
+- **The deadcanary README described two projects** and called them "both
+  numbers", after a third had been measured.
+
+### The part worth reading
+A status code is a proxy for the thing you care about, and this is the cheapest
+possible demonstration: every one of those dead links passed an HTTP check. The
+only way to catch it was to compare the bytes served at the link against the
+bytes served at the project page and notice they were identical.
+
+## [0.14.0]
+
+**`deadcanary` ships alongside this library from here on.** Nothing about the
+`claimproof` package changes — same API, same zero runtime dependencies. What is
+new is a second package in the same repo and one extra to reach it.
+
+**The version bump is not cosmetic.** `pip install claimproof[dbt]` cannot work
+against 0.13.0, and it does not fail loudly when you try it — pip prints
+`WARNING: claimproof 0.13.0 does not provide the extra 'dbt'`, installs
+claimproof on its own, and exits 0. A command that looks like it succeeded while
+quietly doing half the job is the exact shape this library exists to catch, so
+publishing deadcanary without also republishing claimproof would have left that
+in place.
+
+### Added
+- **`deadcanary` now lives in this repo**, at `packages/deadcanary`, brought in
+  with `git subtree` so its history came with it. It is the same idea one layer
+  down: this library refuses a claim of success that carries no evidence a
+  machine can check, and *"all 20 data tests pass"* is exactly such a claim —
+  green is equally what a test that **cannot fail** looks like. deadcanary
+  settles which one you have by corrupting the data on purpose.
+  `pip install claimproof[dbt]` installs both; `pip install deadcanary` still
+  works alone. **Nothing about the `claimproof` distribution changes** — same
+  package, same zero runtime dependencies.
+- **`GreenTestsUnproven`**, a `Gate` deadcanary contributes: it refuses a claim
+  of data-test health unless a complete deadcanary run backs it. Six selftest
+  cases, four of them guards.
+- **`deadcanary --attest` / `--recheck`**, which put a measurement under
+  `ClaimBasis` so it expires. The proof is fingerprinted against the test
+  *suite* — every test, its kind, what it hangs off, every source — so adding a
+  test reopens the claim on its own. It deliberately ignores dbt's run metadata,
+  because `manifest.json` carries a fresh timestamp and invocation id on every
+  build and fingerprinting the file would reopen the claim after every run.
+
+### The part worth reading
+The subtree brought `packages/deadcanary/.github/workflows/ci.yml` with it, and
+GitHub runs only workflows at the repository **root**. Two checks — the demo
+still finding its two planted dead canaries, and the README rehearsal — stopped
+running the moment the merge landed, while their file sat in the tree looking
+exactly like coverage. Both are now root jobs and the orphaned file is deleted.
+A workflow that cannot run is worse than none, because it reads as protection
+and nothing reports that it is inert.
+
+## [0.13.0]
+
+The gate was refusing turns that had already shown their working. Measured over
+2,975 real end-of-turn replies from a working agent's transcripts: it refused 109
+of them, and hand-reading a sample of twelve, roughly half were wrong.
+
+Three shapes, none of them visible from this project's own fixtures, because the
+fixtures were written to suit the gate.
+
+### Fixed
+- **The claim word used as an ordinary adjective.** "Now proving all 166 shipped
+  ebook cheat sheets still render", "the deployed code", "fixed-character wrap".
+  In each the word modifies a noun and nothing is claimed. Largest single source
+  of wrong refusals.
+- **Negated and conditional context.** "Caught before it shipped" is a near miss
+  being reported, not a completion being claimed.
+- **A real measurement in a form it did not recognise.** "223 cases",
+  "0 deleted lines", "all 21 empty" were all refused, while "12 passed" and
+  "316 tests pass" were correctly allowed. This one contradicted the README,
+  which promises a test count counts as evidence.
+
+### The part worth reading
+The discriminator for the adjective case is the copula: "the deployed code"
+describes, "it IS deployed" asserts. Without that distinction "The bug is fixed
+and it works now" parsed as attributive and a genuine claim stopped being caught.
+The existing suite caught that regression before it shipped -- which is the whole
+argument for the guard-case contract added in 0.12.0, working on its author.
+
+`UnbackedClaims` now carries 25 selftest cases, ten of them the exact real
+sentences it used to get wrong. On the same corpus: 109 refusals -> 85, at 23
+microseconds per turn.
+
+### Also
+- `tools/verify_wheel.py` gained a selftest proving both directions: a passing
+  step records nothing, a failing step is recorded, an expected non-zero exit is
+  not a failure.
+
+## [0.12.0]
+
+The library required a gate to prove it can fire. It never required a gate to prove it can stay
+quiet, which is half a proof presented as a whole one.
+
+An over-firing gate is the more expensive failure and the one nobody thinks to test for, because
+it does not look broken. It looks like a discovery. It produces a pile of findings that were never
+real, somebody spends a day on them, and when that is worked out the gate gets switched off — at
+which point it catches nothing at all. That is strictly worse than never having written it.
+
+### Changed — BREAKING
+- `Gate.verify()` now refuses a gate whose selftest cases are **all** `expect_flagged=True`, the
+  mirror of the existing refusal for all-`False`. Every gate must ship at least one **guard case**:
+  something close enough to the bad case to be tempting, which the gate has to look at and leave
+  alone.
+- **Migration:** add one `Case(..., expect_flagged=False)` to any gate that has none. Pick a real
+  near-miss, not an empty string — an empty case is free and proves nothing on its own. The three
+  shipped gates already satisfied this (`UnbackedClaims` carries 9 guard cases of 15, `TypedScope`
+  7 of 10, `SilentSkip` 11 of 15), so no in-tree gate changed behaviour.
+
+### Added
+- `test_a_gate_with_no_guard_case_is_refused` — the new rule fires.
+- `test_one_guard_case_among_many_bad_ones_is_enough` — the guard case for the guard-case rule
+  itself: four must-flag cases and exactly one guard still verifies, so the requirement cannot
+  quietly become "most cases must be clean".
+- `test_a_gate_that_flags_correct_work_is_caught_by_its_guard_case` — the over-firing gate, the
+  failure mode this release exists for. 312 tests before, 315 after.
+
+### Added — `tools/fresh_eyes.py`, the rehearsal nobody had run
+`verify_wheel.py` proves the CODE works from a clean install by running the test suite outside the
+source tree. Nothing proved the PRODUCT works, because nothing here had ever executed the README —
+and documentation rots on its own schedule. A doc example can name a keyword argument renamed two
+releases ago while every test passes.
+
+Four acts, each a thing a first-time user does in their first ten minutes: install from the built
+artifact into an empty environment; run what the README says; point the gates at somebody else's
+code; run the one-command Claude Code integration in a throwaway project and make it actually
+refuse a turn. It reuses `verify_wheel.clean_install()` rather than building a second, slightly
+different environment beside it.
+
+- **It found a real defect immediately.** The README's first example annotated `list[Finding]` and
+  imported only `Gate, Case`, so anyone pasting it got `NameError: name 'Finding' is not defined`.
+  Fixed. Folded into this release rather than minting 0.12.1, since 0.12.0 has not been published.
+- **Every ```python block must now declare itself** — `<!-- fresh-eyes: run -->` or
+  `<!-- fresh-eyes: illustration -->`, HTML comments so nothing renders differently. An unmarked
+  block FAILS rather than being skipped, so a block added next month cannot fall out of coverage.
+  4 of the 11 blocks execute; the rest are fragments that reference the reader's own code.
+- **Aimed at the Python standard library** — 151 files nobody wrote to suit this project —
+  `TypedScope` flags 0.7% and `SilentSkip` 1.3%, against a stated 25% over-firing ceiling. The hits
+  are real: a hardcoded temp-directory list in `tempfile.py`, and `except: pass` around a check in
+  `platform.py` and `webbrowser.py`.
+- Wired as its own CI job, so it runs on every change rather than when somebody remembers.
+
+**The rehearsal was wrong twice before the library was.** Act 4 first reported that the headline
+feature did not block an unbacked claim. It does. The fixture was a bare text turn with no tool
+call, which `decide()` correctly ignores — a hook that nags small talk gets uninstalled. Rewritten
+with a `tool_use` block, it still passed, because the fixture said *"I edited core.py and fixed the
+parser"* and **a filename is evidence**: "a file and line" is one of the things the gate accepts.
+Both are recorded in comments where the fixture is built. A probe that names something you have
+just watched work is the probe being wrong.
+
+### The part worth reading
+The discipline was already in the library everywhere except the one place it governs somebody
+else's code. Sweeping all four self-proof mechanisms: `Harness.selftest` asserts a clean run
+returns 0 as well as catching the broken one; `Coverage.selftest` asserts *"the same 0 broken IS a
+pass once the whole population is accounted for"*; `ClaimBasis.selftest` asserts *"rewriting the
+identical bytes does NOT reopen"* and says why — a checker that fires on a touched-but-identical
+file gets switched off. One of four had the hole, and it was `Gate.verify()`, the one every
+external gate passes through.
+
+Two fixtures declared only a bad case and were refused for the new reason rather than the reason
+they were written to demonstrate: `demo.NeverFails` and the `Exploding` gate in the hostile-input
+suite. Both now declare a guard case, so each is refused for its real defect again — returning
+clean on everything, and raising from `inspect()`.
+
+## [0.11.1]
+
+### Fixed
+- The publish workflow can be triggered manually. Re-running the failed 0.11.0 publish used the
+  workflow **as it existed at the tag**, which predated the token support, so it took the trusted
+  publishing branch again and failed identically. Without a manual trigger, correcting any
+  publishing problem costs a whole new release and the version number becomes a log of
+  infrastructure mistakes.
+
+## [0.11.0]
+
+First PyPI release, under the new name.
+
+### Added
+- `tests/test_hostile_input.py` — 252 to 311 tests. The suite proved the library did the right
+  thing on inputs that make sense; a stranger's data is nothing like ours. This feeds every surface
+  what it was not designed for: a 40 MB transcript, a 200,000-character line, a byte-order mark,
+  CRLF, emoji, right-to-left text, payload fields of the wrong type, four threads on one ledger.
+  The bar is absolute — nothing may raise an unexpected exception — because a gate that kills
+  somebody's turn gets uninstalled, and wrong-but-alive beats dead.
+
+### Fixed
+Three real defects, all found on the first hostile run:
+- `stop_hook` died on a non-string reply. Other runtimes send a number, a list of content blocks, a
+  nested dict. `_as_text()` now reads anything text-shaped and treats the rest as no text rather
+  than taking the turn down.
+- The ledger corrupted under concurrent writes — and multi-agent tracking is its entire purpose. A
+  plain write truncates then fills, so a reader hit an empty file. Now an `O_EXCL` lock file, a
+  re-read INSIDE the lock, and an atomic rename.
+- Windows-only: with the lock added, `os.replace` still raised `PermissionError`, because Windows
+  refuses a rename while a reader holds the file.
+
+## [0.10.0]
+
+### Changed
+- **Renamed to `claimproof`.** PyPI refuses a name a hyphen away from an existing project, and
+  `agent-attest` — an unrelated agent evaluator, on PyPI since 2026-06-19 — got there first.
+  `agentattest` was never published, so the cost of moving was only ours.
+- `src/agentattest` ships as a compatibility layer: every public name forwards, and
+  `agentattest.claude_code` stays RUNNABLE, because that exact command sits in real settings files.
+  A rename that silently stops guarding somebody's turns is the failure this library exists to
+  catch. `install()` upgrades a pre-rename hook entry in place instead of doubling it; `uninstall()`
+  removes either spelling.
+- The GitHub address 301s forever, so links already published still resolve.
+
+## [0.9.0]
+
+The most universal agent failure is not a wrong answer — it is request six of eight quietly never
+happening. The measured case behind this: a capture layer had recorded 1,318 user requests verbatim
+and not one had ever become a tracked item, so every completion check ran against an empty list and
+passed.
+
+### Added
+- `ledger.Ledger` — asks recorded verbatim (a paraphrase is where the third request in a compound
+  message goes to die), items closed only with evidence (bare claim-words like "done" are refused:
+  a claim cannot be its own receipt), skips carrying their reason on the record, nothing
+  auto-closing, state on disk so it survives the session that forgot. CLI for harnesses:
+  `ask|split|done|skip|show|gate`.
+- `ledger.NothingLeft` — a `Gate` that flags a claim of TOTAL completion while the ledger holds open
+  items, naming them. Partial, negated and hedged claims pass; a true "all done" over a clear list
+  passes. Its selftest runs against a FIXTURE ledger, never the live one — a clean live ledger must
+  not excuse a detector that can no longer detect.
+
+## [0.8.0]
+
+### Added
+- `claimproof.claude_code` — the one-command integration.
+  `hooks.stop_hook` was the raw adapter and expected the reply text handed to it. Claude Code's Stop
+  event does not carry the text; it carries a transcript path, and the reply has to be dug out of
+  the last assistant message. This module is that missing half, with the wiring learned from a hook
+  that had run in production for months rather than from documentation: the loop guard
+  (`stop_hook_active`), gating only turns that did real work, blocking via the JSON decision form,
+  and failing open on every error — while announcing the skip on stderr, never swallowing it, for
+  exactly the reason `gates.SilentSkip` exists.
+- `install` merges into `.claude/settings.json` without touching anyone else's hooks, twice adds one
+  entry not two, `uninstall` removes exactly ours, and an unparseable settings file is refused
+  loudly rather than replaced.
+
+---
+
+*0.8.0 through 0.11.1 were reconstructed on 2026-08-12 from the repository's own record and had been
+missing since they shipped. Only 0.11.0 and 0.11.1 were ever tagged, so the mapping comes from the
+`version` line in `pyproject.toml` at each commit — the one source that cannot disagree with what
+was actually built: 0.8.0 `1202f84`, 0.9.0 `7b25159`, 0.10.0 `4172433`, 0.11.0 `69d29ac`, 0.11.1
+`98cbda4`. Every entry above is drawn from those commits' own messages, not written from memory.*
+
 ## [0.7.0]
 
 The third instance of the same argument: a check that swallows its own failure, so the run's output

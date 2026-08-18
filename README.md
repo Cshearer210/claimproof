@@ -3,7 +3,7 @@
 [![CI](https://github.com/Cshearer210/claimproof/actions/workflows/ci.yml/badge.svg)](https://github.com/Cshearer210/claimproof/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/claimproof.svg)](https://pypi.org/project/claimproof/)
 [![Python](https://img.shields.io/pypi/pyversions/claimproof.svg)](https://pypi.org/project/claimproof/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Cshearer210/claimproof/blob/main/LICENSE)
 
 **claimproof stops an AI coding agent from ending its turn saying "done" until it shows proof a
 machine can check.**
@@ -12,12 +12,18 @@ Agents report work as finished when it isn't — not by lying, but because a flu
 correct one feel identical from the inside, and nothing in the loop is checking. This runs at the
 runtime layer, before the turn can end.
 
+**Two packages live here.** `claimproof` is the library above.
+[**`deadcanary`**](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary) asks the same question of a dbt project's data tests —
+[*"all 20 tests pass"* is a claim too](#the-same-question-asked-of-your-data--deadcanary), and it
+reads identically whether the data is healthy or the tests cannot fail. It breaks the data on
+purpose to find out which. `pip install claimproof[dbt]` gets both.
+
 ```bash
 pip install claimproof
 python -m claimproof.demo
 ```
 
-![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](assets/demo.svg)
+![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](https://raw.githubusercontent.com/Cshearer210/claimproof/main/assets/demo.svg)
 
 *The first four acts of `python -m claimproof.demo`, drawn from the demo's real output.
 `tools/render_demo_svg.py` regenerates this image from a live run and refuses to render if the
@@ -37,34 +43,47 @@ runs. And claims carrying no evidence failed 83.0% of the time against 69.2% for
 showed something, so an agent that shows its work is measurably more likely to be right.
 
 Measured with the gate below, unmodified, over a public CC-BY dataset. Method, limits and the
-script that reproduces it: **[FINDINGS.md](FINDINGS.md)**.
+script that reproduces it: **[FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/FINDINGS.md)**.
 
 Hedged language passes on purpose. A claim that admits its own uncertainty is the honest case,
 and a gate that punishes honesty teaches agents to be vague instead of accurate.
 
-## A gate that has never failed proves nothing
+## A gate is unproven in BOTH directions until you prove it
 
 Most checks are written, pass on their first run, and are never once fed a case they were
 supposed to catch. Nobody finds out they are broken until the thing they guarded against happens.
 
-So `selftest_cases()` is abstract and **must include a case the gate is required to flag**. A gate
-that cannot demonstrate its own failure mode is refused at construction, not at review time.
+The mirror of that is the failure nobody thinks to check, and it is the more expensive one. A gate
+that flags correct work does not look broken — it looks like a discovery. It generates a pile of
+findings that were never real, somebody eventually switches it off, and from then on it catches
+nothing at all.
 
+So `selftest_cases()` is abstract and **must include both**: at least one case the gate is
+required to flag, and at least one **guard case** — something close enough to be tempting that
+the gate has to look at and leave alone. A gate that can demonstrate only one of the two is
+refused at construction, not at review time.
+
+<!-- fresh-eyes: run -->
 ```python
-from claimproof import Gate, Case
+from claimproof import Case, Finding, Gate
 
 class UnbackedClaims(Gate):
     def inspect(self, text: str) -> list[Finding]:
         ...
 
     def selftest_cases(self) -> list[Case]:          # required
-        return [Case(text="It works.",          expect_flagged=True),
-                Case(text="It works. exit=0",   expect_flagged=False)]
+        return [Case(text="It works.",          expect_flagged=True),    # must catch
+                Case(text="It works. exit=0",   expect_flagged=False)]   # must leave alone
 ```
+
+Pick guard cases that are genuinely tempting. `TypedScope` ships seven of its ten cases as guards,
+including a commented-out line, a path inside a docstring, and a single project directory that is
+correct — every one of them a shape a careless version of the check would flag.
 
 `gate.check(text)` verifies before it inspects, so a clean result can never come out of an
 unproven gate:
 
+<!-- fresh-eyes: illustration -->
 ```python
 >>> AlwaysPasses().inspect("this is bad")   # the trap: looks fine
 []
@@ -118,7 +137,7 @@ does not parse is refused loudly rather than replaced. Errors at runtime allow t
 so on stderr* — an announced skip, never a silent one, for exactly the reason `gates.SilentSkip`
 exists.
 
-[examples/claude_code_install.py](examples/claude_code_install.py) runs the whole journey in a
+[examples/claude_code_install.py](https://github.com/Cshearer210/claimproof/blob/main/examples/claude_code_install.py) runs the whole journey in a
 sandbox — install, a refused turn, the fix, uninstall — without touching your real settings.
 
 ## Wire it into any other runtime
@@ -126,6 +145,7 @@ sandbox — install, a refused turn, the fix, uninstall — without touching you
 A gate you have to remember to call is a suggestion. The same gate wired into the harness is a
 rule, because the runtime calls it whether anyone remembers or not.
 
+<!-- fresh-eyes: run -->
 ```python
 from claimproof.gates import UnbackedClaims
 from claimproof.hooks import run_stop_hook
@@ -147,6 +167,7 @@ signs off "everything is finished" with nothing in the loop keeping the list. Th
 this was built from: a capture layer had recorded 1,318 user requests verbatim, and not one had
 ever become a tracked item, so every completion check ran against an empty list and passed.
 
+<!-- fresh-eyes: run -->
 ```python
 from claimproof.ledger import Ledger, NothingLeft
 
@@ -173,6 +194,7 @@ untouched. There is a CLI for harnesses that drive it from outside:
 A test suite proves your code is internally correct. It cannot tell you the backup stopped
 running, the hook got unwired, or the service died quietly. Code does not decay. Reality does.
 
+<!-- fresh-eyes: run exit=1 -->
 ```python
 from claimproof import Harness
 
@@ -212,6 +234,7 @@ You close "auth refactor done" pointing at two files. Three weeks later both hav
 the claim still reads as finished, and nothing anywhere reopened it. It was never a lie. It went
 stale in silence, which is worse, because a lie has an author and this has none.
 
+<!-- fresh-eyes: illustration -->
 ```python
 from claimproof.basis import ClaimBasis
 
@@ -238,6 +261,7 @@ There is a second way an old claim rots, and it is the one nobody instruments. G
 `scope` — the *places you look*, as distinct from the evidence you cite — and it is discovered on
 every run rather than written down:
 
+<!-- fresh-eyes: illustration -->
 ```python
 basis = ClaimBasis("claims.json", scope=lambda: [s.name for s in Path("sources").iterdir()])
 basis.record("no open item is older than March", evidence=["report.json"])
@@ -269,9 +293,83 @@ Three more rules it will not bend on, each of which is a way of quietly reportin
 
 It drops into the live-state harness, so the whole thing is one exit code:
 
+<!-- fresh-eyes: illustration -->
 ```python
 h.check("claims", "Every closed claim still rests on the evidence it cited")(basis.as_check())
 ```
+
+## The same question, asked of your data — `deadcanary`
+
+Everything above holds a claim to evidence. Here is a claim nobody thinks to question, because it
+arrives already looking like evidence:
+
+> **All 20 data tests pass.**
+
+A data test that has been green every morning for two years is green for one of two reasons: the
+data is healthy, or **the test cannot fail.** Nobody can tell those apart by looking, the sentence
+reads identically either way, and almost nobody checks. It is the same failure this whole library
+is about, one layer down — a check that has never been made to fail, trusted because it is quiet.
+
+`deadcanary` settles it the only way it can be settled: it corrupts the data on purpose, re-runs
+the suite, and reports which tests never noticed. **Dead canaries** — green every morning,
+protecting nothing.
+
+**Measured on dbt-labs' own current jaffle-shop template: 6 of its 20 green tests cannot be made to
+fail by any corruption in the catalogue.** Among them `unique_orders_order_id` and
+`not_null_orders_order_id`, the two most common tests in dbt. Full numbers, limits, and the
+commands that reproduce them: [packages/deadcanary/FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary/FINDINGS.md).
+
+```bash
+pip install claimproof[dbt]
+python -m deadcanary path/to/dbt/project
+
+# no dbt project handy? a tiny one ships inside the package:
+pip install deadcanary[demo] && python -m deadcanary.demo
+```
+
+It lives in this repo at [`packages/deadcanary`](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary), installs on its own as
+`pip install deadcanary`, and joins here at exactly one seam:
+
+<!-- fresh-eyes: illustration -->
+```python
+from deadcanary.gate import GreenTestsUnproven
+
+gate = GreenTestsUnproven(project="warehouse/dbt")
+gate.inspect("All 20 dbt tests pass. Data quality is covered.")
+# -> these data tests have never been proved able to fail -- no deadcanary run
+#    backs this. Green is also what a test that cannot fail looks like.
+```
+
+It is a `Gate` like any other here, so it has to prove itself in both directions before it is
+allowed to refuse anything. Four of its six selftest cases are guards — a normal unit-test suite,
+an honest hedge, a reported failure, and someone asking the question rather than claiming the
+answer — because a gate that reaches into claims it has no business in gets switched off, and after
+that it catches nothing at all.
+
+### And the proof expires, which is the part neither half has alone
+
+`deadcanary` answers *can these tests fail?* for the suite as it stood the day it ran. Add a test
+tomorrow, wire in a new source next month, and that answer describes a suite that no longer exists.
+Nothing anywhere would say so — so it is recorded as a claim, against the machinery two sections up:
+
+<!-- fresh-eyes: illustration -->
+```bash
+python -m deadcanary warehouse/dbt --attest     # record what was proved
+python -m deadcanary warehouse/dbt --recheck    # 0 holds - 1 measure again - 2 cannot tell
+```
+
+```
+REOPENED  deadcanary:dbt
+          closed 2026-08-13T18:44:02Z on "the data tests in dbt were proved able to
+          fail (20 green, 0 dead)", but 1 of 2 piece(s) of evidence changed since
+          (dbt:test-suite), so it is UNVERIFIED until re-measured
+```
+
+The fingerprint covers what the suite **tests** — every test, what kind it is, what it hangs off,
+and every source — and deliberately ignores dbt's own run metadata. `manifest.json` carries a fresh
+timestamp and invocation id on every single build, so fingerprinting the file would reopen the
+claim after every run. That is a checker crying wolf, and this README already says what happens to
+those.
 
 ## "22 nodes, 0 broken" is not a result
 
@@ -283,6 +381,7 @@ own hand-typed list of places to look, opened 57,100, and that was reported as "
 gap was 628,407 files and **nothing could notice**, because a scan of 4 roots prints the same
 shape of output as a scan of 40.
 
+<!-- fresh-eyes: illustration -->
 ```python
 from claimproof import Coverage
 
@@ -323,6 +422,7 @@ as the other. Four rules make that structural rather than something you remember
 The other half of the same problem is the code that decides what to look at, and that one is
 catchable before it lands:
 
+<!-- fresh-eyes: illustration -->
 ```python
 from claimproof.gates import TypedScope
 from claimproof.hooks import gate_invariant, pre_tool_use_hook
@@ -350,6 +450,7 @@ the line, so an exception is a visible decision rather than an oversight.
 
 ## The check that stopped running eight months ago
 
+<!-- fresh-eyes: illustration -->
 ```python
 try:
     result = verify_everything()
@@ -408,35 +509,39 @@ have caught the second one.
 ## Install
 
 ```bash
-pip install claimproof
+pip install claimproof          # the library. Python 3.10+, no runtime dependencies
+pip install claimproof[dbt]     # ...and deadcanary, for the data-test half
 ```
 
-Python 3.10+. No runtime dependencies.
+Two packages, one repo, one idea. `claimproof` holds a claim of success to evidence a machine can
+check. [`deadcanary`](https://github.com/Cshearer210/claimproof/blob/main/packages/deadcanary) asks the same question of a dbt test suite, by breaking
+the data on purpose to find the tests that cannot fail. Either installs alone; together, "our data
+tests are green" stops counting as evidence until something has proved those tests can go red.
 
 ## Examples you can copy
 
-Six runnable files in [examples/](examples/):
+Six runnable files in [examples/](https://github.com/Cshearer210/claimproof/tree/main/examples):
 
-- **[stop_hook.py](examples/stop_hook.py)** is a complete hook. Copy it, point your runtime at it,
+- **[stop_hook.py](https://github.com/Cshearer210/claimproof/blob/main/examples/stop_hook.py)** is a complete hook. Copy it, point your runtime at it,
   done. Includes the `settings.json` block for Claude Code and a one-line way to try it with no
   agent involved.
-- **[custom_gate.py](examples/custom_gate.py)** shows how to write your own, and more usefully what
+- **[custom_gate.py](https://github.com/Cshearer210/claimproof/blob/main/examples/custom_gate.py)** shows how to write your own, and more usefully what
   a broken one looks like: a gate whose bug is `startswith` where it should be `in`, which passes
   review and approves everything.
-- **[live_checks.py](examples/live_checks.py)** runs checks against your actual machine, including
+- **[live_checks.py](https://github.com/Cshearer210/claimproof/blob/main/examples/live_checks.py)** runs checks against your actual machine, including
   two that deliberately report UNKNOWN.
-- **[claim_basis.py](examples/claim_basis.py)** builds a throwaway project, closes a claim against
+- **[claim_basis.py](https://github.com/Cshearer210/claimproof/blob/main/examples/claim_basis.py)** builds a throwaway project, closes a claim against
   real files, then does the two ordinary things that make an old claim false and shows it reopen
   itself both times.
-- **[coverage_ledger.py](examples/coverage_ledger.py)** runs the same trivial audit twice over one
+- **[coverage_ledger.py](https://github.com/Cshearer210/claimproof/blob/main/examples/coverage_ledger.py)** runs the same trivial audit twice over one
   project. The first pass reports `0 problems` and exits 0. The second finds a real defect in a
   directory the first never opened.
-- **[source_gates.py](examples/source_gates.py)** runs the two source gates through the pre-write
+- **[source_gates.py](https://github.com/Cshearer210/claimproof/blob/main/examples/source_gates.py)** runs the two source gates through the pre-write
   hook: two writes refused, and a third carrying both innocent twins allowed through.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: if you report a case this gets wrong,
+See [CONTRIBUTING.md](https://github.com/Cshearer210/claimproof/blob/main/CONTRIBUTING.md). The short version: if you report a case this gets wrong,
 paste the exact string. It usually becomes a test fixture verbatim.
 
 The one rule that is not negotiable is that a gate must be able to fail and you must prove it.
@@ -444,5 +549,5 @@ That applies to changes here as much as to gates you write with it.
 
 ## License
 
-MIT. See [CHANGELOG.md](CHANGELOG.md) for what changed and [SECURITY.md](SECURITY.md) for what
+MIT. See [CHANGELOG.md](https://github.com/Cshearer210/claimproof/blob/main/CHANGELOG.md) for what changed and [SECURITY.md](https://github.com/Cshearer210/claimproof/blob/main/SECURITY.md) for what
 this does and does not protect against.

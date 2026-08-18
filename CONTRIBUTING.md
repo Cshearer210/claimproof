@@ -20,17 +20,70 @@ builds a wheel, installs it into a clean environment, and runs the suite against
 package. Run it before opening a PR; it has already caught a test that passed against the source
 tree while finding zero files against the wheel.
 
+### The second package
+
+`packages/deadcanary` is a separate distribution living in this repo — the same idea pointed at a
+dbt project's data tests instead of an agent's reply. It has its own dependencies and its own test
+suite, so it is set up separately:
+
+```bash
+python -m pip install -e "./packages/deadcanary[dev]"
+python -m pytest packages/deadcanary/tests
+```
+
+Touching only one package? Run only that package's tests. Touching the seam between them
+(`packages/deadcanary/src/deadcanary/gate.py`) means running both, because the gate it contributes
+has to satisfy this library's contract — one case it must catch, one it must leave alone — or it
+cannot be constructed at all.
+
+**Its README is executable.** `python packages/deadcanary/tools/readme_runs.py` types what that
+README tells a stranger to type, and fails if it does not work. If you change the quickstart,
+change nothing else until that passes.
+
 ## The one rule that is not negotiable
 
-**Every gate must be able to fail, and you must prove it.**
+**Every gate must be able to fail AND to stay quiet, and you must prove both.**
 
 `Gate.selftest_cases()` is abstract and must return at least one `Case` with
-`expect_flagged=True`. This is enforced in `verify()`, not by review. A gate whose cases are all
-happy-path is refused at construction with a `SelftestError`.
+`expect_flagged=True` and at least one with `expect_flagged=False`. This is enforced in
+`verify()`, not by review. A gate whose cases are all happy-path is refused at construction with a
+`SelftestError`; so is a gate whose cases are all bad.
+
+One direction only proves half. A gate with no bad case has never been made to fail on purpose. A
+gate with no guard case has never been shown to leave correct work alone — and that is the failure
+that costs more, because an over-firing gate reads as a discovery rather than a defect. It
+manufactures findings that were never real, and once someone works that out it gets switched off,
+which is strictly worse than never having written it.
+
+A guard case is only worth something if it is tempting. `Case(text="", expect_flagged=False)` is
+free and proves nothing on its own; the useful ones are the near-misses — the commented-out line,
+the path inside a docstring, the correct single directory. Ship at least one that would catch a
+careless version of your own check.
 
 If you add a check to the library, the same standard applies to your tests: include a case that
-demonstrates the check catching something, not just a case where nothing is wrong. A test that
-has only ever passed tells you nothing about whether it can fail.
+demonstrates the check catching something, and one that demonstrates it staying silent.
+
+## Before you touch the README
+
+```bash
+python tools/fresh_eyes.py
+```
+
+It installs the built package into an empty environment where the source tree is not importable,
+then does what the README says — because nothing else here has ever executed the README, and a
+documentation example can reference a keyword argument renamed two releases ago while every test
+passes.
+
+Every ```` ```python ```` block must carry a marker on the line above it, `<!-- fresh-eyes: run -->`
+or `<!-- fresh-eyes: illustration -->` (add ` exit=1` to a `run` block whose point is a non-zero
+exit). They are HTML comments, so they do not render. **An unmarked block fails the check rather
+than being skipped** — same reason `Coverage` refuses to call an unexamined member a pass. A block
+that only makes sense as a fragment of the one above it is an illustration; a block somebody could
+paste into a file and run is a `run`.
+
+It also points the source gates at the Python standard library, which nobody wrote to suit this
+project, and fails if either describes more than a quarter of it. A gate that fires on ordinary
+code is not a discovery.
 
 The project holds itself to this. Before any behaviour change lands, we break the thing on purpose
 and confirm the suite goes red:

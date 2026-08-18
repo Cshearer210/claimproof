@@ -49,9 +49,17 @@ def step(label: str, cmd: list[str], cwd: Path | None = None,
     return r
 
 
-def main() -> int:
-    print(f"claimproof wheel verification, {sys.version.split()[0]}\n")
+def clean_install(room: Path, extras: tuple[str, ...] = ("pytest>=8",)) -> Path | None:
+    """Build the wheel and install it into a fresh virtual environment under `room`.
 
+    Returns the interpreter to run things with, or None if no wheel was produced.
+    The source tree is NOT importable from it, which is the entire point: every
+    other check in this repo runs against the source, and a package can pass all
+    of them while being broken on `pip install`.
+
+    Split out of main() so `fresh_eyes.py` gets the identical environment rather
+    than building a second, slightly different one beside it.
+    """
     dist = REPO / "dist"
     before = set(dist.glob("*.whl")) if dist.is_dir() else set()
 
@@ -59,22 +67,31 @@ def main() -> int:
     wheels = sorted(set(dist.glob("*.whl")) - before) or sorted(dist.glob("*.whl"))
     if not wheels:
         print("  FAIL  no wheel was produced")
-        return 1
+        return None
     wheel = max(wheels, key=lambda p: p.stat().st_mtime)
     print(f"        using {wheel.name}")
 
+    venv = room / "venv"
+    step("create a clean virtual environment", [sys.executable, "-m", "venv", str(venv)])
+    py = venv / ("Scripts" if os.name == "nt" else "bin") / (
+        "python.exe" if os.name == "nt" else "python")
+
+    step("install the wheel into it" + (" with " + ", ".join(extras) if extras else ""),
+         [str(py), "-m", "pip", "install", "--quiet", str(wheel), *extras])
+    return py
+
+
+def main() -> int:
+    print(f"claimproof wheel verification, {sys.version.split()[0]}\n")
+
     with tempfile.TemporaryDirectory() as tmp:
         room = Path(tmp)
-        venv = room / "venv"
         elsewhere = room / "elsewhere"
         elsewhere.mkdir()
 
-        step("create a clean virtual environment", [sys.executable, "-m", "venv", str(venv)])
-        py = venv / ("Scripts" if os.name == "nt" else "bin") / (
-            "python.exe" if os.name == "nt" else "python")
-
-        step("install the wheel and pytest into it",
-             [str(py), "-m", "pip", "install", "--quiet", str(wheel), "pytest>=8"])
+        py = clean_install(room)
+        if py is None:
+            return 1
 
         step("public API is reachable and behaving from outside the source tree",
              [str(py), "-c", (
@@ -139,5 +156,43 @@ def main() -> int:
     return 0
 
 
+def selftest() -> int:
+    """Prove this script can report a failure, and can stay quiet on a success.
+
+    `step()` is the only judgement this file makes: it decides whether a command
+    did what was wanted, and records a failure if not. A version that recorded
+    nothing would print a clean run and exit 0 no matter how broken the wheel was
+    -- the exact shape this repo exists to catch, occurring in the repo's own
+    tooling. So both directions are asserted, not just the firing one.
+    """
+    global FAILURES
+    print("verify_wheel selftest")
+
+    # THE GUARD CASE: correct work must produce silence.
+    FAILURES = []
+    step("a command that succeeds", [sys.executable, "-c", "pass"])
+    assert len(FAILURES) == 0, "a passing step was recorded as a failure"
+    print("  ok    a passing step records nothing")
+
+    # THE CASE IT EXISTS FOR: a real failure must be recorded, never swallowed.
+    FAILURES = []
+    step("a command that fails, ON PURPOSE", [sys.executable, "-c", "raise SystemExit(3)"])
+    assert len(FAILURES) == 1, "a failing step was swallowed"
+    print("  ok    a failing step is recorded, not swallowed")
+
+    # The second guard case: an expected non-zero exit is not a failure.
+    FAILURES = []
+    step("a non-zero exit that was EXPECTED", [sys.executable, "-c", "raise SystemExit(2)"],
+         expect=2)
+    assert not FAILURES, "an expected non-zero exit was counted as a failure"
+    print("  ok    an expected non-zero exit is not a failure")
+
+    FAILURES = []
+    print("selftest PASSED")
+    return 0
+
+
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        sys.exit(selftest())
     sys.exit(main())

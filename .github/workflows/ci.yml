@@ -175,3 +175,140 @@ jobs:
           cp -r tests "$RUNNER_TEMP/elsewhere/tests"
           cd "$RUNNER_TEMP/elsewhere"
           "$CLEANPY" -m pytest tests -q
+
+  fresh-eyes:
+    name: a stranger following the README gets a working library
+    runs-on: ubuntu-latest
+
+    # The `installed` job proves the CODE works from a clean install: it runs the
+    # test suite from outside the source tree. This proves the PRODUCT does --
+    # it executes what the README actually tells a newcomer to type. The two
+    # fail independently, because documentation rots on its own schedule.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build
+
+      - name: The rehearsal's own guards can still fail
+        run: python tools/fresh_eyes.py --selftest
+
+      - name: Be the stranger
+        run: python tools/fresh_eyes.py
+
+  # The second package in this repo. It has its own tests, its own dependencies
+  # and its own reasons to break, so it gets its own job rather than being folded
+  # into the matrix above -- a failure here must name deadcanary, not look like
+  # claimproof going red.
+  deadcanary:
+    name: deadcanary ${{ matrix.os }} py${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.13"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Installed from THIS checkout, not from PyPI, so the seam between the two
+      # packages is tested as it is written here rather than as it was published.
+      - name: Install both halves from this repo
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install -e ./packages/deadcanary[dev]
+
+      - name: deadcanary's own suite
+        run: python -m pytest packages/deadcanary/tests -q
+
+      # The seam itself: the gate deadcanary contributes has to satisfy the same
+      # contract this library imposes on everyone else -- one case it must catch,
+      # one it must leave alone -- or it cannot be used at all.
+      - name: the contributed gate proves itself in both directions
+        run: |
+          python -c "from deadcanary.gate import GreenTestsUnproven; print(GreenTestsUnproven().verify())"
+
+  # THE TWO CHECKS THE SUBTREE MERGE NEARLY LOST.
+  #
+  # deadcanary arrived carrying its own .github/workflows/ci.yml, which GitHub
+  # does not run: only workflows at the REPOSITORY ROOT execute. So the moment it
+  # moved in here, the check that proves the demo still finds its planted dead
+  # canaries, and the one that types what its README says, silently stopped
+  # running -- while the file sat in the tree looking exactly like coverage.
+  # That file is deleted in the same commit as this. A workflow that cannot run
+  # is worse than no workflow, because it reads as protection.
+  deadcanary-demo:
+    name: the deadcanary demo still finds its planted dead canaries
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/deadcanary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e .[dbt]
+      - name: build the demo warehouse
+        run: cd src/deadcanary/_demo && dbt build --profiles-dir .
+      # Two canaries are planted in the demo on purpose. If this stops finding
+      # exactly two, either the tool broke or the demo did -- and either way the
+      # README is lying to everyone who reads it.
+      #
+      # `--attest` rides along on the SAME hunt rather than costing a second one,
+      # so recording the proof is free here.
+      - run: python -m deadcanary src/deadcanary/_demo --expect-dead 2 --attest
+
+      # THE SEAM, exercised for real rather than against fixtures. The unit tests
+      # prove the bookkeeping; this proves the thing an actual user does. Both
+      # directions, because a claim that can only ever say HOLDS is not checking
+      # anything -- it is a green light wired to nothing.
+      - name: the recorded proof holds against the suite it measured
+        run: python -m deadcanary src/deadcanary/_demo --recheck
+
+      - name: ...and reopens the moment a test it never saw is added
+        run: |
+          python - <<'PY'
+          import pathlib
+          p = pathlib.Path("src/deadcanary/_demo/models/schema.yml")
+          s = p.read_text(encoding="utf-8")
+          old = "      - name: customer_id\n        description: ALIVE. Blank these upstream and this goes red.\n        tests: [not_null]"
+          assert old in s, "the demo's schema.yml changed shape; this step is now testing nothing"
+          p.write_text(s.replace(old, old.replace("[not_null]", "[not_null, unique]")), encoding="utf-8")
+          PY
+          cd src/deadcanary/_demo && dbt parse --profiles-dir . && cd ../../..
+          if python -m deadcanary src/deadcanary/_demo --recheck; then
+            echo "FAILED: a test nothing has ever tried to kill was added, and the"
+            echo "recorded proof still reported HOLDS. The claim does not expire."
+            exit 1
+          fi
+          echo "reopened, as it must"
+
+  deadcanary-readme:
+    name: a stranger following the deadcanary README gets a working tool
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/deadcanary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e .[dbt]
+      - run: python tools/readme_runs.py --selftest
+      - run: python tools/readme_runs.py
+      # The command the README tells a stranger to run FIRST. It exits
+      # non-zero unless it finds the two planted canaries, so it is a check
+      # and a demonstration at once.
+      - name: python -m deadcanary.demo works for someone with nothing set up
+        run: python -m deadcanary.demo

@@ -42,7 +42,13 @@ class NeverFails(Gate):
         return []
 
     def selftest_cases(self):
-        return [Case(text="obviously bad", expect_flagged=True)]
+        # Both directions declared, so this gate is refused for the real reason:
+        # it cannot flag the case it says it must. The guard case passes -- which
+        # is exactly why a gate proven in one direction only proves nothing.
+        return [
+            Case(text="obviously bad", expect_flagged=True),
+            Case(text="obviously fine", expect_flagged=False),
+        ]
 
 
 def main() -> int:
