@@ -13,6 +13,7 @@ python live_checks.py     # checks that look at your actual machine
 python claim_basis.py     # watch a claim that was true go stale on its own
 python coverage_ledger.py # the same audit reported two ways, one of them honest
 python source_gates.py    # two bad writes refused, one good write allowed
+python crewai_guardrail.py # gate a CrewAI task's output; not gated below the tool-use threshold
 ```
 
 ## claude_code_install.py
@@ -71,6 +72,22 @@ For any other runtime, call `stop_hook(payload, gates)` yourself. It takes a dic
 
 **It fails open on malformed input.** Junk on stdin exits 0 and allows the turn. A hook that
 crashes the agent on every turn gets deleted within the hour, and a deleted hook protects nothing.
+
+## crewai_guardrail.py
+
+`stop_hook.py` refuses an agent's turn from the outside. This wires the same claims gate into
+CrewAI's own retry mechanism instead: `gate_task(task)` sets both `task.guardrail` and
+`task._guardrail` (the private attribute CrewAI's execution actually reads), so a blocked task
+gets fed the reason and a real retry, courtesy of CrewAI's `guardrail_max_retries`, rather than a
+one-shot refusal.
+
+By default, `gate_task()` only gates tasks that made at least `WORK_THRESHOLD` tool calls -- a
+deliberately conservative heuristic: tool-call count is used as a proxy for substantive work, not
+a judgment of what those calls did, so a task that stayed under the threshold is left alone even if
+its claim would otherwise look unbacked. Override it with `gate_task(task, work_threshold=...)`, or
+pass `work_threshold=1` to gate on any tool use at all.
+
+Needs the `crewai` extra: `pip install claimproof[crewai]`.
 
 ## custom_gate.py
 
