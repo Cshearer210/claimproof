@@ -108,20 +108,37 @@ import sys
 import threading
 from typing import Any, Iterable
 
-try:
-    from crewai.events import crewai_event_bus
-    from crewai.events.types.tool_usage_events import ToolUsageFinishedEvent
-    from crewai.events.types.task_events import TaskFailedEvent
-except ImportError as exc:  # pragma: no cover - exercised by not installing crewai
-    raise ImportError(
-        "claimproof.crewai needs the 'crewai' package, which is not a runtime "
-        "dependency of claimproof itself. Install it with:\n"
-        "    pip install claimproof[crewai]\n"
-        "or: pip install crewai"
-    ) from exc
-
 from .core import Finding, Gate
 from .gates import UnbackedClaims
+
+
+def _crewai_events():
+    """Import crewai's event-bus pieces lazily, on first actual use.
+
+    Not at module import time: `claimproof`'s own test suite discovers every
+    `Gate` the package ships by walking `pkgutil.iter_modules(claimproof.__path__)`
+    and unconditionally `importlib.import_module()`-ing each one -- see
+    `tests/test_core.py`'s `_shipped_gates()`. `crewai` is an optional extra,
+    not a runtime dependency of claimproof itself, so `import claimproof.crewai`
+    has to succeed even when `crewai` isn't installed; only calling `guardrail()`
+    or `gate_task()` should require it. A module-level import here would make
+    that discovery walk crash on this file specifically -- confirmed by running
+    it, not assumed: `claude_code.py` never surfaces this, because it has no
+    external dependency to be missing in the first place.
+    """
+    try:
+        from crewai.events import crewai_event_bus
+        from crewai.events.types.tool_usage_events import ToolUsageFinishedEvent
+        from crewai.events.types.task_events import TaskFailedEvent
+    except ImportError as exc:
+        raise ImportError(
+            "claimproof.crewai needs the 'crewai' package, which is not a runtime "
+            "dependency of claimproof itself. Install it with:\n"
+            "    pip install claimproof[crewai]\n"
+            "or: pip install crewai"
+        ) from exc
+    return crewai_event_bus, ToolUsageFinishedEvent, TaskFailedEvent
+
 
 __all__ = ["MARKER", "WORK_THRESHOLD", "decide", "guardrail", "gate_task"]
 
@@ -248,6 +265,7 @@ def gate_task(task: Any, gates: Iterable[Gate] | None = None,
             "tool-call events to this task. Got an object with no .id -- "
             "pass an actual crewai.Task, not a stand-in."
         )
+    crewai_event_bus, ToolUsageFinishedEvent, TaskFailedEvent = _crewai_events()
     task_id = str(real_id)
     tool_calls = {"count": 0}
     lock = threading.Lock()
