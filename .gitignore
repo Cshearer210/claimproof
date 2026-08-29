@@ -18,3 +18,12 @@ secrets*
 .idea/
 .vscode/
 dist/
+
+# Working notes are not part of the package and must never be published.
+# Chris, 2026-08-29: nothing goes in the public repo that is not
+# completely necessary to be there. They live in the private repo instead.
+artifacts/
+MASTER-PLAN.md
+HANDOFF*.md
+LANE-*.md
+WORK-QUEUE.md
