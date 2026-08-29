@@ -205,7 +205,13 @@ def act_headline(py: Path, room: Path) -> None:
             "type": "assistant",
             "message": {"role": "assistant", "content": [{"type": "text", "text": text}]},
         }))
-        path = room / f"t{abs(hash(text)) % 10**8}{'w' if worked else 'q'}.jsonl"
+        # sha1, NOT hash(). Python randomises hash() per process (PYTHONHASHSEED), so the same
+        # transcript text produced a DIFFERENT filename on every run -- the fixture could never
+        # be written twice to the same place, and a rerun left a second copy behind instead of
+        # replacing the first. Nothing parses this name, so the format is free to change.
+        import hashlib as _hl
+        _stem = _hl.sha1(text.encode("utf-8")).hexdigest()[:10]
+        path = room / f"t{_stem}{'w' if worked else 'q'}.jsonl"
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return str(path)
 
