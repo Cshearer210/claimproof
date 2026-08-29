@@ -1,6 +1,6 @@
 # HANDOFF — claimproof and deadcanary, 2026-08-13 (evening)
 
-> **THE PLAN IS the project's own plan file, one level up.** Read it first. It is the one list for
+> **THE PLAN IS `../../MASTER-PLAN.md`.** Read it first. It is the one list for
 > this project, written after Chris said this had taken too long to become
 > downloadable. This file is the state and the traps; that file is the work.
 >
