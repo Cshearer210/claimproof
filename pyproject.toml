@@ -25,6 +25,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pyarrow>=14"]   # pyarrow reads the finding's dataset; the LIBRARY still has zero runtime deps
+crewai = ["crewai==1.15.14"]
 
 # The same question asked of a data warehouse instead of an agent's reply. This
 # library refuses a claim of success carrying no evidence a machine can check;
