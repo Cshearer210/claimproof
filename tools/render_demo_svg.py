@@ -49,11 +49,18 @@ RED = "#f85149"
 GREEN = "#3fb950"
 
 
-def demo_lines() -> list[str]:
-    """Acts 1-4 of the live demo, verbatim."""
+def demo_lines(module: str = "claimproof.demo", timeout: int = 120) -> list[str]:
+    """Acts 1-4 of the live demo, verbatim.
+
+    The timeout is per-demo because the two do very different amounts of work.
+    claimproof's prints text and finishes in a second. deadcanary's builds a real dbt
+    project on duckdb, seeds it, runs the suite once for a baseline and then once per
+    corruption -- so 120s expires mid-run and raises a TimeoutExpired naming the
+    timeout rather than the reason, which reads exactly like a broken demo.
+    """
     proc = subprocess.run(
-        [sys.executable, "-m", "claimproof.demo"],
-        capture_output=True, text=True, timeout=120,
+        [sys.executable, "-m", module],
+        capture_output=True, text=True, timeout=timeout,
     )
     if proc.returncode != 0:
         raise SystemExit(f"demo exited {proc.returncode}; not rendering from a broken demo")
@@ -87,6 +94,17 @@ def wrap(line: str) -> list[str]:
     )
 
 
+ARIA_CLAIMPROOF = (
+    "python -m claimproof.demo: an unbacked claim is refused; the same claim with "
+    "a test result attached is allowed; honest uncertainty is left alone; all-done "
+    "is checked against the list of what was asked")
+
+ARIA_DEADCANARY = (
+    "python -m deadcanary.demo: a dbt project is built, its data is corrupted on "
+    "purpose one column at a time, and the tests that never noticed are named. "
+    "Two of seven green tests turn out to be incapable of failing.")
+
+
 def color_for(line: str) -> tuple[str, bool]:
     """(fill, bold) for one demo line, by what it is rather than position."""
     s = line.strip()
@@ -102,6 +120,26 @@ def color_for(line: str) -> tuple[str, bool]:
         return RED, False
     if set(s) <= {"-"}:
         return DIM, False
+    # deadcanary's shapes, added 2026-08-29 and deliberately placed LAST.
+    #
+    # They were first written ABOVE the claimproof rules and that silently changed the
+    # existing asset: `s.startswith("x ")` swallowed claimproof's "x line ..." lines and
+    # made them bold. A new rule inserted above an existing one takes its cases, which is
+    # the same single-definition trap this repo keeps finding. Caught by asserting the
+    # claimproof SVG came out byte-identical rather than reasoning that it would.
+    #
+    # Nothing below can reach a claimproof line: its demo never prints a bracketed
+    # verdict, never starts a line with "!", and never says DEAD CANARIES.
+    if "] MISSED" in s:
+        return RED, True
+    if "] caught" in s:
+        return GREEN, False
+    if s.startswith("!"):
+        return RED, False
+    if "DEAD CANARIES" in s:
+        return RED, True
+    if s and set(s) <= {"="}:
+        return DIM, False
     return FG, False
 
 
@@ -109,7 +147,8 @@ def esc(text: str) -> str:
     return (text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
 
 
-def render(lines: list[str]) -> str:
+def render(lines: list[str], title: str = "python -m claimproof.demo",
+           aria: str = ARIA_CLAIMPROOF) -> str:
     rows: list[tuple[str, str, bool]] = []
     for line in lines:
         fill, bold = color_for(line)
@@ -139,25 +178,42 @@ def render(lines: list[str]) -> str:
             f"{esc(text)}</text>"
         )
 
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-label="python -m claimproof.demo: an unbacked claim is refused; the same claim with a test result attached is allowed; honest uncertainty is left alone; all-done is checked against the list of what was asked">
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-label="{esc(aria)}">
 <style>{''.join(css)}</style>
 <rect width="{width}" height="{height}" rx="9" fill="{BG}"/>
 <path d="M0 9a9 9 0 0 1 9-9h{width - 18}a9 9 0 0 1 9 9v27H0z" fill="{BAR}"/>
 <circle cx="22" cy="18" r="5.5" fill="#ff5f57"/>
 <circle cx="42" cy="18" r="5.5" fill="#febc2e"/>
 <circle cx="62" cy="18" r="5.5" fill="#28c840"/>
-<text class="l" x="{width // 2}" y="23" fill="{DIM}" text-anchor="middle">python -m claimproof.demo</text>
+<text class="l" x="{width // 2}" y="23" fill="{DIM}" text-anchor="middle">{esc(title)}</text>
 {chr(10).join(texts)}
 </svg>
 """
 
 
-def main() -> int:
-    lines = demo_lines()
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    svg = render(lines)
-    OUT.write_text(svg, encoding="utf-8", newline="\n")
-    print(f"wrote {OUT} ({len(svg):,} bytes, {len(lines)} demo lines)")
+DEMOS = {
+    "claimproof": ("claimproof.demo", REPO / "assets" / "demo.svg",
+                   "python -m claimproof.demo", ARIA_CLAIMPROOF, 120),
+    # 900s. deadcanary's demo does real work -- a dbt build plus one suite run per
+    # corruption -- and 120s expired mid-run, which looked like a broken demo.
+    "deadcanary": ("deadcanary.demo",
+                   REPO / "packages" / "deadcanary" / "assets" / "demo.svg",
+                   "deadcanary .", ARIA_DEADCANARY, 900),
+}
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    which = argv[0] if argv else "claimproof"
+    if which not in DEMOS:
+        print("usage: render_demo_svg.py [%s]" % " | ".join(DEMOS))
+        return 2
+    module, out, title, aria, timeout = DEMOS[which]
+    lines = demo_lines(module, timeout=timeout)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    svg = render(lines, title=title, aria=aria)
+    out.write_text(svg, encoding="utf-8", newline="\n")
+    print(f"wrote {out} ({len(svg):,} bytes, {len(lines)} demo lines)")
     return 0
 
 
