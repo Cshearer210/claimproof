@@ -3,6 +3,36 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **A CrewAI adapter**, contributed by [@bSabna](https://github.com/bSabna)
+  ([#32](https://github.com/Cshearer210/claimproof/pull/32)), taken from the
+  good-first-contribution walkthrough in [#2](https://github.com/Cshearer210/claimproof/issues/2).
+  `gate_task(task)` gates a task's output against unbacked completion claims, uses
+  CrewAI's own `guardrail_max_retries` rather than inventing a second retry mechanism,
+  and counts real tool calls through `crewai_event_bus` instead of inferring "did work"
+  from the output. `pip install claimproof[crewai]`; the core library still has **no
+  runtime dependencies**.
+
+### Fixed
+- **Gate discovery no longer imports every submodule unconditionally.** Found by the
+  same contribution: `_shipped_gates()` walked `pkgutil.iter_modules` and imported each
+  module it found, so a clean install without the `crewai` extra crashed during
+  discovery. `claude_code.py` never surfaced this, having no optional dependency to be
+  missing. The import is deferred to first use.
+
+### The part worth reading
+The adapter's real find is not in this project. CrewAI executes a **private**
+`_guardrail` attribute, populated from the public `guardrail` field by a validator that
+runs only at construction. Assigning `task.guardrail` afterwards therefore leaves the
+gate configured, visible in the object, and never called - and every test that invokes
+`task.guardrail(output)` directly still passes, because the public field holds the right
+function. It is simply not the one the framework runs.
+
+That is this library's own subject, found in its own wiring: a check that is present,
+tested, and doing nothing.
+
 ## [0.14.1]
 
 A documentation-only release, and it exists because documentation cannot be
