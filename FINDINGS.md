@@ -110,3 +110,62 @@ rather than in a README.
 *Every number here was produced by [`tools/measure_unbacked_claims.py`](tools/measure_unbacked_claims.py),
 which downloads the dataset, runs the shipped gate over it, and prints the report above. It
 refuses to report from a partial download. Run it yourself.*
+
+## The evidence window in this library performs at chance (2026-08-28)
+
+**This is a finding about claimproof itself.** A tool that refuses claims carrying no
+evidence should be first in line to measure its own.
+
+`UnbackedClaims(window=N)` treats a completion claim as backed when evidence appears
+within N lines of it. That number was chosen, never derived. So it was measured.
+
+**Labelled so the window could not influence the answer.** BACKED means evidence exists
+anywhere in the message at any distance; UNBACKED means none anywhere. Labelling by the
+gate's own verdict would have made the derived window reproduce the present window --
+a confident number that changes nothing. Corpus: 38032 assistant messages across 551
+transcript files; 5531 claims with evidence somewhere, 1440 messages with a claim and none.
+
+**The coverage curve looked decisive:**
+
+| window | catches | at random | lift |
+|---|---|---|---|
+| 2 | 64.9% | 60.8% | +4.1 points |
+| 5 | 80.7% | 82.2% | -1.5 points |
+| 8 | 90.7% | 91.0% | -0.3 points |
+| 12 | 95.4% | 96.2% | -0.8 points |
+
+Read alone, 68% to 92% to 96% says the default is far too tight. **The right-hand
+columns are why it does not.** Against a null model -- same messages, same number of
+evidence lines, positions randomised -- real distance is indistinguishable from random
+at every percentile (p50 2 vs 2, p90 8 vs 8, p95 12 vs 11).
+
+Proximity is mostly an artifact of evidence being dense in a message, not of that
+evidence belonging to that claim. **The window was not re-derived.** A number taken from
+that curve would have encoded evidence density while carrying the authority of a
+measurement, and nobody re-examines a number with a study behind it.
+
+**What does carry the signal is binary:** whether evidence exists at all. Every message
+with a claim and no evidence anywhere is caught at any window, so the check works and
+the window is a cheap filter on top of something that does.
+
+**Boundary.** That corpus is unusually evidence-dense because the system producing it
+demands evidence -- which is exactly why proximity carries little there. On a sparser
+corpus it may carry real signal. Re-run the null model before assuming this transfers.
+
+Receipt: [`findings/evidence-window-2026-08-28.json`](findings/evidence-window-2026-08-28.json).
+
+### The one question this repo keeps asking
+
+Both packages here, and this finding, are the same question pointed at three things:
+
+| | the thing | the question |
+|---|---|---|
+| **claimproof** | an agent's completion claim | was it ever checked? |
+| **deadcanary** | a data test that is always green | can it fail at all? |
+| **this finding** | a threshold inside claimproof | does it beat chance? |
+
+deadcanary is a null model already -- it corrupts data on purpose and reports which
+tests never noticed. Running a null model against a threshold is the same move one
+level up. A claim, a test and a measurement are all worthless for the same reason:
+**nothing that has never been made to fail has told you anything.**
+
