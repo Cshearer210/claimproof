@@ -12,7 +12,7 @@ Mapped 2026-08-28 from the repo on disk and the GitHub API, not from memory.
 | issue #2 | **still OPEN**, labels `help wanted` and `good first issue` |
 | core dependencies | **NONE**. `crewai==1.15.14` is an optional extra |
 | version | 0.14.1, Keep a Changelog format |
-| contributors | Cshearer210 54, slegarraga 2, bSabna 1, noredfarms 1 |
+| contributors | Cshearer210 54, slegarraga 2, bSabna 1 |
 | tests | 316 in claimproof, 85 in deadcanary |
 
 ## What was missing, and is now written on this branch
