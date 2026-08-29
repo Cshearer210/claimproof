@@ -285,22 +285,41 @@ def apply_one(project: DbtProject, mutation: Mutation, healthy: dict[str, str]) 
         return _apply_to_source_file(project, mutation, healthy)
 
     con = _connect(project.database)
+    checksum_note = ""
     try:
         before = con.execute(f"select count(*) from {mutation.target.fqn}").fetchone()[0]
-        checksum_before = _checksum(con, mutation.target.fqn)
+        try:
+            checksum_before = _checksum(con, mutation.target.fqn)
+        except ChecksumUnavailable:
+            checksum_before = checksum_after = None    # can't tell -- see below, never "equal"
         try:
             con.execute(mutation.sql)
         except Exception as exc:                       # a mutation that cannot run
             return Outcome(mutation, NOOP, 0, detail=f"could not apply: {type(exc).__name__}: {exc}")
         after = con.execute(f"select count(*) from {mutation.target.fqn}").fetchone()[0]
-        checksum_after = _checksum(con, mutation.target.fqn)
+        if checksum_before is not None:
+            try:
+                checksum_after = _checksum(con, mutation.target.fqn)
+            except ChecksumUnavailable:
+                checksum_before = checksum_after = None
     finally:
         con.close()
 
-    changed = abs(after - before) + (0 if checksum_before == checksum_after else 1)
+    # A checksum that could not be computed is NEVER counted as "equal" -- that is the exact
+    # silent-failure shape this fix closes. Row count is still real evidence either way; the
+    # checksum only ADDS evidence of a values-only change, it never SUBTRACTS the row-count
+    # signal, so falling back to row-count-only here cannot manufacture a false NOOP from a
+    # checksum failure -- it can only fail to catch a values-only mutation, which is stated.
+    if checksum_before is None:
+        changed = abs(after - before)
+        checksum_note = (" (content fingerprint could not be computed for this table, so a "
+                         "values-only change with no row-count change would not be caught here)")
+    else:
+        changed = abs(after - before) + (0 if checksum_before == checksum_after else 1)
     if changed == 0:
         return Outcome(mutation, NOOP, 0,
-                       detail="the corruption ran but changed no rows, so nothing was measured")
+                       detail="the corruption ran but changed no rows, so nothing was measured"
+                              + checksum_note)
 
     r = rebuild_and_test(project)
 
@@ -309,14 +328,21 @@ def apply_one(project: DbtProject, mutation: Mutation, healthy: dict[str, str]) 
     # "no test caught it" is the single most flattering way this tool can lie.
     con = _connect(project.database)
     try:
-        checksum_now = _checksum(con, mutation.target.fqn)
+        try:
+            checksum_now = _checksum(con, mutation.target.fqn) if checksum_before is not None else None
+        except ChecksumUnavailable:
+            checksum_now = None
         rows_now = con.execute(f"select count(*) from {mutation.target.fqn}").fetchone()[0]
     finally:
         con.close()
-    if checksum_now == checksum_before and rows_now == before:
+    # Same rule as above: an unavailable checksum is never treated as "equal", so this can only
+    # under-detect an UNDONE-by-rebuild on a values-only corruption, never falsely claim one.
+    undone = (rows_now == before) and (
+        checksum_before is None or checksum_now == checksum_before)
+    if undone:
         return Outcome(mutation, UNDONE, changed,
                        detail=f"dbt rebuilt {mutation.target.table} and wiped the corruption "
-                              f"before any test ran, so nothing was measured")
+                              f"before any test ran, so nothing was measured" + checksum_note)
 
     after_status = project.test_results()
     if not after_status:
@@ -385,13 +411,39 @@ def _file_plan(targets) -> list[Mutation]:
     return out
 
 
+class ChecksumUnavailable(RuntimeError):
+    """The content fingerprint could not be computed for this table.
+
+    FIXED 2026-08-29 (`silent_failure_sweep.py`, phase 1 of the system repair). This used to
+    swallow the query failure and return "" -- so a corruption that changes VALUES but not row
+    count, on a table whose checksum query happens to fail (a column type md5/string_agg cannot
+    coerce, a lock, a timeout), produced `checksum_before == checksum_after` (both "") and was
+    scored as ZERO change in `apply_one`'s `changed` count. Combined with an unchanged row count,
+    that reaches the NOOP branch: "the corruption ran but changed no rows, so nothing was
+    measured" -- which is false. The corruption DID run and DID change values; the measuring
+    instrument silently failed, and its failure was reported as the corruption's failure.
+
+    This is the exact shape the module docstring already warns against for a different case --
+    "NO-OP is not a pass and not a failure... Counting a no-op as SURVIVED would inflate the
+    headline number with corruptions that never happened -- the exact way this kind of tool
+    lies." A checksum that silently can't be computed is the same lie from the other axis: it
+    manufactures a NOOP instead of a SURVIVED/KILLED, which under-reports how many corruptions
+    were actually tested rather than over-reporting how many tests are dead. Raised, per the
+    `CannotMeasure` idiom this module already uses elsewhere, rather than swallowed.
+    """
+
+
 def _checksum(con, fqn: str) -> str:
     """Content fingerprint, so an UPDATE that changes values but not the row count
-    is still recognised as a real change."""
+    is still recognised as a real change.
+
+    Raises `ChecksumUnavailable` rather than returning "" -- see that class's docstring for why
+    an empty string here is not a safe default.
+    """
     try:
         return str(con.execute(f"select md5(string_agg(t::VARCHAR, '')) from {fqn} t").fetchone()[0])
-    except Exception:
-        return ""
+    except Exception as exc:
+        raise ChecksumUnavailable(f"{fqn}: {type(exc).__name__}: {exc}") from exc
 
 
 def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> dict:
