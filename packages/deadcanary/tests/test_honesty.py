@@ -98,6 +98,47 @@ def test_invalid_sql_is_a_noop_not_a_missed_corruption(tmp_path):
     assert "could not apply" in out.detail
 
 
+def test_a_checksum_that_cannot_be_computed_is_never_treated_as_equal(tmp_path, monkeypatch):
+    """FIXED 2026-08-29 (`silent_failure_sweep.py`, phase 1 of the system repair).
+
+    `_checksum` used to swallow its own query failure and return "". A values-only mutation
+    (row count unchanged) on a table whose checksum query fails then produced
+    `checksum_before == checksum_after` (both "") and was scored as ZERO change -- so it reached
+    NOOP silently claiming "nothing was measured", when in truth the tool simply could not check
+    and the corruption may well have run. This is the same lie the module's own docstring already
+    names for the opposite direction (padding SURVIVED with corruptions that never happened) --
+    here it is padding NOOP with corruptions it never actually looked at.
+
+    `apply_one` calls `_checksum` at up to THREE points (before, after, and again post-rebuild to
+    detect an UNDONE-by-rebuild), so this also proves the fix does not crash at any of them --
+    `ChecksumUnavailable` must never propagate uncaught out of `apply_one`.
+    """
+    import sys
+    # `sys.modules[...]`, not `import deadcanary.hunt as hunt_mod` -- `deadcanary/__init__.py`
+    # does `from .hunt import hunt`, which overwrites the `hunt` ATTRIBUTE on the `deadcanary`
+    # package object with the FUNCTION, so `deadcanary.hunt` (attribute access, which the `as`
+    # form of `import` ends with) resolves to the function, not the submodule. sys.modules is
+    # keyed by the real dotted path and is not shadowed by that.
+    hunt_mod = sys.modules["deadcanary.hunt"]
+
+    def _always_fails(con, fqn):
+        raise hunt_mod.ChecksumUnavailable("simulated: this table's checksum query cannot run")
+    monkeypatch.setattr(hunt_mod, "_checksum", _always_fails)
+
+    root = _make_project(tmp_path)
+    p = StubProject(root, HEALTHY)
+    p.snapshot()
+    # A values-only mutation: row count is unaffected, only content changes.
+    m = _mutation(sql='update "main"."raw_orders" set "status" = \'corrupted\' where id < 3')
+
+    out = apply_one(p, m, HEALTHY)  # must not raise ChecksumUnavailable
+
+    assert out.verdict == NOOP
+    assert "could not be computed" in out.detail, (
+        "a checksum failure on a values-only mutation must be DISCLOSED in the report, "
+        "never silently folded into an ordinary NOOP")
+
+
 # --------------------------------------------------------- UNDONE BY REBUILD
 
 def test_a_corruption_wiped_by_a_rebuild_is_never_counted_as_missed(tmp_path):
