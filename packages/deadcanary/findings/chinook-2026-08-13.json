@@ -2958,7 +2958,7 @@
   "mutations_planned": 289,
   "mutations_undone": 0,
   "never_executed": [],
-  "project": "C:\\Users\\Owner\\PureEuphoria\\deadcanary\\projects\\dbt_duckdb_chinook",
+  "project": "<project>",
   "seconds": 6914.8,
   "tables_available": [
     "album",
