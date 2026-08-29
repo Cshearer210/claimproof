@@ -1,0 +1,81 @@
+{
+  "tool": "claimproof",
+  "question": "Does UnbackedClaims' evidence WINDOW carry any signal, or is proximity between a claim and evidence just an artifact of evidence density?",
+  "measured_utc": "2026-08-29T02:35:44Z",
+  "corpus": {
+    "what": "real assistant messages from local agent transcripts",
+    "transcript_files": 551,
+    "assistant_messages": 38032,
+    "claims_with_evidence_somewhere": 5531,
+    "messages_with_a_claim_and_no_evidence_anywhere": 1440,
+    "bias_warning": "This corpus is unusually evidence-dense because the system that produced it requires evidence in replies. That density is precisely why proximity carries little information here. On a sparser corpus proximity may carry real signal; re-run the null model before assuming this transfers."
+  },
+  "labelling": {
+    "backed": "evidence exists ANYWHERE in the message, at any distance",
+    "unbacked": "no evidence anywhere in the message",
+    "why": "Neither label can be influenced by the window under test. Labelling by the gate's own current verdict would make the derived window reproduce the present window."
+  },
+  "null_model": "Same messages, same number of evidence lines, positions randomised. Only placement changes.",
+  "distance_percentiles": {
+    "p50": {
+      "real": 2,
+      "chance": 2
+    },
+    "p75": {
+      "real": 4,
+      "chance": 4
+    },
+    "p90": {
+      "real": 8,
+      "chance": 8
+    },
+    "p95": {
+      "real": 12,
+      "chance": 11
+    },
+    "p99": {
+      "real": 24,
+      "chance": 20
+    }
+  },
+  "coverage_by_window": {
+    "window_1": {
+      "real_pct": 40.7,
+      "chance_pct": 45.3,
+      "lift_points": -4.6
+    },
+    "window_2": {
+      "real_pct": 64.9,
+      "chance_pct": 60.8,
+      "lift_points": 4.1
+    },
+    "window_3": {
+      "real_pct": 67.3,
+      "chance_pct": 70.5,
+      "lift_points": -3.2
+    },
+    "window_5": {
+      "real_pct": 80.7,
+      "chance_pct": 82.2,
+      "lift_points": -1.5
+    },
+    "window_8": {
+      "real_pct": 90.7,
+      "chance_pct": 91.0,
+      "lift_points": -0.3
+    },
+    "window_12": {
+      "real_pct": 95.4,
+      "chance_pct": 96.2,
+      "lift_points": -0.8
+    },
+    "window_20": {
+      "real_pct": 98.4,
+      "chance_pct": 99.0,
+      "lift_points": -0.6
+    }
+  },
+  "verdict": "PROXIMITY CARRIES ALMOST NO SIGNAL. The shipped window of 2 performs about 4 points above random placement; every wider window performs at or BELOW it. A threshold derived from the coverage curve alone would have encoded evidence density while carrying the authority of a measurement.",
+  "what_survives": "The BINARY signal. Every message with a claim and no evidence anywhere is caught at any window, so the check's value is intact and the window is a cheap heuristic sitting on top of a signal that works.",
+  "action_taken": "The window was NOT re-derived. Its docstring now states what it is."
+}
