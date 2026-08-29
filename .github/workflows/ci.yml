@@ -176,6 +176,35 @@ jobs:
           cd "$RUNNER_TEMP/elsewhere"
           "$CLEANPY" -m pytest tests -q
 
+  necessary-files:
+    name: every published file is necessary to be published
+    runs-on: ubuntu-latest
+
+    # A pull request can add any file, from anybody. Every other check in here asks
+    # whether the software still works. None asked whether the repository still
+    # contains only the software.
+    #
+    # It is an ALLOWLIST rather than a list of things to keep out, because a list of
+    # what must never be published would have to name those things, in public, in
+    # this file. The list of what you are keeping out is the thing you are keeping out.
+    #
+    # Dependency-free on purpose: it reads `git ls-files` and nothing else, so it
+    # cannot go red for a reason unrelated to what it checks.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Both directions first. A check that refuses everything is as broken as one
+      # that refuses nothing, and only the second kind is obvious from a green run.
+      - name: The check can still refuse, and can still allow
+        run: python tools/necessary_files.py --selftest
+
+      - name: Every tracked file is necessary
+        run: python tools/necessary_files.py
+
   fresh-eyes:
     name: a stranger following the README gets a working library
     runs-on: ubuntu-latest
