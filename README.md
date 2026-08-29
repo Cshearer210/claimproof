@@ -159,6 +159,18 @@ before it lands rather than catching it in review.
 Malformed input fails **open**. A hook that wedges every turn gets deleted within the hour, and a
 deleted hook protects nothing.
 
+## Integrations
+
+| runtime | how |
+|---|---|
+| **Claude Code** | `python -m claimproof.claude_code install`, described above |
+| **CrewAI** | [`src/claimproof/crewai.py`](https://github.com/Cshearer210/claimproof/blob/main/src/claimproof/crewai.py), then `pip install claimproof[crewai]`, then `gate_task(task)` |
+| **dbt** | a different question, asked of your data, in [`deadcanary`](https://github.com/Cshearer210/claimproof/tree/main/packages/deadcanary) |
+| **anything else** | the adapter shape is one file. [Issue #2](https://github.com/Cshearer210/claimproof/issues/2) is the walkthrough |
+
+The core library has **no runtime dependencies**, and adapters do not change that. CrewAI is an
+optional extra; installing claimproof does not install it.
+
 ## "All done" is a claim about a list. Keep the list.
 
 The most universal agent failure is not a wrong answer -- it is request six of eight quietly
@@ -546,6 +558,17 @@ paste the exact string. It usually becomes a test fixture verbatim.
 
 The one rule that is not negotiable is that a gate must be able to fail and you must prove it.
 That applies to changes here as much as to gates you write with it.
+
+### People who have contributed
+
+- **[@bSabna](https://github.com/bSabna)** - the CrewAI adapter ([#32](https://github.com/Cshearer210/claimproof/pull/32), taken from [#2](https://github.com/Cshearer210/claimproof/issues/2)). Read CrewAI's source rather
+  than its documentation, and found that the execution path uses a private copy of the
+  guardrail field which is populated only at construction - so the documented wiring
+  leaves the gate inert while every test that calls it directly still passes.
+- **[@slegarraga](https://github.com/slegarraga)** - taught the claims gate to recognise
+  JUnit summaries ([#4](https://github.com/Cshearer210/claimproof/pull/4)) and `go test ok` lines
+  ([#3](https://github.com/Cshearer210/claimproof/pull/3)) as real evidence, each with the
+  must-flag and must-pass pair CONTRIBUTING.md requires.
 
 ## License
 
