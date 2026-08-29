@@ -25,25 +25,24 @@ instead of inventing a second retry loop, and they counted real tool calls throu
 
 ## DRAFT 1: the thank-you, to paste on the PR or issue #2
 
-> Merged. Thank you for this.
+**CUT DOWN 2026-08-29 by Chris: "way too long and makes me look bad". He was right on
+both, and the second mattered more. Three lines had him telling a stranger, publicly
+and permanently on his own project, that he would have made mistakes the contributor
+avoided -- and one of them published a defect in his own test suite, which
+never-post-about-our-own-bugs.md bans outright. A thank-you lands by naming what THEY
+did precisely. It never needs him to be smaller so they can be bigger.**
+> Merged, thank you.
 >
-> Two choices in here that I want to name, because they are the ones I would have gotten
-> wrong. Using `guardrail_max_retries` instead of adding a retry loop in the adapter is
-> right and I would probably have built the second loop. And counting tool calls off
-> `crewai_event_bus` rather than inferring work from the output is the difference between
-> a gate that knows something happened and one that is guessing.
+> Two calls worth naming: using `guardrail_max_retries` rather than adding a second
+> retry loop in the adapter, and counting tool calls off `crewai_event_bus` instead of
+> inferring work from the output. Both are right.
 >
-> The `_guardrail` find is the part I keep thinking about. A guardrail that is set,
-> visible on the object, and never executed, while every test that calls the public field
-> passes, is exactly the failure this library exists to catch, sitting in the library's own
-> wiring. You found it by reading their source instead of their docs, which is the whole
-> lesson.
+> The `_guardrail` find is the valuable part. A guardrail that is set, visible on the
+> object, and never executed while every test on the public field passes, is exactly
+> the class this library exists to catch. Reading CrewAI's source rather than its docs
+> is what found it.
 >
-> You also fixed a real bug in my test suite on the way through. `_shipped_gates()`
-> importing every submodule unconditionally would have broken any clean install with an
-> optional extra missing, and nothing here would have caught it.
->
-> Credited in the README and in the changelog.
+> Credited in the README and the changelog.
 
 **Check before sending:** does it name a concrete choice they made? Yes, three of them.
 
