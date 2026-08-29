@@ -163,9 +163,9 @@ deleted hook protects nothing.
 
 | runtime | how |
 |---|---|
-| **Claude Code** | `python -m claimproof.claude_code install` — see above |
-| **CrewAI** | [`src/claimproof/crewai.py`](https://github.com/Cshearer210/claimproof/blob/main/src/claimproof/crewai.py) — `pip install claimproof[crewai]`, then `gate_task(task)` |
-| **dbt** | a different question, asked of your data — [`deadcanary`](https://github.com/Cshearer210/claimproof/tree/main/packages/deadcanary) |
+| **Claude Code** | `python -m claimproof.claude_code install`, described above |
+| **CrewAI** | [`src/claimproof/crewai.py`](https://github.com/Cshearer210/claimproof/blob/main/src/claimproof/crewai.py), then `pip install claimproof[crewai]`, then `gate_task(task)` |
+| **dbt** | a different question, asked of your data, in [`deadcanary`](https://github.com/Cshearer210/claimproof/tree/main/packages/deadcanary) |
 | **anything else** | the adapter shape is one file. [Issue #2](https://github.com/Cshearer210/claimproof/issues/2) is the walkthrough |
 
 The core library has **no runtime dependencies**, and adapters do not change that. CrewAI is an
@@ -564,9 +564,7 @@ That applies to changes here as much as to gates you write with it.
 - **[@bSabna](https://github.com/bSabna)** - the CrewAI adapter ([#32](https://github.com/Cshearer210/claimproof/pull/32), taken from [#2](https://github.com/Cshearer210/claimproof/issues/2)). Read CrewAI's source rather
   than its documentation, and found that the execution path uses a private copy of the
   guardrail field which is populated only at construction - so the documented wiring
-  leaves the gate inert while every test that calls it directly still passes. Also fixed
-  a real defect in this project's own suite, where gate discovery imported every
-  submodule unconditionally and therefore broke in a clean install.
+  leaves the gate inert while every test that calls it directly still passes.
 - **[@slegarraga](https://github.com/slegarraga)** - taught the claims gate to recognise
   JUnit summaries ([#4](https://github.com/Cshearer210/claimproof/pull/4)) and `go test ok` lines
   ([#3](https://github.com/Cshearer210/claimproof/pull/3)) as real evidence, each with the
