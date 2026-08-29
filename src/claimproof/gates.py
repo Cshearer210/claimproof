@@ -142,6 +142,36 @@ _HYPOTHETICAL = re.compile(
 class UnbackedClaims(Gate):
     """Flag completion claims that have no evidence within `window` lines.
 
+    WHAT `window` IS, MEASURED RATHER THAN ASSUMED (2026-08-28). It is a cheap
+    heuristic, not a measurement, and this library should say so about its own
+    knobs before it says it about anyone else's.
+
+    Across 37,997 real assistant messages, claims were labelled BACKED (evidence
+    exists anywhere in the message, at any distance) or UNBACKED (none anywhere) --
+    labels the window cannot influence, so the answer could not be circular. The
+    coverage curve looked decisive: window=2 catches 68% of backed claims, window=8
+    catches 92%, window=12 catches 95%. Read alone it says the default is too tight.
+
+    Then the same measurement was run against a null model -- same messages, same
+    number of evidence lines, positions randomised. Real distance is
+    indistinguishable from random at every percentile. window=2 beats chance by
+    about 4 points; every wider window performs at or BELOW it. Proximity is mostly
+    an artifact of evidence being dense, not of that evidence belonging to that
+    claim. The receipt is `findings/evidence-window-2026-08-28.json`.
+
+    SO DO NOT DERIVE A NEW WINDOW FROM THE COVERAGE CURVE. It moves in the
+    direction a reader expects, which makes it the most misleading kind of number:
+    it invites a confident wrong conclusion rather than no conclusion.
+
+    WHAT DOES CARRY THE SIGNAL is binary -- whether evidence exists at all. Every
+    message carrying a claim and no evidence anywhere is caught at ANY window, so
+    the check works and the window is a cheap filter on top of something that does.
+
+    BOUNDARY: that corpus is unusually evidence-dense because the system producing
+    it demands evidence, and that density is exactly why proximity carries little
+    there. On a sparser corpus it may carry real signal. Re-run the null model
+    before assuming this transfers.
+
     >>> UnbackedClaims().check("It works.")            # doctest: +ELLIPSIS
     [<...Finding...>]
     >>> UnbackedClaims().check("It works. exit=0")
