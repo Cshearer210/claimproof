@@ -57,10 +57,52 @@ def render(report: dict) -> str:
     if noop:
         lines(f"\n  {len(noop)} corruption(s) changed no rows and were NOT counted either way.")
 
+    unreliable = report.get("unreliable_killers", [])
+    if unreliable:
+        lines(f"\n  {len(unreliable)} credited test(s) ALSO failed with no corruption applied "
+              f"-- their catches are not trusted:")
+        for t in unreliable:
+            lines(f"    ? {t}")
+
     lines(f"\n  {report['mutations_applied']} corruption(s) actually applied, "
           f"{sum(1 for o in report['outcomes'] if o.verdict == KILLED)} caught, "
           f"in {report['seconds']}s.")
     return "\n".join(out)
+
+
+def ratchet(found: int, baseline_path: Path, update: bool = False) -> tuple[int, str]:
+    """Compare `found` against the count recorded at `baseline_path`. Never worse, never silent.
+
+    Returns (exit_code, message) rather than printing directly, so a caller -- the CLI, a
+    GitHub Action, a test -- decides where the message goes. This is the same shape as
+    `regression_guard.py`'s own class of checks elsewhere in this project's own tooling: a
+    baseline may only ever ratchet DOWN. A run that regresses fails and never rewrites the
+    file, so one bad run can never quietly relax the bar for the next one.
+
+    No file at `baseline_path` is not an error -- it is what a first run looks like. This
+    writes one and passes, the same way a fresh `git` repo's first commit has nothing to
+    diff against.
+    """
+    if not baseline_path.is_file():
+        baseline_path.write_text(json.dumps({"dead_canaries": found}, indent=2) + "\n",
+                                  encoding="utf-8")
+        return 0, (f"deadcanary: no baseline yet -- recorded {found} dead canaries to "
+                    f"{baseline_path}. Commit it; future runs are held to this.")
+    try:
+        recorded = json.loads(baseline_path.read_text(encoding="utf-8"))["dead_canaries"]
+    except (json.JSONDecodeError, KeyError, OSError) as exc:
+        return 2, (f"deadcanary: {baseline_path} exists but does not hold a valid baseline "
+                    f"({exc}) -- refusing to ratchet against a file that cannot be read")
+    if found > recorded:
+        return 1, (f"deadcanary: {found} dead canaries now, {recorded} recorded in "
+                    f"{baseline_path.name} -- coverage got WORSE")
+    message = (f"deadcanary: {found} dead canaries, at or under the {recorded} recorded "
+               f"in {baseline_path.name}")
+    if update and found < recorded:
+        baseline_path.write_text(json.dumps({"dead_canaries": found}, indent=2) + "\n",
+                                  encoding="utf-8")
+        message += f"\ndeadcanary: {baseline_path.name} ratcheted down to {found}"
+    return 0, message
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,6 +110,15 @@ def main(argv: list[str] | None = None) -> int:
         prog="deadcanary", description="Find the data tests that cannot fail.")
     ap.add_argument("project", nargs="?", default=".", help="path to a dbt project")
     ap.add_argument("--limit", type=int, help="stop after N corruptions (for a quick look)")
+    ap.add_argument("--verify-null", action="store_true",
+                    help="after the sweep, confirm every test credited with a catch does "
+                         "NOT also fail on clean data -- a null model, so a real catch can "
+                         "be told apart from a test that just fails sometimes on its own. "
+                         "Costs --null-repeats extra rebuilds; off by default because it is "
+                         "real extra time on a real warehouse.")
+    ap.add_argument("--null-repeats", type=int, default=2, metavar="N",
+                    help="with --verify-null, how many clean rebuilds to check each "
+                         "credited test against (default: 2)")
     ap.add_argument("--json", action="store_true", help="machine-readable report on stdout")
     ap.add_argument("--quiet", action="store_true",
                     help="gate mode: exit 1 if any test is a dead canary")
@@ -76,6 +127,16 @@ def main(argv: list[str] | None = None) -> int:
                          "project carries two on purpose; CI asserts they are still "
                          "found, so a broken tool cannot pass while the README "
                          "still promises the demo works.")
+    ap.add_argument("--baseline", metavar="PATH",
+                    help="ratchet mode: fail only if the dead-canary count is HIGHER than "
+                         "the count recorded at PATH. No file there yet means no baseline "
+                         "-- this run records one and passes, same as a first commit. "
+                         "Point a real project's CI at this: it goes red only when "
+                         "coverage genuinely got worse, not every time a new test is added.")
+    ap.add_argument("--update-baseline", action="store_true",
+                    help="with --baseline, rewrite the file when the count went DOWN. It "
+                         "only ever ratchets down -- a run that regresses fails and never "
+                         "rewrites it, so one bad run cannot quietly relax the bar.")
     ap.add_argument("--attest", action="store_true",
                     help="record this run as a claimproof claim, fingerprinted against "
                          "the test suite it measured. Add a test later and the claim "
@@ -88,6 +149,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--claims", metavar="PATH",
                     help=f"where the claim store lives (default: <project>/{CLAIMS_NAME})")
     args = ap.parse_args(argv)
+
+    if args.expect_dead is not None and args.baseline is not None:
+        print("deadcanary: --expect-dead and --baseline are two different rules for the "
+              "same number -- pick one", file=sys.stderr)
+        return 2
 
     root = Path(args.project)
     store = Path(args.claims) if args.claims else root / CLAIMS_NAME
@@ -107,7 +173,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        report = hunt(project, limit=args.limit, echo=not (args.json or args.quiet))
+        report = hunt(project, limit=args.limit, echo=not (args.json or args.quiet),
+                       verify_null=args.verify_null, null_repeats=args.null_repeats)
     except CannotMeasure as exc:
         print(f"deadcanary: {exc}", file=sys.stderr)
         return 2                      # cannot tell -- never 0, which would read as a pass
@@ -128,8 +195,14 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         from deadcanary.gate import attest
         attest(project.root, store=store)
+        # --json promises stdout is nothing but the report. This success line used to
+        # print there unconditionally -- harmless alone, but it silently corrupted
+        # `deadcanary ... --json --attest`'s output the moment both flags were combined,
+        # which is exactly the combination a CI step wiring the JSON into another tool
+        # would reach for. Same fix at every site below.
         print(f"deadcanary: proof recorded in {store.name}. Re-check it any time with "
-              f"`python -m deadcanary {args.project} --recheck`.")
+              f"`python -m deadcanary {args.project} --recheck`.",
+              file=sys.stderr if args.json else sys.stdout)
 
     if args.expect_dead is not None:
         found = len(report["dead_canaries"])
@@ -141,8 +214,19 @@ def main(argv: list[str] | None = None) -> int:
             print(f"deadcanary: expected {args.expect_dead} dead canaries, found {found}",
                   file=sys.stderr)
             return 1
-        print(f"deadcanary: {found} dead canaries, as expected")
+        print(f"deadcanary: {found} dead canaries, as expected",
+              file=sys.stderr if args.json else sys.stdout)
         return 0
+
+    if args.baseline is not None:
+        if not report["coverage_complete"]:
+            print("deadcanary: coverage was not complete, so the count means nothing -- "
+                  "refusing to ratchet against it", file=sys.stderr)
+            return 2
+        code, message = ratchet(len(report["dead_canaries"]), Path(args.baseline),
+                                 update=args.update_baseline)
+        print(message, file=sys.stderr if (code or args.json) else sys.stdout)
+        return code
 
     return 1 if report["dead_canaries"] else 0
 
