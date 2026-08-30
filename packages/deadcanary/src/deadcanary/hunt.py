@@ -446,8 +446,56 @@ def _checksum(con, fqn: str) -> str:
         raise ChecksumUnavailable(f"{fqn}: {type(exc).__name__}: {exc}") from exc
 
 
-def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> dict:
-    """The whole run. Returns the report as data; printing is somebody else's job."""
+def verify_kills(credited: set[str], rebuild, get_status,
+                  repeats: int = 2, echo: bool = True) -> set[str]:
+    """Which of the `credited` tests fail even with NO corruption applied.
+
+    A test credited with catching a corruption is only real evidence of anything if
+    it does not ALSO fail on clean data. This is a null model in the statistical
+    sense: it repeats the measurement with no intervention, so a genuine catch can
+    be told apart from a test that simply fails sometimes regardless of what the
+    data looks like. A kill credited to a flaky test is not a catch -- it is noise
+    that happened to land on the right side of a coin flip, and the whole reason
+    this tool exists is to stop a green suite from being trusted on faith.
+
+    Costs `repeats` extra rebuild-and-test cycles, not one per mutation -- `credited`
+    is normally far smaller than the full corruption count, because most tests never
+    catch anything at all.
+
+    `rebuild` and `get_status` are injected rather than hardcoded to a real dbt
+    project, the same reason the rest of this project avoids mocks for anything
+    that touches real data: a fake that always agrees with the code under test
+    would prove nothing, so tests here supply real, small, controllable functions
+    instead of a real warehouse.
+
+    Returns the SUBSET of `credited` that failed on at least one clean run. Nothing
+    here changes any existing verdict or count -- this is a second, independent
+    measurement layered on top, never a rewrite of the first one.
+    """
+    unreliable: set[str] = set()
+    if not credited:
+        return unreliable
+    for i in range(repeats):
+        rebuild()
+        status = get_status()
+        failed_now = {tid for tid in credited if status.get(tid) == "fail"}
+        unreliable |= failed_now
+        if echo:
+            print(f"  null-model check {i + 1}/{repeats}: {len(failed_now)} of "
+                  f"{len(credited)} credited test(s) failed with no corruption applied")
+    return unreliable
+
+
+def hunt(project: DbtProject, limit: int | None = None, echo: bool = True,
+         verify_null: bool = False, null_repeats: int = 2) -> dict:
+    """The whole run. Returns the report as data; printing is somebody else's job.
+
+    `verify_null`, if set, runs `verify_kills()` after the sweep: `null_repeats`
+    extra clean rebuilds to confirm every test credited with a catch does not also
+    fail on its own. Off by default -- it is real extra cost on a real warehouse,
+    and it should be something a caller opts into, not something that silently
+    makes every run slower.
+    """
     started = time.time()
     healthy = baseline(project)
     live = {t for t, s in healthy.items() if s == "pass"}
@@ -518,6 +566,20 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
                 mark = {KILLED: "caught ", SURVIVED: "MISSED ", NOOP: "  --   ",
                         BROKE: "broke  ", UNDONE: " undone"}[out.verdict]
                 print(f"  [{i:3}/{len(mutations)}] {mark} {out.mutation}")
+
+        unreliable: set[str] = set()
+        if verify_null:
+            credited = {t for t, v in killers.items() if v}
+            if echo and credited:
+                print(f"\n  confirming {len(credited)} credited test(s) don't just fail on "
+                      f"their own ({null_repeats} clean rebuild(s))...")
+
+            def _rebuild():
+                project.restore()
+                rebuild_and_test(project)
+
+            unreliable = verify_kills(credited, _rebuild, project.test_results,
+                                      repeats=null_repeats, echo=echo)
     finally:
         project.restore()
         restore_files(project.file_backups)
@@ -565,6 +627,7 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True) -> di
         "mutations_missed": len(missed),
         "outcomes": outcomes,
         "killers": {t: sorted(v) for t, v in killers.items() if v},
+        "unreliable_killers": sorted(unreliable),
         "corruptions": [
             {"name": o.mutation.name, "table": o.mutation.target.table,
              "column": o.mutation.target.column, "story": o.mutation.story,

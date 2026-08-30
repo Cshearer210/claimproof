@@ -70,6 +70,13 @@ pip install deadcanary[demo]
 python -m deadcanary.demo
 ```
 
+![A dbt project is built, its data is corrupted on purpose one column at a time, and the tests that never noticed are named. Two of seven green tests turn out to be incapable of failing.](https://raw.githubusercontent.com/Cshearer210/claimproof/main/packages/deadcanary/assets/demo.svg)
+
+*A live run of `python -m deadcanary.demo` — the mutation hunt and the two tests that never
+noticed. `tools/render_demo_svg.py deadcanary`, run from the repo root, regenerates this image
+from a live run and refuses to render if the output drifts — the same standard claimproof's own
+demo image is held to.*
+
 It builds a small warehouse, corrupts it fourteen ways, and re-runs the suite
 against each one. **Give it five to ten minutes** and watch the corruptions go by:
 every line is a real dbt run, which is the only way this question can be answered
@@ -106,6 +113,56 @@ are ordinary, sensible-looking SQL. Both quietly disarm the test above them.
 
 The other five tests in that project are alive, and the run says which corruption
 killed each one.
+
+## Use it in CI
+
+The plain form is a gate: exit 1 the moment any test can't fail.
+
+<!-- readme: illustration -->
+```bash
+deadcanary path/to/dbt/project --quiet
+```
+
+A suite that has carried a dead canary for years will not pass that on day one, and a
+check that breaks the build on ordinary, pre-existing debt gets deleted rather than
+fixed. **Ratchet it instead** — fail only when coverage gets WORSE than it has ever
+been measured, and let a real project close the gap over time:
+
+<!-- readme: illustration -->
+```bash
+deadcanary path/to/dbt/project --baseline .deadcanary-baseline.json --update-baseline
+```
+
+No file there yet records one and passes, the same way a first commit has nothing to
+diff against. Commit it. From then on the build fails only if the count goes *up*, and
+`--update-baseline` lets a genuine improvement ratchet the bar down — never up, and
+never on a run that regressed, however the flag is set.
+
+**A caught corruption is not automatically believed, either.** A test gets credit for
+catching a mutation if it fails once, after the mutation is applied — and a test that
+just fails sometimes, for reasons that have nothing to do with the data, would get the
+same credit. `--verify-null` checks for that: it re-runs the clean suite a couple of
+times with **no corruption at all** and confirms every test that caught something stays
+green on its own. Anything that doesn't is reported separately, never silently trusted.
+
+<!-- readme: illustration -->
+```bash
+deadcanary path/to/dbt/project --verify-null
+```
+
+**As a GitHub Action**, the ratchet in three lines:
+
+<!-- readme: illustration -->
+```yaml
+- uses: Cshearer210/claimproof/packages/deadcanary@main
+  with:
+    project: path/to/dbt/project
+```
+
+Runs the same `--baseline`/`--update-baseline` ratchet above. It only ever updates the
+baseline file inside the runner — nothing here commits on your behalf; add your own step
+for that if you want an improvement to persist. See
+[`action.yml`](action.yml) for every input.
 
 ## Install
 

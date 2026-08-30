@@ -1,0 +1,110 @@
+<!--
+  GitHub's social preview card (Settings -> General -> Social preview), 1280x640.
+  This is the SOURCE -- ../assets/social-card.png is the committed image GitHub
+  actually serves. Pure HTML/CSS, no JS, no build step, so any headless browser
+  can regenerate it:
+
+      <headless-chrome> --headless --screenshot=../assets/social-card.png \
+          --window-size=1280,640 file://social_card.html
+
+  DESIGN, per research done 2026-08-29 (deep-research agent, 8 searches + 5 fetches,
+  citing a Tarka GitHub-preview playbook, the AFFiNE 33k-star case study, and general
+  practitioner consensus -- no direct A/B click-through data exists publicly):
+
+    - The card that converts is not a logo or a wordmark. It PAIRS input and output so
+      the claim is visible without reading a word: "here is what the tool found," not
+      "here is what the tool looks like." Two-column: a normal `dbt test` run (all
+      green, false confidence) next to deadcanary's verdict on the SAME tests (which
+      of those greens are actually dead). That pairing IS the pitch.
+    - The stat is the strongest asset on the card because it is surprising and
+      falsifiable -- it was previously a small footnote; it is now the visual anchor,
+      large, at the bottom, not buried.
+    - Keep critical text inside the center ~1000x500 safe zone (some surfaces crop the
+      edges). No star counts or version numbers -- they go stale within weeks.
+
+  The stat quoted ("6 of 20 tests in dbt-labs' own template can't fail") is pulled
+  verbatim from README.md's own findings section -- if that number ever changes,
+  it changes in both places or not at all.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root{
+    --bg:#0d1117; --bar:#161b22; --fg:#c9d1d9; --dim:#8b949e;
+    --head:#e6edf3; --red:#f85149; --green:#3fb950;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  *{margin:0; padding:0; box-sizing:border-box;}
+  html,body{width:1280px; height:640px; background:var(--bg); overflow:hidden;}
+  body{font-family:var(--sans); position:relative;}
+
+  .bar{position:absolute; top:0; left:0; right:0; height:46px; background:var(--bar);
+       display:flex; align-items:center; padding:0 22px; gap:12px;
+       border-bottom:1px solid #21262d;}
+  .dot{width:12px; height:12px; border-radius:50%;}
+  .d1{background:#ff5f57;} .d2{background:#febc2e;} .d3{background:#28c840;}
+  .wordmark{font-family:var(--mono); font-weight:700; font-size:17px; color:var(--head);
+            margin-left:6px;}
+  .tagline{font-family:var(--sans); font-size:15px; color:var(--dim); margin-left:14px;}
+
+  .panels{position:absolute; top:172px; left:70px; right:70px;
+          display:flex; gap:22px;}
+  .panel{flex:1; background:var(--bar); border-radius:10px; border:1px solid #30363d;
+         box-shadow:0 16px 40px rgba(0,0,0,0.4); overflow:hidden;}
+  .panel-head{padding:14px 20px; font-family:var(--mono); font-size:15px;
+              color:var(--dim); border-bottom:1px solid #21262d;}
+  .panel-head .cmd{color:var(--head); font-weight:700;}
+  .panel-body{padding:16px 20px 18px; font-family:var(--mono); font-size:16px;
+             line-height:2.05;}
+  .row{white-space:pre; display:flex; align-items:baseline; gap:10px;}
+  .pass{color:var(--green); font-weight:700;}
+  .fail{color:var(--red); font-weight:700;}
+  .ok{color:var(--green);}
+  .dead{color:var(--red); font-weight:700; text-decoration:line-through;
+        text-decoration-color:rgba(248,81,73,.55);}
+  .name{color:var(--fg);}
+  .foot{margin-top:10px; padding-top:10px; border-top:1px solid #21262d;
+        font-family:var(--sans); font-size:14px;}
+  .foot.g{color:var(--green);}
+  .foot.r{color:var(--red); font-weight:700;}
+
+  .stat{position:absolute; left:70px; right:70px; top:436px; text-align:center;
+       font-family:var(--sans); font-weight:700; font-size:27px; color:var(--head);
+       line-height:1.3;}
+  .stat b{color:var(--red);}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+    <div class="wordmark">deadcanary</div>
+    <div class="tagline">Find the data tests that cannot fail.</div>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-head"><span class="cmd">$ dbt test</span> — the suite you already trust</div>
+      <div class="panel-body">
+        <div class="row"><span class="pass">PASS</span><span class="name">unique_orders_order_id</span></div>
+        <div class="row"><span class="pass">PASS</span><span class="name">not_null_orders_order_id</span></div>
+        <div class="row"><span class="pass">PASS</span><span class="name">not_null_stg_supplies_supply_uuid</span></div>
+        <div class="foot g">20 of 20 tests passed. All green.</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="cmd">$ deadcanary .</span> — the same tests, data broken on purpose</div>
+      <div class="panel-body">
+        <div class="row"><span class="fail">DEAD</span><span class="dead">unique_orders_order_id</span></div>
+        <div class="row"><span class="fail">DEAD</span><span class="dead">not_null_orders_order_id</span></div>
+        <div class="row"><span class="fail">DEAD</span><span class="dead">not_null_stg_supplies_supply_uuid</span></div>
+        <div class="foot r">6 of 20 "green" tests never had a chance to fail.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat">6 of 20 green tests in dbt-labs' own template <b>can't fail</b> — no matter what breaks upstream.</div>
+</body>
+</html>

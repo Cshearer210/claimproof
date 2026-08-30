@@ -1,0 +1,90 @@
+name: 'deadcanary'
+description: 'Find the dbt data tests that cannot fail -- mutation testing for dbt, as a CI ratchet.'
+author: 'Christopher Shearer'
+branding:
+  icon: 'shield'
+  color: 'red'
+
+# Lives at packages/deadcanary/action.yml because that is where the code is developed
+# (see README.md, "The other half: claimproof"). Usable today as
+# `uses: Cshearer210/claimproof/packages/deadcanary@main` -- GitHub Actions supports a
+# subdirectory action by path, it just cannot be LISTED on the Marketplace from a
+# subdirectory. The front-door repo, once populated, carries a root-level copy for that.
+#
+# Deliberately does NOT commit an updated baseline back to the repo. A composite action
+# with write access to the calling repo is a bigger trust ask than "run a check and report
+# pass or fail", and the failure mode of getting that wrong (a bot silently rewriting a
+# ratchet file) is worse than asking the user to commit an improvement themselves when
+# this step tells them one happened. `update-baseline` still updates the LOCAL file inside
+# the runner, so a workflow that wants to commit it can add its own step to do so.
+inputs:
+  project:
+    description: 'Path to the dbt project to test'
+    required: false
+    default: '.'
+  baseline:
+    description: >-
+      Path to the ratchet baseline file, relative to `project`. Commit this file --
+      the action fails the build only if the dead-canary count goes ABOVE what is
+      recorded here. No file there yet means no baseline: the first run records one
+      and passes, the same as a first commit.
+    required: false
+    default: '.deadcanary-baseline.json'
+  update-baseline:
+    description: 'Rewrite the baseline file (inside the runner) when coverage improves. Never on a regression.'
+    required: false
+    default: 'true'
+  extras:
+    description: 'pip extra to install alongside deadcanary -- "dbt" pulls in dbt-duckdb. Set to "" if your workflow already installs its own dbt adapter.'
+    required: false
+    default: 'dbt'
+  python-version:
+    description: 'Python version to run deadcanary under'
+    required: false
+    default: '3.12'
+
+outputs:
+  dead-canaries:
+    description: 'How many tests were found unable to fail, if the run completed.'
+    value: ${{ steps.run.outputs.dead-canaries }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install deadcanary
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.extras }}" ]; then
+          pip install "deadcanary[${{ inputs.extras }}]"
+        else
+          pip install deadcanary
+        fi
+
+    - name: Run the ratchet
+      id: run
+      shell: bash
+      run: |
+        args=("${{ inputs.project }}" --baseline "${{ inputs.baseline }}" --json)
+        if [ "${{ inputs.update-baseline }}" = "true" ]; then
+          args+=(--update-baseline)
+        fi
+
+        # --json and --baseline both print to stdout; captured once, used twice, so the
+        # run only happens a single time -- deadcanary corrupts real data on purpose, and
+        # a second call to "double-check" the first would waste the exact cost this
+        # action exists to keep proportional to what actually got credited.
+        set +e
+        output=$(deadcanary "${args[@]}")
+        code=$?
+        set -e
+
+        echo "$output"
+        dead=$(echo "$output" | python -c "import json,sys; print(len(json.load(sys.stdin).get('dead_canaries', [])))" 2>/dev/null || echo "unknown")
+        echo "dead-canaries=$dead" >> "$GITHUB_OUTPUT"
+
+        exit $code

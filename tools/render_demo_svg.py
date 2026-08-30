@@ -49,14 +49,25 @@ RED = "#f85149"
 GREEN = "#3fb950"
 
 
-def demo_lines(module: str = "claimproof.demo", timeout: int = 120) -> list[str]:
-    """Acts 1-4 of the live demo, verbatim.
+def demo_lines(
+    module: str = "claimproof.demo", timeout: int = 120,
+    *, start_marker: str = "1. ", end_marker: str = "5. ",
+) -> list[str]:
+    """One bounded 'story' from the live demo's real output, verbatim.
 
     The timeout is per-demo because the two do very different amounts of work.
     claimproof's prints text and finishes in a second. deadcanary's builds a real dbt
     project on duckdb, seeds it, runs the suite once for a baseline and then once per
     corruption -- so 120s expires mid-run and raises a TimeoutExpired naming the
     timeout rather than the reason, which reads exactly like a broken demo.
+
+    `start_marker`/`end_marker` are line PREFIXES: the story is everything from the
+    first line starting with `start_marker` up to (not including) the first LATER
+    line starting with `end_marker`. Both must actually be found or this refuses to
+    render -- an asset that shows less than the whole demo is fine; one that shows
+    something the demo does not print is not. claimproof's five acts print "1. " ..
+    "5. "; finding "5. " proves the whole story ran, and acts 1-4 are the hook.
+    deadcanary has no acts, so its caller bounds it with two literal lines instead.
     """
     proc = subprocess.run(
         [sys.executable, "-m", module],
@@ -66,14 +77,21 @@ def demo_lines(module: str = "claimproof.demo", timeout: int = 120) -> list[str]
         raise SystemExit(f"demo exited {proc.returncode}; not rendering from a broken demo")
     out = proc.stdout.splitlines()
 
-    starts = [i for i, ln in enumerate(out)
-              if ln.startswith(("1. ", "2. ", "3. ", "4. ", "5. "))]
-    if len(starts) < 5:
+    start_ix = next((i for i, ln in enumerate(out) if ln.startswith(start_marker)), None)
+    if start_ix is None:
         raise SystemExit(
-            "demo output no longer contains acts 1-5 where expected; "
+            f"demo output does not contain the expected start line {start_marker!r}; "
             "refusing to render a stale or partial story"
         )
-    lines = out[starts[0]:starts[4]]
+    end_ix = next(
+        (i for i in range(start_ix + 1, len(out)) if out[i].startswith(end_marker)), None,
+    )
+    if end_ix is None:
+        raise SystemExit(
+            f"demo output does not contain the expected end line {end_marker!r}; "
+            "refusing to render a stale or partial story"
+        )
+    lines = out[start_ix:end_ix]
     while lines and not lines[-1].strip():
         lines.pop()
     return lines
@@ -193,12 +211,21 @@ def render(lines: list[str], title: str = "python -m claimproof.demo",
 
 DEMOS = {
     "claimproof": ("claimproof.demo", REPO / "assets" / "demo.svg",
-                   "python -m claimproof.demo", ARIA_CLAIMPROOF, 120),
+                   "python -m claimproof.demo", ARIA_CLAIMPROOF, 120,
+                   "1. ", "5. "),
     # 900s. deadcanary's demo does real work -- a dbt build plus one suite run per
     # corruption -- and 120s expired mid-run, which looked like a broken demo.
+    #
+    # No numbered acts, so the story is bounded by two literal lines instead: it
+    # opens once every test is confirmed green (the claim being checked) and closes
+    # before the closing CTA, which keeps the mutation-by-mutation hunt and the
+    # final dead-canary tally and drops the temp-dir path and the "try your own
+    # project" line, neither of which is part of the story.
     "deadcanary": ("deadcanary.demo",
                    REPO / "packages" / "deadcanary" / "assets" / "demo.svg",
-                   "deadcanary .", ARIA_DEADCANARY, 900),
+                   "deadcanary .", ARIA_DEADCANARY, 900,
+                   "Every test below is GREEN right now.",
+                   "Point it at your own project next:"),
 }
 
 
@@ -208,8 +235,8 @@ def main(argv: list[str] | None = None) -> int:
     if which not in DEMOS:
         print("usage: render_demo_svg.py [%s]" % " | ".join(DEMOS))
         return 2
-    module, out, title, aria, timeout = DEMOS[which]
-    lines = demo_lines(module, timeout=timeout)
+    module, out, title, aria, timeout, start_marker, end_marker = DEMOS[which]
+    lines = demo_lines(module, timeout=timeout, start_marker=start_marker, end_marker=end_marker)
     out.parent.mkdir(parents=True, exist_ok=True)
     svg = render(lines, title=title, aria=aria)
     out.write_text(svg, encoding="utf-8", newline="\n")
