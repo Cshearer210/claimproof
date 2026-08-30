@@ -38,6 +38,22 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to somebody else's repo is a bigger trust ask than "run a check and report the result",
   so it updates the file inside the runner only, and a workflow that wants to persist an
   improvement adds its own commit step.
+- **`deadcanary.project.QualityProject`, a `Protocol` naming what `hunt()` actually needs
+  from a project, extracted from `DbtProject` rather than designed ahead of it.** Read
+  closely, almost nothing in `hunt.py` is about dbt specifically: the corruption engine
+  (`mutations.py`, `sources.py`) already speaks straight to the DuckDB warehouse file, and
+  `hunt()` itself only ever calls five things on "the project" -- run the checks, read
+  their verdicts, snapshot/restore the warehouse. Those five are now the whole contract.
+  `DbtProject` gained two small methods, `build()` and `run_and_test()`, that wrap its
+  existing `dbt()` calls; `hunt.py`'s `baseline()` and `rebuild_and_test()` now call the
+  Protocol methods instead of dbt directly, with zero behaviour change -- the full existing
+  test suite passes unmodified, and `StubProject`/`SkippingProject` in `test_honesty.py`
+  (which only ever override the low-level `dbt()`) needed no changes at all, because the
+  new methods delegate to it. `QualityProject` is `@runtime_checkable`, and
+  `test_project_protocol.py` proves it both directions: `DbtProject` satisfies it, and a
+  stub missing the contract does not. This is the seam a second backend (Great
+  Expectations, Soda Core, or anything else validating a DuckDB warehouse) implements
+  without touching `hunt.py` -- not a new backend itself, which is real, separate work.
 
 ### Fixed
 - **`tools/necessary_files.py`'s allowlist did not cover a package's own `assets/`

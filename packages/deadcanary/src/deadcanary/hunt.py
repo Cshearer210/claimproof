@@ -34,6 +34,7 @@ import time
 from pathlib import Path
 
 from deadcanary.mutations import Mutation, Target, discover, plan
+from deadcanary.project import QualityProject
 from deadcanary.sources import (FILE_CORRUPTIONS, PER_FILE, apply_to_file,
                                 discover_files, restore_files, snapshot_files)
 
@@ -174,6 +175,16 @@ class DbtProject:
             cwd=str(self.root), capture_output=True, text=True, timeout=timeout,
         )
 
+    # -- QualityProject (see project.py for the contract this implements) --
+    def build(self) -> subprocess.CompletedProcess:
+        return self.dbt("build")
+
+    def run_and_test(self) -> subprocess.CompletedProcess:
+        # TWO invocations, deliberately -- see the module-level `rebuild_and_test`
+        # docstring below for why `dbt build` cannot be used here.
+        self.dbt("run")
+        return self.dbt("test")
+
     def rebuilt_tables(self) -> set[str]:
         """Tables dbt regenerates: every model, and every seed.
 
@@ -241,43 +252,38 @@ def _connect(db: Path):
     return duckdb.connect(str(db))
 
 
-def baseline(project: DbtProject) -> dict[str, str]:
+def baseline(project: QualityProject) -> dict[str, str]:
     """The healthy suite. Anything already failing is excluded from the hunt.
 
     A test that is red before a single thing is corrupted tells us nothing about
     whether it can detect corruption, and leaving it in would let a permanently
     broken test masquerade as a vigilant one.
     """
-    r = project.dbt("build")
+    r = project.build()
     if r.returncode != 0 and not project.test_results():
-        raise RuntimeError(f"`dbt build` failed before any corruption:\n{r.stdout[-1500:]}")
+        raise RuntimeError(f"the checks failed before any corruption:\n{r.stdout[-1500:]}")
     return project.test_results()
 
 
-def rebuild_and_test(project: DbtProject) -> subprocess.CompletedProcess:
+def rebuild_and_test(project: QualityProject) -> subprocess.CompletedProcess:
     """Run the models and the tests, WITHOUT re-loading the seeds.
 
-    `dbt build` would re-seed from the CSVs first and undo the corruption. The
-    corruption stands in for bad data arriving from upstream, so the right
-    simulation is: the raw table is now wrong, push it through the pipeline.
+    A full build (dbt's `build`, or any tool's equivalent) would re-seed from the
+    raw source first and undo the corruption. The corruption stands in for bad
+    data arriving from upstream, so the right simulation is: the raw table is now
+    wrong, push it through the pipeline exactly as it is.
+
+    For dbt specifically this is TWO invocations, deliberately, and it is not an
+    oversight to optimise away -- see `DbtProject.run_and_test`'s docstring
+    reasoning: `dbt build` interleaves models and tests and stops the chain on the
+    first failure, so a downstream test never runs and cannot be credited with a
+    catch OR called dead. Running everything, then testing everything, is what
+    makes every check judged on its own behaviour.
     """
-    # TWO invocations, deliberately, and this is not an oversight to optimise away.
-    #
-    # `dbt build` interleaves models and tests and STOPS THE CHAIN when a test fails:
-    # every test downstream of the failure is skipped. A skipped test did not run, so
-    # it cannot be credited with a catch -- and it also cannot be called dead, because
-    # it was never given a chance. Measured on the demo project: a single `build` left
-    # two tests unexecuted under exactly the corruptions that would have killed them,
-    # and both were then reported as dead canaries. Two of four findings were false.
-    #
-    # `run` then `test` builds every model first, so every test executes every time
-    # and each one is judged on its own behaviour. It costs a second dbt start-up per
-    # corruption. Correctness is worth more than the second.
-    project.dbt("run")
-    return project.dbt("test")
+    return project.run_and_test()
 
 
-def apply_one(project: DbtProject, mutation: Mutation, healthy: dict[str, str]) -> Outcome:
+def apply_one(project: QualityProject, mutation: Mutation, healthy: dict[str, str]) -> Outcome:
     """Corrupt, rebuild, compare. Always leaves the warehouse pristine again."""
     project.restore()
 
@@ -371,7 +377,7 @@ def apply_one(project: DbtProject, mutation: Mutation, healthy: dict[str, str]) 
                    detail="every test still passed with corrupted data in the warehouse")
 
 
-def _apply_to_source_file(project: "DbtProject", mutation, healthy: dict[str, str]) -> Outcome:
+def _apply_to_source_file(project: "QualityProject", mutation, healthy: dict[str, str]) -> Outcome:
     """The file version of the same three questions: did it change, did it survive
     the rebuild, did anything notice."""
     restore_files(project.file_backups)
@@ -486,7 +492,7 @@ def verify_kills(credited: set[str], rebuild, get_status,
     return unreliable
 
 
-def hunt(project: DbtProject, limit: int | None = None, echo: bool = True,
+def hunt(project: QualityProject, limit: int | None = None, echo: bool = True,
          verify_null: bool = False, null_repeats: int = 2) -> dict:
     """The whole run. Returns the report as data; printing is somebody else's job.
 
@@ -640,7 +646,7 @@ def hunt(project: DbtProject, limit: int | None = None, echo: bool = True,
     return report
 
 
-def save(project: DbtProject, report: dict) -> Path:
+def save(project: QualityProject, report: dict) -> Path:
     """Write the report next to the project it describes.
 
     Until this existed a run's findings lived only in a terminal, so every number
