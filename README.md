@@ -518,6 +518,25 @@ to make that shape structurally difficult.
 That is also why CI runs the full matrix on Linux **and** Windows. A single-OS matrix would not
 have caught the second one.
 
+## Limits, up front
+
+1. **It grades whether a claim carries evidence, not whether the evidence is correct.** A refused
+   claim can still be true; an allowed one can still be wrong in a way no evidence-shaped text
+   would catch. This checks completion claims for *evidence*, never for correctness — that
+   judgment is still yours.
+2. **A `Coverage` object is honest only about the population you hand it.** `Coverage("nodes",
+   discover=list_all_nodes)` reports on exactly what `list_all_nodes` returns. Pass it a function
+   that quietly misses half your files and "0 broken" is a real, honestly-computed, wrong answer —
+   the library forces you to name the discovery function explicitly; it has no way to check that
+   the function is complete.
+3. **`deadcanary`'s proof is dated, not permanent.** It proves a test suite *could* fail on the
+   day it ran. Add a test or a source afterward and that proof no longer describes the suite in
+   front of you — nothing raises this on its own; you run `--recheck` and it tells you what
+   changed. See "the proof expires" below.
+4. **It is a library, not a service.** No daemon, no dashboard, no default enforcement — it runs
+   inside whatever calls it (a hook, a CI step, a script) and only checks what you actually wire
+   it into.
+
 ## Install
 
 ```bash
