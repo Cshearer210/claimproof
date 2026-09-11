@@ -169,3 +169,41 @@ tests never noticed. Running a null model against a threshold is the same move o
 level up. A claim, a test and a measurement are all worthless for the same reason:
 **nothing that has never been made to fail has told you anything.**
 
+## How a check earns the right to be trusted (2026-09-08)
+
+A checker scanning its own codebase for a pattern found the pattern sitting in its own
+comment describing the pattern, and passed -- on purpose, forever, without ever
+checking anything real. That exact shape happened five separate times in one day, in
+the system this library was extracted from, across five different checkers nobody had
+connected until they were counted. Every one had been running for a while. Every one
+looked fine. None had ever been shown to catch anything.
+
+Beyond the self-match, the other failures fell into two further shapes:
+
+1. **It searched a population built from memory, not from the real system.** A count
+   comes back smaller than reality, never as an error, so an incomplete answer looks
+   exactly like a clean one.
+2. **It had never been pointed at a case it should catch.** A check that matches
+   nothing looks identical to a check that found nothing wrong, until it is fed
+   something already known to be broken -- and until that test exists, the check has
+   never been shown to fire in EITHER direction: not proven to catch a real problem,
+   and not proven to stay quiet on real, correct work. Both have to be demonstrated
+   before the check is believed; a detector calibrated in only one direction is a
+   coin flip wearing a badge.
+
+The fix that closes all three shapes is one sentence: a result states its denominator.
+Not "0 findings" -- "0 findings, out of 6,427 examined." A zero with no denominator is
+a refusal wearing a clean bill of health; a zero next to a real count is an answer.
+
+Two things worth naming alongside it. **A number that may only fall is a ratchet, and
+it needs two things on record before anyone trusts it: the baseline it started from,
+and why that baseline was not already zero.** A ratchet with no recorded starting
+point cannot tell you whether it moved; a ratchet that started at zero was never
+measuring anything difficult. And **failing open and never having been proven to fire
+are different problems, and only their combination is always unacceptable.** A hook
+that blocks every tool call on its own crash is often worse than one that occasionally
+misses, so failing open is sometimes the right design. What is never acceptable is
+failing open on a check that has also never once been shown to fire on a real bad
+case -- because then nobody can tell a deliberately permissive design from a check
+that has simply never worked.
+
