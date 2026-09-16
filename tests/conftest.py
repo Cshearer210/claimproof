@@ -25,9 +25,17 @@ _THIS_REPO_SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__
 
 
 def pytest_configure(config):
+    expected = os.path.abspath(os.path.join(_THIS_REPO_SRC, "claimproof"))
+    # When this `tests/` directory has been copied somewhere on its own, there is no
+    # checkout here for anything to shadow, and importing the INSTALLED package is the
+    # whole point of that run -- it is what the "wheel installs and works from clean
+    # env" job exists to prove. So the guard has nothing to say and says nothing.
+    # It still fires in the case it was built for, because there `src/claimproof`
+    # really is sitting next to these tests and is the copy that should have won.
+    if not os.path.isdir(expected):
+        return
     resolved = os.path.abspath(os.path.dirname(claimproof.__file__))
-    expected = os.path.join(_THIS_REPO_SRC, "claimproof")
-    if resolved != os.path.abspath(expected):
+    if resolved != expected:
         raise RuntimeError(
             f"claimproof resolves to {resolved!r}, not this repo's own "
             f"{expected!r}. Some other install or checkout is shadowing this "
