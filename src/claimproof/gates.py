@@ -21,7 +21,7 @@ import re
 
 from claimproof.core import Case, Finding, Gate
 
-__all__ = ["UnbackedClaims", "TypedScope", "SilentSkip"]
+__all__ = ["UnbackedClaims", "TypedScope", "SilentSkip", "NoDenominatorClaim"]
 
 
 # Hard claims only. "should work", "I think this fixes it" and other hedges are
@@ -709,5 +709,90 @@ class SilentSkip(Gate):
                       "    except Exception:\n        return True\n",
                  expect_flagged=False,
                  name="True as the CONSERVATIVE answer, the opposite of passing"),
+            Case(text="", expect_flagged=False, name="empty"),
+        ]
+
+
+# A clean/zero result claim: "0 issues", "no errors found", "found nothing",
+# "all clear". One optional adjective is allowed between the number/word and the
+# noun ("0 security issues"), matching the shape _EVIDENCE already uses.
+_ZERO_CLAIM = re.compile(
+    r"\b(?:0|no|zero|none)\s+(?:\w+\s+)?"
+    r"(?:issues?|errors?|problems?|findings?|failures?|bugs?)\s+(?:found|remain(?:ing)?)?"
+    r"|\ball\s+clear\b"
+    r"|\bfound\s+nothing\b"
+    r"|\bnothing\s+(?:wrong|found)\b",
+    re.I,
+)
+
+# A stated population: "of N", "N/N", "N files checked", "every file in the
+# repo", or an honest refusal ("I did not check"). Deliberately EXCLUDES "the
+# whole X" -- adversarial testing found "went through the whole authentication
+# module" reads as a real denominator but is just as unfalsifiable as none at
+# all: it names no count and nothing to re-derive it from.
+_DENOMINATOR = re.compile(
+    r"\bof\s+\d+\b"
+    r"|\b\d+\s*/\s*\d+\b"
+    r"|\b\d+\s+(?:\w+\s+)?(?:files?|checks?|cases?|items?)\s+checked\b"
+    r"|\bevery\s+\w+\s+in\s+the\s+\w+\b"
+    r"|\bi\s+did\s+not\s+check\b",
+    re.I,
+)
+
+
+class NoDenominatorClaim(Gate):
+    """Flags a clean/zero result with no stated population.
+
+    The mirror of `UnbackedClaims` for negative claims. "0 issues found" sounds
+    exactly as authoritative whether the scan covered 3 files or 3,000 -- or
+    whether anything was scanned at all. Without a denominator, a clean result
+    and a skipped check are the same sentence.
+    """
+
+    def inspect(self, text: str) -> list[Finding]:
+        findings: list[Finding] = []
+        for m in _ZERO_CLAIM.finditer(text):
+            start = max(0, m.start() - 120)
+            end = min(len(text), m.end() + 120)
+            neighbourhood = text[start:end]
+            if not _DENOMINATOR.search(neighbourhood):
+                line = text.count("\n", 0, m.start()) + 1
+                findings.append(Finding(
+                    message="a clean/zero result claim with no stated population "
+                            "nearby -- how many things were actually checked?",
+                    line=line, excerpt=m.group(0)[:60]))
+        return findings
+
+    def selftest_cases(self) -> list[Case]:
+        return [
+            # Must flag.
+            Case(text="0 issues found.", expect_flagged=True,
+                 name="bare zero, no population"),
+            Case(text="No errors found.", expect_flagged=True,
+                 name="bare 'no errors', no population"),
+            Case(text="All clear.", expect_flagged=True,
+                 name="all clear, alone"),
+            Case(text="I went through the whole authentication module.\n"
+                      "0 security issues found.",
+                 expect_flagged=True,
+                 name="'the whole X' is not a real denominator (adversarial)"),
+            Case(text="Found nothing wrong with the config.", expect_flagged=True,
+                 name="found-nothing phrasing, no population"),
+            # Must NOT flag.
+            Case(text="0 issues found out of 43 checks.", expect_flagged=False,
+                 name="zero with a real denominator"),
+            Case(text="0/26 findings across the sweep.", expect_flagged=False,
+                 name="N/N form"),
+            Case(text="Scanned 12 files checked, 0 issues found.",
+                 expect_flagged=False,
+                 name="files-checked form"),
+            Case(text="Every file in the repo was checked. 0 issues found.",
+                 expect_flagged=False,
+                 name="'every file in the repo', an honest population"),
+            Case(text="I did not check for this. 0 issues found in what I did look at.",
+                 expect_flagged=False,
+                 name="an honest refusal counts as stating the limit"),
+            Case(text="12 tests passed, 3 failed.", expect_flagged=False,
+                 name="a real non-zero result, nothing to flag"),
             Case(text="", expect_flagged=False, name="empty"),
         ]

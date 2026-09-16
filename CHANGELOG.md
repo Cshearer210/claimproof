@@ -5,6 +5,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-16
+
 ### Added
 - **deadcanary: a `--baseline`/`--update-baseline` CI ratchet.** `--expect-dead N` demands
   an exact count and breaks the moment a healthy test suite grows, so it gets deleted

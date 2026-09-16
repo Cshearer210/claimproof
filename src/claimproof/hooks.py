@@ -69,12 +69,17 @@ def stop_hook(payload: dict, gates: Iterable[Gate]) -> tuple[int, str]:
     here instead of quietly waving the turn through.
 
     The payload comes from someone else's runtime, so its fields are whatever
-    that runtime sends -- a number, a list of content blocks, a nested dict.
-    Found 2026-08-07 by feeding it hostile payloads: a non-string `text` raised
-    TypeError and took the whole turn down. A gate that kills the turn it was
-    guarding gets uninstalled, so anything text-shaped is read as text and
-    anything else is treated as no text at all.
+    that runtime sends -- a number, a list of content blocks, a nested dict, or
+    not a dict at all. Found 2026-08-07 by feeding it hostile payloads: a
+    non-string `text` raised TypeError and took the whole turn down. Found
+    2026-09-16, same class: `payload=None` (or a list, or a bare string) reached
+    `payload.get(...)` unguarded and raised AttributeError -- one layer up from
+    the first hostile-FIELD case. A gate that kills the turn it was guarding
+    gets uninstalled, so anything text-shaped is read as text and anything else
+    -- including a malformed payload itself -- is treated as no text at all.
     """
+    if not isinstance(payload, dict):
+        payload = {}
     text = _as_text(payload.get("text") or payload.get("message")
                     or payload.get("transcript") or "")
 

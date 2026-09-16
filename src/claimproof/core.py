@@ -19,7 +19,7 @@ import abc
 from dataclasses import dataclass, field
 from typing import Iterable
 
-__all__ = ["Finding", "Case", "SelftestError", "Gate"]
+__all__ = ["Finding", "Case", "SelftestError", "Gate", "run_all"]
 
 
 @dataclass(frozen=True)
@@ -171,3 +171,20 @@ class Gate(abc.ABC):
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<{type(self).__name__} name={self.name!r}>"
+
+
+def run_all(gates: Iterable[Gate], text: str) -> dict[str, list[Finding]]:
+    """Run every gate against `text` and return only the ones that found something.
+
+    Each gate is verified (via `check()`) before its result is trusted, so a
+    broken gate raises here rather than silently sitting out of the verdict.
+    Gates that stayed quiet are left out of the result entirely -- a caller
+    checking `if run_all(...)` gets an honest empty dict, not a dict of empty
+    lists it has to filter itself.
+    """
+    result: dict[str, list[Finding]] = {}
+    for gate in gates:
+        findings = gate.check(text)
+        if findings:
+            result[gate.name] = findings
+    return result
