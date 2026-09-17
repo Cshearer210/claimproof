@@ -352,6 +352,34 @@ carries a fresh timestamp and invocation id on every build, so fingerprinting th
 would reopen the claim after every single run. A checker that cries wolf gets switched
 off within a week, and then the one time it is right is ignored too.
 
+## It is not a dbt tool
+
+`hunt()` needs five things from a project: run the checks, read their verdicts, and
+snapshot/restore the warehouse around each one. That is the whole contract
+(`QualityProject`), and it was extracted from the dbt implementation rather than
+guessed at ahead of it.
+
+A seam nothing has ever plugged into is a claim, not a seam -- so a second backend
+ships, and it depends on nothing. A project is a DuckDB file and a list of SQL
+assertions, where a check fails when its query returns rows:
+
+```json
+{"checks": [
+   {"name": "customer_id_is_never_null",
+    "sql": "select * from raw_orders where customer_id is null"},
+   {"name": "impossible_check",
+    "sql": "select * from raw_orders where 1 = 0"}]}
+```
+
+Hunted, the second one comes back as a dead canary and the first does not -- with no
+dbt anywhere near it. That runs in the test suite on every commit.
+
+⚠ **Great Expectations was the named candidate and was tried first.** On a current
+interpreter pip resolves it to 0.18.x, the legacy API, while 1.x is current; a backend
+bound to a deprecated API, heavy enough that CI could not honestly run it, would make
+the second backend the most fragile thing in the package. Adapting GE or Soda is the
+same five methods, now against a working example rather than a docstring.
+
 ## Two kinds of project, one report
 
 Where a project's raw data lives decides what there is to break.
