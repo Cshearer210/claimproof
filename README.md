@@ -188,6 +188,29 @@ reply. Four gates then check a sentence against evidence rather than against its
 | `ExitCodeMismatch` | exit codes captured when commands ran | "all tests pass" when every captured command failed |
 | `UnbackedTestCount` | the JUnit XML the turn names | "all 105 tests pass" over a report holding 3 failures |
 | `CIStatusUnbacked` | the CI provider, asked through `gh` | "CI is green" when 3 of 18 checks are failing |
+| `MergeDroppedASide` | the merge receipt in the turn | "merged both copies" over `git merge -X ours`, which took one whole |
+| `ArtifactNameMismatch` | the filenames the turn's own commands wrote | "results are in `verdict.json`" when it wrote `verdict-linux.json` |
+| `UnreadSource` | whether the named file was OPENED or only searched | "I read through `NOTES.md`" backed by nothing but grep hits |
+
+### Three of those check the work you did, not the sentence you wrote
+
+`MergeDroppedASide` is the one people argue with until they have lost a day to it. Taking one side
+of a merge whole is a normal thing to do and git says nothing unusual when you do it: `-X ours`
+exits 0, `--force` exits 0, `cp` exits 0. The turn afterwards says "merged", because that is the
+word a person would use — and the side that was dropped leaves no trace in any output. So the gate
+needs two things at once before it speaks: a claim covering TWO sides, and a receipt that took one
+of them whole. A turn that says "I took the server copy" is honest and is never flagged.
+
+`ArtifactNameMismatch` fires only on a NEAR miss — your own output writes
+`regression-verdict-linux.json` and your sentence cites `regression-verdict.json`. A missing file
+fails loudly the first time somebody opens it; a nearly-right name fails silently forever, because
+the reader finds nothing and reports "no results yet", which is indistinguishable from a clean run.
+
+`UnreadSource` asks about the INPUT rather than the output, which no other gate here does. A turn
+can carry real, plentiful, correct evidence — genuine grep output, real match counts — and still
+rest on a file nobody opened. Search output looks like a reading receipt because it contains the
+file's own text. Saying "I searched X" is honest and is never flagged; the failure is calling a
+search a reading.
 
 Each stays silent when its evidence is absent — no diff, no receipt, no named report, no CI
 lookup. That restraint is the load-bearing part. A gate that fires on an ordinary turn does not
@@ -241,6 +264,58 @@ record instead of into the void. Partial claims ("done with the parser fix") pas
 of *total* completion is checked against the list, and a true "all done" over a clear list passes
 untouched. There is a CLI for harnesses that drive it from outside:
 `python -m claimproof.ledger ask|split|done|skip|show|gate`.
+
+## The check on the checks — `claimproof audit`
+
+`Gate.verify()` asks whether a gate's cases agree with its code. Both were written by the same
+hand, so a gate can pass that and still rest on nothing: a must-fire case that something else
+happens to flag, a guard case with nothing in common with the bad one.
+
+`audit` answers it by MUTATION rather than by opinion. It neuters the gate — `inspect` returns
+nothing — and every must-fire case has to break. Then it jams the gate open — `inspect` fires on
+everything — and every guard case has to break. A gate that survives either mutation has cases
+that do not depend on it.
+
+```console
+$ python -m claimproof audit claimproof.gates
+  proven   unbacked-claims   25 cases (8 must-fire, 17 guard)
+           fails when neutered, fails when jammed open, and its closest guard is 0.72 similar
+           to a must-fire case
+  ...
+11 of 11 auditable gate(s) proven under 'claimproof.gates'
+```
+
+It discovers gates by walking the module, never from a list of class names, so one added next week
+is audited without anyone remembering. **Exit 0 every gate proven, 1 something unproven, 2 could
+not tell — and finding NO gates is 2, never 0.** A gate that takes constructor arguments is
+reported `unknown` rather than broken, because `NothingLeft(ledger)` is built that way on purpose;
+a gate may also declare `audit_exempt = "why"` about itself, and the reason is printed.
+
+## A finding stays red until something proves it is gone — `Register`
+
+`Ledger` tracks what was ASKED. `Register` tracks what was FOUND, and they fail differently: an
+ask is lost by being forgotten, a finding is lost by being rediscovered forever and never closed.
+A finding written as prose has no state, so each run rediscovers it and nothing ever closes.
+
+```python
+from claimproof import Register
+
+reg = Register("problems.json")
+reg.record("unbacked-claims", gate.inspect(turn), scope="turn-41")
+...
+closed, not_examined = reg.reconcile("unbacked-claims", gate.inspect(turn), scope="turn-41")
+reg.close("a1b2c3d4", "pytest: 7 passed, the claim now carries its receipt")
+```
+
+**The hard part is absence.** When a gate stops reporting something it was either fixed or not
+looked at, and those are identical from outside. So `reconcile()` takes the scope that was
+actually examined and closes only findings inside it; everything else stays red and comes back as
+NOT RE-EXAMINED. Closing by hand needs evidence and refuses bare claim-words. A finding that
+reappears after being closed goes red again, and `rediscovered()` surfaces the ones reported over
+and over — the number that shows detection is working and nothing is being fixed.
+
+`StillRed` is the enforcement end: a gate that refuses "everything is clean" while the board is
+not.
 
 ## Checks that look at the world, not the code
 

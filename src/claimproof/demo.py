@@ -37,6 +37,11 @@ class NeverFails(Gate):
     """Looks like a gate. Returns clean on everything. Nobody would notice."""
 
     name = "looks-fine"
+    #: Declared so `claimproof audit` reports this as exempt-with-a-reason
+    #: rather than as a finding. It is SUPPOSED to fail its own contract --
+    #: step 5 of the demo exists to show exactly that happening.
+    audit_exempt = ("a deliberately broken gate, used by the demo to show one "
+                    "being refused at construction")
 
     def inspect(self, text):
         return []

@@ -437,8 +437,13 @@ class NothingLeft(Gate):
         fixture.ask("update the changelog")
         fixture.done("1a", "pytest: 56 passed")
 
-        class _Probe(NothingLeft):
-            verify = Gate.verify  # the base contract, so cases actually run
+        # Built from `type(self)`, NEVER from the class named here. Writing
+        # `class _Probe(NothingLeft)` makes a SUBCLASS that overrides `inspect`
+        # verify the PARENT's behaviour and report itself proven -- a false pass
+        # inside the gate whose whole job is refusing those. Found 2026-09-17 by
+        # a test that tried to mutate this gate and could not.
+        class _Probe(type(self)):       # type: ignore[misc]
+            verify = Gate.verify        # the base contract, so the cases really run
 
             def selftest_cases(self) -> list[Case]:
                 return [
