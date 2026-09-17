@@ -70,6 +70,10 @@ pip install deadcanary[demo]
 python -m deadcanary.demo
 ```
 
+![A real run: fourteen corruptions applied to a dbt project, and the green tests that none of them could make fail](https://raw.githubusercontent.com/Cshearer210/claimproof/main/packages/deadcanary/assets/demo.gif)
+
+*A real run against the demo warehouse that ships inside the package. Every number on screen came from that run, not from a mock-up.*
+
 ![A dbt project is built, its data is corrupted on purpose one column at a time, and the tests that never noticed are named. Two of seven green tests turn out to be incapable of failing.](https://raw.githubusercontent.com/Cshearer210/claimproof/main/packages/deadcanary/assets/demo.svg)
 
 *A live run of `python -m deadcanary.demo` — the mutation hunt and the two tests that never
