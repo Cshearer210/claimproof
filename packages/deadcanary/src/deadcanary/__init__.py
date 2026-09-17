@@ -36,7 +36,7 @@ from deadcanary.hunt import BROKE, KILLED, NOOP, SURVIVED, DbtProject, Outcome, 
 from deadcanary.mutations import CATALOGUE, Mutation, Target, discover, plan
 
 __version__ = "0.3.0"
-__all__ = [
+__all__ = ["Matrix", "kill_matrix", "render_matrix", 
     "DbtProject", "hunt", "Outcome",
     "KILLED", "SURVIVED", "NOOP", "BROKE",
     "Mutation", "Target", "CATALOGUE", "discover", "plan",
@@ -46,3 +46,5 @@ __all__ = [
     "GreenTestsUnproven", "attest", "recheck", "current_values", "suite_fingerprint",
     "__version__",
 ]
+
+from deadcanary.matrix import Matrix, kill_matrix, render_matrix  # noqa: E402

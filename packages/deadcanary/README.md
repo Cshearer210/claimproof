@@ -147,6 +147,35 @@ are ordinary, sensible-looking SQL. Both quietly disarm the test above them.
 The other five tests in that project are alive, and the run says which corruption
 killed each one.
 
+## Which test caught which corruption
+
+The headline count is the least the run can tell you. Every sweep already records, per
+corruption, exactly which tests failed because of it -- and `--matrix` surfaces it:
+
+<!-- readme: illustration -->
+```
+  KILL MATRIX -- which test caught which corruption
+  ----------------------------------------------------------------------
+  !  blank_every_email on customers.email          NOTHING CAUGHT IT
+  2  duplicate_order_rows on orders.id             row_count_orders, unique_orders_id
+  1  null_out_customer_id on orders.customer_id    not_null_customers_id  (only this one)
+
+  3 corruption(s) measured, 1 caught by exactly one test, 1 caught by nothing.
+
+  SINGLE POINTS OF FAILURE -- lose this test and this damage stops being seen:
+    not_null_customers_id  is the only thing that catches  null_out_customer_id
+```
+
+Three things a dead-canary count cannot tell you, and this can:
+
+* **A corruption only one test catches is a single point of failure.** Delete that test,
+  or let it go green for an unrelated reason, and real damage stops being detected -- while
+  the dead-canary count does not move at all.
+* **A corruption five tests catch** is redundancy. Fine, but it means the suite is narrower
+  than its size suggests.
+* **A test whose every catch is also caught by something else** is not dead, so nothing
+  flags it, and deleting it would not change what the suite can detect.
+
 ## Use it in CI
 
 The plain form is a gate: exit 1 the moment any test can't fail.
@@ -288,7 +317,7 @@ Parquet sources are recognised and declined rather than skipped quietly. A
 project with nothing corruptible at all is refused out loud with exit 2 -- cannot
 tell -- never exit 0, which would read as "your tests are fine".
 
-## The five ways a tool like this lies, and what stops each one
+## The six ways a tool like this lies, and what stops each one
 
 This is the interesting part, and it is most of the work. A tool that corrupts data and
 counts silence has three easy ways to produce an impressive number that means nothing.
@@ -324,6 +353,17 @@ and, before file support existed, it discovered zero tables and reported a compl
 with no findings. Exit 0. It looked exactly like a healthy project.
 → **`NothingToCorrupt`, and the CLI exits 2 — cannot tell.** A tool arguing that absent
 and fine must never look like present and fine was doing precisely that about itself.
+
+**6. The test runner never ran, and the old results were read back.** dbt writes its
+verdicts to `target/run_results.json`, and this tool reads that file rather than parsing
+console output. Run it where dbt is not installed and every invocation fails silently, the
+file is never rewritten, and the *same* statuses are read after every corruption. No test
+ever changes status, so every test looks unable to fail. *Found 2026-09-17 by running this
+on a machine with no dbt: it reported complete coverage and declared all seven demo tests
+dead canaries.* A confident, wholly wrong answer, from the exact failure this project
+exists to name.
+→ the results file must be **newer than the run that was supposed to write it**, dbt
+failing to start is told apart from a test failing, and either way the CLI exits 2.
 
 Each of those turns a flattering lie into an honest gap. That is the entire design.
 

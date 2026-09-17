@@ -120,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="with --verify-null, how many clean rebuilds to check each "
                          "credited test against (default: 2)")
     ap.add_argument("--json", action="store_true", help="machine-readable report on stdout")
+    ap.add_argument("--matrix", action="store_true",
+                    help="also print the kill matrix: which test caught which "
+                         "corruption, which corruptions only ONE test catches (lose "
+                         "that test and real damage stops being seen), and which "
+                         "tests catch nothing another test does not already catch. "
+                         "The data is in every run already; this surfaces it.")
     ap.add_argument("--quiet", action="store_true",
                     help="gate mode: exit 1 if any test is a dead canary")
     ap.add_argument("--expect-dead", type=int, metavar="N",
@@ -183,6 +189,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({k: v for k, v in report.items() if k != "outcomes"}, indent=2))
     elif not args.quiet:
         print(render(report))
+        if args.matrix:
+            from deadcanary.matrix import render_matrix
+            print(render_matrix(report))
 
     if args.attest:
         # Only a run that measured everything may be recorded as proof. A partial

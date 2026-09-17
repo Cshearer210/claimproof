@@ -170,10 +170,24 @@ class DbtProject:
 
     # -- dbt ---------------------------------------------------------------
     def dbt(self, *args: str, timeout: int = 1200) -> subprocess.CompletedProcess:
-        return subprocess.run(
+        # Recorded BEFORE the call so `test_results` can tell a fresh artifact
+        # from one an earlier run left behind. See the freshness check there.
+        self._ran_at = time.time()
+        proc = subprocess.run(
             [sys.executable, "-m", "dbt.cli.main", *args, "--profiles-dir", "."],
             cwd=str(self.root), capture_output=True, text=True, timeout=timeout,
         )
+        # A non-zero exit is ORDINARY here: `dbt test` exits 1 whenever a test
+        # fails, which is the entire point of this tool. What is not ordinary is
+        # dbt never starting, and the two have to be told apart or the run
+        # silently measures nothing.
+        blob = (proc.stderr or "") + (proc.stdout or "")
+        if "No module named" in blob and "dbt" in blob:
+            raise CannotMeasure(
+                "dbt is not installed in this interpreter (%s), so nothing ran and "
+                "no test was ever given a chance to fail. Install it "
+                "(pip install dbt-core dbt-duckdb) and run again." % sys.executable)
+        return proc
 
     # -- QualityProject (see project.py for the contract this implements) --
     def build(self) -> subprocess.CompletedProcess:
@@ -221,7 +235,23 @@ class DbtProject:
         """
         path = self.root / "target" / "run_results.json"
         if not path.is_file():
-            return {}
+            raise CannotMeasure(
+                "dbt wrote no %s, so there is no record of any test running. "
+                "An absent result is not a passing result." % path)
+        # THE STALE-ARTIFACT TRAP, found 2026-09-17 by RUNNING this on a machine
+        # with no dbt installed. Every dbt invocation failed, this file was never
+        # rewritten, and the SAME statuses were read back after every corruption.
+        # No test ever changed status, so every test looked unable to fail -- and
+        # the tool reported coverage_complete with all 7 tests declared dead
+        # canaries. A confident, wholly wrong answer, produced by the exact
+        # failure this project exists to catch: a check that could not look,
+        # reporting as though it had.
+        ran_at = getattr(self, "_ran_at", None)
+        if ran_at is not None and path.stat().st_mtime < ran_at - 1:
+            raise CannotMeasure(
+                "dbt did not refresh %s -- the file on disk is older than the run "
+                "that was supposed to write it. The tests did not run, and their "
+                "old statuses say nothing about the data as it is now." % path.name)
         data = json.loads(path.read_text(encoding="utf-8"))
         return {r["unique_id"]: r["status"] for r in data.get("results", [])
                 if str(r["unique_id"]).startswith("test.")}
