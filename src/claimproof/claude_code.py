@@ -50,7 +50,8 @@ from pathlib import Path
 from typing import Iterable
 
 from claimproof.core import Finding, Gate
-from claimproof.gates import UnbackedClaims
+from claimproof.gates import (ExitCodeMismatch, GitDiffUnbacked,
+                              UnbackedTestCount, UnbackedClaims)
 from claimproof.hooks import WRITE_TOOLS
 
 __all__ = [
@@ -140,6 +141,23 @@ def last_assistant_turn(transcript_path: str | Path,
 
 
 # ------------------------------------------------------------------ decide
+def default_gates() -> list[Gate]:
+    """The gates the installed hook runs when the caller names none.
+
+    All four read the turn's own text and every one of them returns nothing
+    when the evidence it needs is absent -- no diff, no exit receipt, no named
+    test report. That property is why they are safe to run on every turn: a
+    gate that fires on an ordinary turn gets uninstalled, and an uninstalled
+    gate catches nothing at all.
+
+    `NoDenominatorClaim` is deliberately NOT here. It is a style argument about
+    how a number is reported rather than a check against captured evidence, so
+    it stays something a caller opts into.
+    """
+    return [UnbackedClaims(window=2), GitDiffUnbacked(),
+            ExitCodeMismatch(), UnbackedTestCount()]
+
+
 def decide(payload: dict, gates: Iterable[Gate] | None = None) -> dict | None:
     """The whole policy in one testable function.
 
@@ -158,7 +176,7 @@ def decide(payload: dict, gates: Iterable[Gate] | None = None) -> dict | None:
         return None
 
     findings: list[Finding] = []
-    for gate in (gates if gates is not None else [UnbackedClaims(window=2)]):
+    for gate in (gates if gates is not None else default_gates()):
         findings.extend(gate.check(text))  # check() verifies the gate first
     if not findings:
         return None

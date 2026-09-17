@@ -17,11 +17,13 @@ gate: everyone still believes it is running.
 from __future__ import annotations
 
 import ast
+import os
 import re
 
 from claimproof.core import Case, Finding, Gate
 
-__all__ = ["UnbackedClaims", "TypedScope", "SilentSkip", "NoDenominatorClaim"]
+__all__ = ["UnbackedClaims", "TypedScope", "SilentSkip", "NoDenominatorClaim",
+           "GitDiffUnbacked", "ExitCodeMismatch", "UnbackedTestCount"]
 
 
 # Hard claims only. "should work", "I think this fixes it" and other hedges are
@@ -795,4 +797,304 @@ class NoDenominatorClaim(Gate):
             Case(text="12 tests passed, 3 failed.", expect_flagged=False,
                  name="a real non-zero result, nothing to flag"),
             Case(text="", expect_flagged=False, name="empty"),
+        ]
+
+class GitDiffUnbacked(Gate):
+    """A claim that names a FILE as fixed must show that file in a real diff.
+
+    `UnbackedClaims` asks whether a turn showed evidence of any kind. This asks a
+    narrower and harder question: when the claim NAMES something -- "fixed the
+    parser bug in parser.py" -- does the diff in that same turn actually touch
+    `parser.py`?
+
+    WHY THAT IS A DIFFERENT QUESTION. A turn can be dense with evidence and still
+    be wrong about which file it changed. Test output, a traceback and a file
+    listing all satisfy "show your work" while the named file was never opened.
+    The failure looks exactly like success, which is the shape this whole library
+    exists for.
+
+    THE DIFF IS READ FROM THE TURN, NOT FROM THE REPOSITORY, and that is deliberate.
+    A gate that shells out to `git` answers a question about the working tree NOW,
+    which is not the same as what the turn did -- the tree moves between the claim
+    and the check, and a gate whose answer depends on timing is a gate nobody can
+    reproduce. Paste the diff into the turn and the check is deterministic, offline,
+    and provable from the text alone.
+
+    A turn carrying NO diff at all is left to `UnbackedClaims`; this gate has
+    nothing to say about it and says nothing, rather than reporting a second
+    finding for one defect.
+
+    >>> GitDiffUnbacked().check("Fixed the bug in parser.py.\n"
+    ...                         " src/other.py | 4 ++--")           # doctest: +ELLIPSIS
+    [Finding(...)]
+    """
+
+    #: A claim that names its target, e.g. "fixed the parser bug in parser.py".
+    NAMED_FIX = re.compile(
+        r"(?i)\b(?:fixed|repaired|patched|corrected|resolved)\b[^.\n]{0,80}?"
+        r"\b([\w./-]+\.(?:py|js|ts|tsx|go|rs|java|rb|sql|yml|yaml|toml|md))\b")
+    #: A `git diff --stat` line: `path/to/file.py | 12 +++---`
+    DIFF_STAT = re.compile(r"(?m)^\s*([\w./-]+\.\w+)\s*\|\s*\d+\s*[+-]")
+    #: A unified-diff header: `+++ b/path/to/file.py`
+    DIFF_HEAD = re.compile(r"(?m)^\+\+\+ b/([\w./-]+\.\w+)")
+
+    def inspect(self, text: str) -> list[Finding]:
+        touched = {os.path.basename(m) for m in self.DIFF_STAT.findall(text)}
+        touched |= {os.path.basename(m) for m in self.DIFF_HEAD.findall(text)}
+        if not touched:
+            return []          # no diff in this turn: UnbackedClaims' question, not ours
+        out: list[Finding] = []
+        for m in self.NAMED_FIX.finditer(text):
+            named = os.path.basename(m.group(1))
+            if named not in touched:
+                line = text[:m.start()].count("\n") + 1
+                out.append(Finding(
+                    message=("claims %r was fixed, but the diff in this turn touches "
+                             "%s" % (named, ", ".join(sorted(touched))[:80])),
+                    line=line,
+                    excerpt=" ".join(m.group(0).split())[:90]))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        stat = " src/claimproof/parser.py | 12 ++++++------\n"
+        other = " src/claimproof/other.py  |  4 ++--\n"
+        return [
+            # MUST FLAG: the named file is not the file that changed.
+            Case(text="Fixed the parser bug in parser.py.\n" + other,
+                 expect_flagged=True),
+            Case(text="Patched auth.py and the tests pass.\n"
+                      "+++ b/src/claimproof/other.py\n", expect_flagged=True),
+            # GUARD CASES -- each is a shape a careless version would flag.
+            Case(text="Fixed the parser bug in parser.py.\n" + stat,
+                 expect_flagged=False),
+            Case(text="Fixed the parser bug in parser.py.\n"
+                      "+++ b/src/claimproof/parser.py\n", expect_flagged=False),
+            # no diff anywhere: not this gate's question
+            Case(text="Fixed the parser bug in parser.py. All tests pass.",
+                 expect_flagged=False),
+            # a claim that names nothing cannot be checked against a diff
+            Case(text="Fixed it.\n" + other, expect_flagged=False),
+            # the file is named in prose but the claim is not a fix
+            Case(text="parser.py is where the tokenizer lives.\n" + other,
+                 expect_flagged=False),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 2: captured exit codes, not quoted ones.
+#
+# A claim about how a command went is only worth the exit code that was
+# recorded WHEN IT RAN. `claimproof.capture.run()` is the wrapper that records
+# it; this gate reads those receipts back out of the turn and compares them to
+# what the sentence says.
+# --------------------------------------------------------------------------
+
+# Written by claimproof.capture.run() at execution time. The format is fixed
+# and boring on purpose: a gate that has to guess at its own evidence format is
+# a gate that quietly stops finding anything the day the format drifts.
+_EXIT_RECEIPT = re.compile(r"(?m)^\s*\[claimproof:exit\]\s+(-?\d+)\s+(.*\S)\s*$")
+
+# "it exited 0", "exit code 2", "returned 1"
+_QUOTED_EXIT = re.compile(
+    r"(?i)\b(?:exit(?:ed|\s+code|\s+status)?|return(?:ed|\s+code)?)\s*[:=]?\s*(-?\d+)\b")
+
+# Narrower than the module-level _CLAIM: only claims about how a RUN went.
+_RUN_WENT_WELL = re.compile(
+    r"(?i)\b("
+    r"all (?:tests? )?pass(?:ing|ed|es)?|tests? pass(?:ing|ed|es)?|"
+    r"(?:the )?(?:suite|build|run|check)s? (?:is |are |was |were )?(?:green|clean|passing|passed)|"
+    r"exited cleanly|ran clean(?:ly)?|no errors|all green"
+    r")\b")
+
+
+class ExitCodeMismatch(Gate):
+    """A sentence about a command must agree with the exit code that was captured.
+
+    Two ways a turn can disagree with its own receipts, and this gate catches
+    exactly those two:
+
+    * It QUOTES an exit code no captured run produced. Saying "it exited 0" when
+      the recorded codes are 2 and 2 is not a rounding error -- it is the number
+      being written from memory instead of read from the run.
+    * It claims the run WENT WELL while every captured run failed. Deliberately
+      "every", not "any": a `grep` that finds nothing exits 1, and a gate that
+      fired on that would be switched off inside a week, taking the real cases
+      with it.
+
+    A turn with no receipts is left alone. That is not this gate's question --
+    it is `UnbackedClaims`', which asks whether a claim has any evidence at all.
+    """
+
+    name = "exit-code-mismatch"
+
+    def inspect(self, text: str) -> list[Finding]:
+        runs = [(int(rc), cmd) for rc, cmd in _EXIT_RECEIPT.findall(text)]
+        if not runs:
+            return []   # nothing was captured: not our question
+
+        codes = {rc for rc, _ in runs}
+        out: list[Finding] = []
+        lines = text.splitlines()
+
+        for m in _QUOTED_EXIT.finditer(text):
+            quoted = int(m.group(1))
+            if quoted in codes:
+                continue
+            line = text[:m.start()].count("\n") + 1
+            out.append(Finding(
+                message=("says exit %d, but the codes captured when the commands "
+                         "actually ran were %s"
+                         % (quoted, ", ".join(str(c) for c in sorted(codes)))),
+                line=line,
+                excerpt=lines[line - 1].strip()[:120] if line <= len(lines) else "",
+            ))
+
+        if 0 not in codes:
+            for m in _RUN_WENT_WELL.finditer(text):
+                line = text[:m.start()].count("\n") + 1
+                worst = sorted(runs, key=lambda r: -abs(r[0]))[0]
+                out.append(Finding(
+                    message=("claims the run went well, but every captured command "
+                            "failed -- %r exited %d" % (worst[1], worst[0])),
+                    line=line,
+                    excerpt=lines[line - 1].strip()[:120] if line <= len(lines) else "",
+                ))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        ok = "[claimproof:exit] 0 pytest -q\n"
+        bad = "[claimproof:exit] 1 pytest -q\n"
+        grep_miss = "[claimproof:exit] 1 grep -r TODO src/\n"
+        return [
+            Case(bad + "All tests pass.", True, "success claimed, only run failed"),
+            Case(bad + "The suite is green now.", True, "suite green, only run failed"),
+            Case(ok + "It exited 2, so I looked at the log.", True,
+                 "quotes an exit code no run produced"),
+
+            Case(ok + "All tests pass.", False, "claim agrees with the receipt"),
+            Case(ok + grep_miss + "All tests pass.", False,
+                 "grep found nothing (exit 1) but the suite really passed"),
+            Case(bad + "It failed with exit 1, so the fix is not done.", False,
+                 "honest report of a failing run"),
+            Case(bad + "Renamed the helper for clarity.", False,
+                 "a failing run and no claim about it"),
+            Case("All tests pass.", False, "no receipts captured at all"),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 3: a cited test count is read out of the real report, never the prose.
+# --------------------------------------------------------------------------
+
+# pytest --junit-xml=<path>, or the receipt capture.run() writes for one.
+_JUNIT_PATH = re.compile(
+    r"(?i)(?:--junit-?xml[= ]|\[claimproof:junit\]\s+)([^\s'\"`]+\.xml)")
+
+_CITED_COUNT = re.compile(
+    r"(?i)\b(?:all\s+)?(\d{1,6})\s+(?:tests?\s+(?:pass(?:ed|ing|es)?|succeeded)"
+    r"|pass(?:ed|ing)\b)")
+
+
+class UnbackedTestCount(Gate):
+    """A cited test count must match the JUnit report the turn names.
+
+    The principle is the one `Coverage` already uses: read the artifact, never
+    the sentence about it. What is new here is that the NUMBER is verified, not
+    merely the presence of a number-shaped string -- "all 105 tests pass" beside
+    a report holding 105 tests and 3 failures is the exact shape that reads as
+    proof and is not.
+
+    A named report that cannot be read is a finding, not a pass. A report that
+    cannot be opened and a suite that is genuinely green produce the same
+    silence otherwise, and only one of them is good news.
+    """
+
+    name = "test-count-unbacked"
+
+    def _read(self, path: str):
+        import xml.etree.ElementTree as ET
+        root = ET.parse(path).getroot()
+        nodes = [root] if root.tag == "testsuite" else list(root)
+        total = fail = err = skip = 0
+        for n in nodes:
+            total += int(n.get("tests", 0) or 0)
+            fail += int(n.get("failures", 0) or 0)
+            err += int(n.get("errors", 0) or 0)
+            skip += int(n.get("skipped", 0) or 0)
+        return total, fail, err, skip
+
+    def inspect(self, text: str) -> list[Finding]:
+        m = _JUNIT_PATH.search(text)
+        if not m:
+            return []   # no report named: not our question
+        path = m.group(1)
+
+        cited = list(_CITED_COUNT.finditer(text))
+        if not cited:
+            return []   # a report and no count to check against it
+
+        lines = text.splitlines()
+
+        def at(match):
+            line = text[:match.start()].count("\n") + 1
+            return line, (lines[line - 1].strip()[:120] if line <= len(lines) else "")
+
+        try:
+            total, fail, err, skip = self._read(path)
+        except Exception as exc:
+            line, excerpt = at(cited[0])
+            return [Finding(
+                message=("cites a test count, but the report it names (%s) could not "
+                         "be read: %s" % (path, exc.__class__.__name__)),
+                line=line, excerpt=excerpt)]
+
+        passed = total - fail - err - skip
+        out: list[Finding] = []
+        for c in cited:
+            n = int(c.group(1))
+            line, excerpt = at(c)
+            if fail or err:
+                out.append(Finding(
+                    message=("cites %d passing, but %s records %d failure(s) and "
+                             "%d error(s) out of %d" % (n, path, fail, err, total)),
+                    line=line, excerpt=excerpt))
+            elif n != passed:
+                out.append(Finding(
+                    message=("cites %d passing, but %s records %d passing out of %d"
+                             % (n, path, passed, total)),
+                    line=line, excerpt=excerpt))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        import tempfile
+        d = tempfile.mkdtemp(prefix="claimproof-junit-")
+
+        def write(name, tests, failures=0, errors=0, skipped=0):
+            p = os.path.join(d, name)
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write('<?xml version="1.0"?><testsuites><testsuite '
+                         'tests="%d" failures="%d" errors="%d" skipped="%d"/>'
+                         "</testsuites>" % (tests, failures, errors, skipped))
+            return p
+
+        green = write("green.xml", 105)
+        red = write("red.xml", 105, failures=3)
+        skipped = write("skipped.xml", 106, skipped=1)
+        missing = os.path.join(d, "nothing-here.xml")
+
+        return [
+            Case("All 105 tests pass. --junit-xml=%s" % red, True,
+                 "report records 3 failures"),
+            Case("200 tests passed. --junit-xml=%s" % green, True,
+                 "cited number is not the report's number"),
+            Case("All 105 tests pass. --junit-xml=%s" % missing, True,
+                 "named report cannot be read -- unknown is not clean"),
+
+            Case("All 105 tests pass. --junit-xml=%s" % green, False,
+                 "cited number matches the report"),
+            Case("105 passed, 1 skipped. --junit-xml=%s" % skipped, False,
+                 "skips are not failures and are not counted as passes"),
+            Case("Reran the suite. --junit-xml=%s" % green, False,
+                 "a report and no count cited against it"),
+            Case("All 105 tests pass.", False, "no report named at all"),
         ]

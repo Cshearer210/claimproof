@@ -49,6 +49,7 @@
 """
 
 from claimproof.basis import BasisError, Claim, ClaimBasis, Evidence, Status
+from claimproof.gates import ExitCodeMismatch, UnbackedTestCount, GitDiffUnbacked
 from claimproof.core import Case, Finding, Gate, SelftestError
 from claimproof.coverage import Coverage, CoverageError, Diff, Entry
 from claimproof.harness import BROKE, OK, UNKNOWN, Harness, Result
@@ -59,5 +60,5 @@ __all__ = [
     "Harness", "Result", "OK", "BROKE", "UNKNOWN",
     "BasisError", "Claim", "ClaimBasis", "Evidence", "Status",
     "Coverage", "CoverageError", "Diff", "Entry",
-    "__version__",
+    "GitDiffUnbacked", "ExitCodeMismatch", "UnbackedTestCount", "__version__",
 ]
