@@ -35,6 +35,7 @@ from pathlib import Path
 
 from deadcanary.mutations import Mutation, Target, discover, plan
 from deadcanary.project import QualityProject
+from deadcanary.safety import LooksLive, assert_not_live
 from deadcanary.sources import (FILE_CORRUPTIONS, PER_FILE, apply_to_file,
                                 discover_files, restore_files, snapshot_files)
 
@@ -545,6 +546,10 @@ def hunt(project: QualityProject, limit: int | None = None, echo: bool = True,
     makes every run slower.
     """
     started = time.time()
+    # BEFORE anything is read, built or touched. A refusal that arrives after the
+    # first corruption is not a refusal, and `baseline()` already runs the
+    # project's checks against the warehouse.
+    assert_not_live(project.root, project.database)
     healthy = baseline(project)
     live = {t for t, s in healthy.items() if s == "pass"}
     if echo:

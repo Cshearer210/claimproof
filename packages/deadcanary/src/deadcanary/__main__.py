@@ -8,6 +8,7 @@ from pathlib import Path
 
 from deadcanary.hunt import (KILLED, NOOP, SURVIVED, UNDONE, DbtProject,
                              CannotMeasure, hunt)
+from deadcanary.safety import LooksLive
 
 #: Where the recorded proof lives. Beside the report it is proof of.
 CLAIMS_NAME = "deadcanary-claims.json"
@@ -223,6 +224,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = hunt(project, limit=args.limit, echo=not (args.json or args.quiet),
                        verify_null=args.verify_null, null_repeats=args.null_repeats)
+    except LooksLive as exc:
+        # Exit 2, not 1: nothing was measured, and a refusal must never be
+        # confused with a clean run or with a finding.
+        print(f"deadcanary: {exc}", file=sys.stderr)
+        return 2
     except CannotMeasure as exc:
         print(f"deadcanary: {exc}", file=sys.stderr)
         return 2                      # cannot tell -- never 0, which would read as a pass

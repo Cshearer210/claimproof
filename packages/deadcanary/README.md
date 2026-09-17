@@ -239,6 +239,33 @@ of exclusions for corruptions that no longer exist is how a score stays green wh
 project moves underneath it. An unreadable file refuses the run rather than reading as
 no exclusions at all.
 
+## It refuses to corrupt anything that looks live
+
+This tool damages real rows on purpose to see whether your checks notice. Against
+production that is not a test, it is an incident -- so "only run it against a
+development warehouse" is enforced at the door rather than written in a document
+and left to memory:
+
+```
+deadcanary: refusing to corrupt what looks like a production warehouse.
+  - the project's profile selects the 'prod' target, and this corrupts real rows
+    in whatever it is pointed at
+  - the warehouse path names 'prod' (/warehouses/warehouse_prod.duckdb)
+
+If this really is a development copy, set
+DEADCANARY_I_KNOW_THIS_IS_NOT_PRODUCTION=1 and run again.
+```
+
+It refuses **before** the first corruption -- a test asserts the warehouse is
+byte-for-byte unchanged after a refused run -- and exits 2, because a refusal must
+never be confused with a clean result or with a finding.
+
+**Calibrated to refuse rarely**, which is the half that decides whether a check like
+this survives. Only unambiguous signals count: a profile target named `prod`, or a
+warehouse path naming it. `reproduction-cases`, `productivity`, `prodigy` and
+`aliveness` are all left alone, and there is a test for each. A pre-flight that blocks
+ordinary development is removed within the week, and a removed check protects nothing.
+
 ## Use it in CI
 
 The plain form is a gate: exit 1 the moment any test can't fail.

@@ -51,3 +51,4 @@ from deadcanary.matrix import Matrix, kill_matrix, render_matrix  # noqa: E402
 from deadcanary.targeted import Aim, aims_from_manifest  # noqa: E402
 from deadcanary.equivalents import Equivalence, load as load_equivalents  # noqa: E402
 from deadcanary.sqlchecks import SqlChecksProject  # noqa: E402
+from deadcanary.safety import LooksLive, assert_not_live  # noqa: E402
