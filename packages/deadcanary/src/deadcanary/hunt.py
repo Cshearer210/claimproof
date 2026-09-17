@@ -666,7 +666,12 @@ def hunt(project: QualityProject, limit: int | None = None, echo: bool = True,
         "unreliable_killers": sorted(unreliable),
         "corruptions": [
             {"name": o.mutation.name, "table": o.mutation.target.table,
-             "column": o.mutation.target.column, "story": o.mutation.story,
+             "column": o.mutation.target.column,
+             # Carried so a reader can rebuild the real Target. Without it the
+             # targeted report could not tell a VARCHAR from an INTEGER and
+             # silently refused to pose any corruption that depends on type.
+             "dtype": o.mutation.target.dtype,
+             "schema": o.mutation.target.schema, "story": o.mutation.story,
              "verdict": o.verdict, "caught_by": list(o.failing_tests),
              "detail": o.detail}
             for o in outcomes

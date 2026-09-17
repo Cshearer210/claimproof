@@ -48,3 +48,4 @@ __all__ = ["Matrix", "kill_matrix", "render_matrix",
 ]
 
 from deadcanary.matrix import Matrix, kill_matrix, render_matrix  # noqa: E402
+from deadcanary.targeted import Aim, aims_from_manifest  # noqa: E402

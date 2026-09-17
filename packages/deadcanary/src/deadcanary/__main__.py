@@ -105,6 +105,35 @@ def ratchet(found: int, baseline_path: Path, update: bool = False) -> tuple[int,
     return 0, message
 
 
+def _targeted_section(project, report: dict) -> str:
+    """Each test against the corruption written for it, or an honest reason why not."""
+    import json as _json
+
+    from deadcanary.mutations import Target
+    from deadcanary.targeted import aims_from_manifest, blind_to_own_purpose, render_aims
+
+    manifest_path = project.root / "target" / "manifest.json"
+    if not manifest_path.is_file():
+        return ("\n  TARGETED CORRUPTIONS: unavailable -- dbt wrote no manifest, so which "
+                "test guards which column is not knowable.")
+    manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    # The corruptible set is exactly what the sweep actually touched. Deriving it
+    # from the report rather than re-querying the warehouse keeps the two halves
+    # describing the same run.
+    seen, targets = set(), []
+    for c in report.get("corruptions", []):
+        key = (c.get("table"), c.get("column"))
+        if key in seen or not all(key):
+            continue
+        seen.add(key)
+        targets.append(Target(c.get("schema") or "main", c["table"], c["column"],
+                              c.get("dtype") or ""))
+
+    aims = aims_from_manifest(manifest, targets)
+    return render_aims(aims, blind_to_own_purpose(report, aims))
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="deadcanary", description="Find the data tests that cannot fail.")
@@ -120,6 +149,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="with --verify-null, how many clean rebuilds to check each "
                          "credited test against (default: 2)")
     ap.add_argument("--json", action="store_true", help="machine-readable report on stdout")
+    ap.add_argument("--targeted", action="store_true",
+                    help="report each test against the corruption written to trip it -- "
+                         "a not_null test versus a null in its own column, a unique test "
+                         "versus a duplicate. A test that misses THAT is blind to the one "
+                         "thing it exists to detect, which is a sharper finding than "
+                         "'it never fired'. Costs no extra run time: it reads the sweep "
+                         "that already happened.")
     ap.add_argument("--matrix", action="store_true",
                     help="also print the kill matrix: which test caught which "
                          "corruption, which corruptions only ONE test catches (lose "
@@ -192,6 +228,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.matrix:
             from deadcanary.matrix import render_matrix
             print(render_matrix(report))
+        if args.targeted:
+            print(_targeted_section(project, report))
 
     if args.attest:
         # Only a run that measured everything may be recorded as proof. A partial

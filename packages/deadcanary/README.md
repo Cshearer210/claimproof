@@ -176,6 +176,38 @@ Three things a dead-canary count cannot tell you, and this can:
 * **A test whose every catch is also caught by something else** is not dead, so nothing
   flags it, and deleting it would not change what the suite can detect.
 
+## Ask each test the question it was written to answer
+
+`--targeted` pairs every column test with the corruption that breaks the exact
+guarantee it claims: a `not_null` test against a null in its own column, a `unique`
+test against a duplicate, an `accepted_values` test against a value nobody agreed to.
+
+<!-- readme: illustration -->
+```
+  TARGETED CORRUPTIONS -- each test asked the question it exists to answer
+  ----------------------------------------------------------------------
+  BLIND accepted_values_stg_orders_status <- unexpected_category on raw_orders.status
+  BLIND not_null_orders_amount            <- blank_required on raw_orders.amount
+    ok  not_null_orders_customer_id       <- blank_required on raw_orders.customer_id
+
+  2 of 3 targeted test(s) missed the corruption written for them.
+  4 test(s) could not be targeted at all, and are NOT counted either way.
+```
+
+That is a different finding from a dead canary, and a harder one to argue with.
+"This test never fired" invites the answer "nothing broke". "This `not_null` test
+does not notice a null in its own column" does not.
+
+It costs no extra run time -- it reads the sweep that already happened.
+
+⚠ **The bridge is a name match, not lineage, and the report says so.** dbt tests
+attach to models, and models are rebuilt from source every run, so the corruptible
+tables are the raw sources upstream. Mapping a model column back to the source
+column it came from is real lineage and this does not do it -- it matches on column
+name. Where the demo renames `id` to `order_id`, four tests come back **UNREACHABLE**
+rather than being quietly dropped or, worse, reported as covered. A question nobody
+could pose is not a question that was answered.
+
 ## Use it in CI
 
 The plain form is a gate: exit 1 the moment any test can't fail.
