@@ -117,10 +117,15 @@ def blind_to_own_purpose(report: dict, aims: list[Aim]) -> list[Aim]:
     never ran says nothing about the test, and reporting it as a blindness would
     be the same inflation this tool exists to refuse.
     """
+    from deadcanary.hunt import APPLIED, INCONCLUSIVE
+
     posed: dict[str, set[str]] = {}
     for c in report.get("corruptions", []):
-        if c.get("verdict") not in ("killed", "survived", "KILLED", "SURVIVED"):
+        verdict = str(c.get("verdict") or "").upper()
+        if verdict not in {v.upper() for v in APPLIED}:
             continue
+        if verdict in {v.upper() for v in INCONCLUSIVE}:
+            continue          # the run broke; this is no evidence about the test
         key = "%s|%s|%s" % (c.get("name"), c.get("table"), c.get("column"))
         posed[key] = set(c.get("caught_by") or [])
 

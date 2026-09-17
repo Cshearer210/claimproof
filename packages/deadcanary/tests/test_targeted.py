@@ -99,3 +99,39 @@ def test_the_report_carries_the_column_type_so_nothing_has_to_guess():
     import inspect
     src = inspect.getsource(__import__("deadcanary.hunt", fromlist=["hunt"]).hunt)
     assert '"dtype"' in src and '"schema"' in src
+
+
+# ------------------------------- ONE DEFINITION, MANY READERS (2026-09-17)
+
+REPORT_WITH_A_BROKEN_RUN = {"corruptions": [
+    {"name": "a", "table": "raw", "column": "x", "verdict": "KILLED", "caught_by": ["t1"]},
+    {"name": "b", "table": "raw", "column": "y", "verdict": "SURVIVED", "caught_by": []},
+    {"name": "c", "table": "raw", "column": "z", "verdict": "BROKE-THE-RUN", "caught_by": []},
+    {"name": "d", "table": "raw", "column": "w", "verdict": "NO-OP", "caught_by": []},
+]}
+
+
+def test_every_reader_uses_one_definition_of_applied():
+    """Three modules used to answer "was this applied" privately, and two left
+    BROKE out -- so a report's denominator could disagree with mutations_applied
+    in the same run, silently."""
+    from deadcanary.hunt import APPLIED, BROKE, KILLED, SURVIVED
+
+    assert set(APPLIED) == {KILLED, SURVIVED, BROKE}
+    km = matrix.kill_matrix(REPORT_WITH_A_BROKEN_RUN)
+    assert km.measured == 3, "a no-op was never applied; a broken run was"
+
+
+def test_a_broken_run_is_in_the_denominator_and_in_neither_pile():
+    km = matrix.kill_matrix(REPORT_WITH_A_BROKEN_RUN)
+    assert km.uncaught == ["b on raw.y"], "a broken run must not be invented as an escape"
+    assert km.inconclusive == ["c on raw.z"]
+    assert "BROKE THE RUN" in matrix.render_matrix(REPORT_WITH_A_BROKEN_RUN)
+
+
+def test_a_broken_run_is_not_evidence_that_a_test_is_blind():
+    from deadcanary.mutations import Target
+
+    aim = targeted.Aim("test.x", "not_null", "z",
+                       targeted.BY_TEST_TYPE["not_null"](Target("main", "raw", "z", "VARCHAR")))
+    assert targeted.blind_to_own_purpose(REPORT_WITH_A_BROKEN_RUN, [aim]) == []

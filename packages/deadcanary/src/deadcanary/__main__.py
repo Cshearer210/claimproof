@@ -230,7 +230,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps({k: v for k, v in report.items() if k != "outcomes"}, indent=2))
     elif not args.quiet:
-        print(render(report))
+        text = render(report)
+        # Chris's own standing law, turned on this tool: a count with no named
+        # examples is a draft, not a measurement -- a wrong count and a right one
+        # are the same shape, a number, while a wrong EXAMPLE is obvious on
+        # sight. deadcanary's headline is exactly that shape, so it is checked
+        # here rather than trusted to stay right.
+        from deadcanary.matrix import count_without_examples
+        bare = count_without_examples(text)
+        if bare:
+            text += ("\n\n  [deadcanary refused its own summary: a dead-canary count "
+                     "was stated with no examples named beside it]\n    "
+                     + "\n    ".join(bare))
+        print(text)
         if args.matrix:
             from deadcanary.matrix import render_matrix
             print(render_matrix(report))

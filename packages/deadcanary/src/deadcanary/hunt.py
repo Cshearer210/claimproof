@@ -40,6 +40,18 @@ from deadcanary.sources import (FILE_CORRUPTIONS, PER_FILE, apply_to_file,
 
 KILLED, SURVIVED, NOOP, BROKE = "KILLED", "SURVIVED", "NO-OP", "BROKE-THE-RUN"
 
+#: THE one answer to "was this corruption actually put to the suite". Every
+#: reader imports this rather than writing its own tuple: three modules used to
+#: answer it privately and two of them left BROKE out, so a report's denominator
+#: could disagree with `mutations_applied` in the same run and nothing said so.
+#: That is the "two parts of one system answering one question differently,
+#: privately" class -- found by auditing for it, 2026-09-17.
+APPLIED = (KILLED, SURVIVED, BROKE)
+
+#: Applied, but the run itself broke, so no test verdict means anything. It
+#: belongs in the denominator and in NEITHER the caught nor the uncaught pile.
+INCONCLUSIVE = (BROKE,)
+
 
 class CannotMeasure(RuntimeError):
     """The run could not be performed at all. Reported as UNKNOWN, never as a pass."""

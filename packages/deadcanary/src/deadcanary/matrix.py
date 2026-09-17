@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import dataclasses
 
+from deadcanary.hunt import APPLIED, INCONCLUSIVE
+
 __all__ = ["Matrix", "kill_matrix", "render_matrix", "count_without_examples"]
 
 
@@ -40,11 +42,18 @@ class Matrix:
     dead: list[str]
     #: tests whose every catch is also caught by another test
     no_unique_catch: list[str]
+    #: applied, but the run broke -- in the denominator, in neither pile
+    inconclusive: list[str] = dataclasses.field(default_factory=list)
 
     @property
     def measured(self) -> int:
-        """The denominator. A verdict without one is not checkable."""
-        return len(self.caught_by)
+        """The denominator, and it must match `mutations_applied` for the same run.
+
+        Inconclusive corruptions are counted here on purpose: they were applied.
+        Leaving them out would quietly shrink the denominator, which is the one
+        thing this package spends its time arguing against.
+        """
+        return len(self.caught_by) + len(self.inconclusive)
 
 
 def _label(corruption: dict) -> str:
@@ -69,10 +78,18 @@ def kill_matrix(report: dict) -> Matrix:
     that never happened.
     """
     caught_by: dict[str, list[str]] = {}
+    inconclusive: list[str] = []
     for c in report.get("corruptions", []):
-        if c.get("verdict") not in ("killed", "survived", "KILLED", "SURVIVED"):
+        verdict = str(c.get("verdict") or "").upper()
+        if verdict not in {v.upper() for v in APPLIED}:
             continue
-        caught_by[_label(c)] = sorted(c.get("caught_by") or [])
+        label = _label(c)
+        if verdict in {v.upper() for v in INCONCLUSIVE}:
+            # It happened, so it counts in the denominator -- but the run broke,
+            # so calling it "nothing caught it" would invent an escape.
+            inconclusive.append(label)
+            continue
+        caught_by[label] = sorted(c.get("caught_by") or [])
 
     catches: dict[str, list[str]] = {}
     for name, tests in caught_by.items():
@@ -94,7 +111,8 @@ def kill_matrix(report: dict) -> Matrix:
         if names and all(len(caught_by[n]) > 1 for n in names))
 
     return Matrix(caught_by=caught_by, catches=catches, single_point=single_point,
-                  uncaught=uncaught, dead=dead, no_unique_catch=no_unique)
+                  uncaught=uncaught, dead=dead, no_unique_catch=no_unique,
+                  inconclusive=sorted(inconclusive))
 
 
 def render_matrix(report: dict, width: int = 46) -> str:
@@ -124,6 +142,12 @@ def render_matrix(report: dict, width: int = 46) -> str:
     add("")
     add("  %d corruption(s) measured, %d caught by exactly one test, %d caught by nothing."
         % (m.measured, len(m.single_point), len(m.uncaught)))
+    if m.inconclusive:
+        add("  %d applied but BROKE THE RUN -- counted in the total above, and in "
+            "neither pile: a broken run is no evidence either way."
+            % len(m.inconclusive))
+        for name in m.inconclusive:
+            add("    ? %s" % name)
 
     if m.single_point:
         add("")
