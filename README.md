@@ -131,9 +131,14 @@ conversational turns are never inspected: only turns that actually edited files 
 work are held to the standard, because a hook that nags small talk gets uninstalled, and then it
 catches nothing.
 
+It wires two events, because they answer different questions. `PostToolUse` records what each
+command really did, while the result is still a fact. `Stop` judges the finished reply against
+those records. Either alone is half a gate: the recorder blocks nothing, and the judge has nothing
+to read.
+
 `install` merges into `.claude/settings.json` without touching anything else in it, running it
-twice adds one entry not two, `uninstall` removes exactly that entry, and a settings file that
-does not parse is refused loudly rather than replaced. Errors at runtime allow the turn *and say
+twice adds nothing the second time, `uninstall` removes exactly our entries and leaves a stranger's
+hooks alone, and a settings file that does not parse is refused loudly rather than replaced. Errors at runtime allow the turn *and say
 so on stderr* — an announced skip, never a silent one, for exactly the reason `gates.SilentSkip`
 exists.
 
@@ -154,10 +159,46 @@ raise SystemExit(run_stop_hook([UnbackedClaims()]))   # JSON on stdin, exit 2 bl
 ```
 
 There is a `pre_tool_use_hook` too, for refusing a write that would violate a declared invariant
-before it lands rather than catching it in review.
+before it lands rather than catching it in review — and a `post_tool_use_hook`, which is the
+subject of the next section.
 
 Malformed input fails **open**. A hook that wedges every turn gets deleted within the hour, and a
 deleted hook protects nothing.
+
+## The exit code is gone by the time the sentence is written
+
+A command's exit code exists only while the process is being reaped. By the time a reply says how
+it went, the number is a memory — and in prose a memory and a measurement are the same shape.
+That is the gap every gate below is aimed at, and it is why recording has to happen at the moment
+of the run rather than at the moment of the claim.
+
+```python
+from claimproof import capture
+
+ran = capture.run(["pytest", "-q"])     # also writes: [claimproof:exit] 1 pytest -q
+```
+
+Wired into Claude Code, you do not call that yourself: the `PostToolUse` hook records every
+command's real exit code as it happens, and the `Stop` hook reads them back before judging the
+reply. Four gates then check a sentence against evidence rather than against itself.
+
+| gate | reads | refuses |
+|---|---|---|
+| `GitDiffUnbacked` | `git diff --stat` in the turn | "fixed `parser.py`" when the diff touches `other.py` |
+| `ExitCodeMismatch` | exit codes captured when commands ran | "all tests pass" when every captured command failed |
+| `UnbackedTestCount` | the JUnit XML the turn names | "all 105 tests pass" over a report holding 3 failures |
+| `CIStatusUnbacked` | the CI provider, asked through `gh` | "CI is green" when 3 of 18 checks are failing |
+
+Each stays silent when its evidence is absent — no diff, no receipt, no named report, no CI
+lookup. That restraint is the load-bearing part. A gate that fires on an ordinary turn does not
+look broken, it looks like a discovery, and it gets uninstalled inside a week, taking the real
+cases with it. So `ExitCodeMismatch` fires only when **every** captured command failed, because a
+`grep` that finds nothing exits 1 and that is not a defect.
+
+The other direction matters just as much. A CI lookup that failed and a suite that passed produce
+the same silence, so every way the lookup can fail — no `gh`, not authenticated, no network, a repo
+that does not exist, a ref with no runs yet — comes back as `unknown`, and `unknown` never reads as
+green.
 
 ## Integrations
 
