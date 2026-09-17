@@ -208,6 +208,37 @@ name. Where the demo renames `id` to `order_id`, four tests come back **UNREACHA
 rather than being quietly dropped or, worse, reported as covered. A question nobody
 could pose is not a question that was answered.
 
+## When no test could have caught it
+
+Mutation testing has a name for a change no test can possibly detect: an *equivalent
+mutant*. Deciding it automatically is undecidable in general, and no tool in this field
+does it, so this is the manual version -- you declare one, in writing, with a reason:
+
+```json
+{"negative_amount on raw_orders.id": {
+   "why": "id is a surrogate key never used in arithmetic, so a sign flip is
+           indistinguishable from the original value downstream",
+   "declared_by": "chris", "declared_at": "2026-09-17"}}
+```
+
+<!-- readme: illustration -->
+```
+  10 corruption(s) nothing caught. 1 declared semantically equivalent, so 9 remain unexplained.
+
+  Declared equivalent -- excluded from the score, on the record:
+    ~ negative_amount on raw_orders.id -- chris, 2026-09-17
+      id is a surrogate key never used in arithmetic, so a sign flip is ...
+```
+
+⛔ **A file that removes findings from your own score is the easiest way to manufacture
+a good one, so three rules make that hard to do quietly.** A declaration with no real
+reason is **refused**, not warned about -- the reason is the entire artefact. The raw
+count is always printed beside the adjusted one, so "8 uncaught" never appears alone.
+And a declaration matching nothing in the run is reported **stale**, because a file full
+of exclusions for corruptions that no longer exist is how a score stays green while the
+project moves underneath it. An unreadable file refuses the run rather than reading as
+no exclusions at all.
+
 ## Use it in CI
 
 The plain form is a gate: exit 1 the moment any test can't fail.

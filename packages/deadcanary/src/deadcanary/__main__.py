@@ -149,6 +149,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="with --verify-null, how many clean rebuilds to check each "
                          "credited test against (default: 2)")
     ap.add_argument("--json", action="store_true", help="machine-readable report on stdout")
+    ap.add_argument("--equivalents", action="store_true",
+                    help="apply the declarations in deadcanary-equivalents.json: "
+                         "corruptions you have decided no correct test could catch. "
+                         "Every exclusion is printed with its reason, the raw count is "
+                         "always shown beside the adjusted one, and a declaration that "
+                         "matches nothing in the run is reported as stale.")
     ap.add_argument("--targeted", action="store_true",
                     help="report each test against the corruption written to trip it -- "
                          "a not_null test versus a null in its own column, a unique test "
@@ -230,6 +236,15 @@ def main(argv: list[str] | None = None) -> int:
             print(render_matrix(report))
         if args.targeted:
             print(_targeted_section(project, report))
+        if args.equivalents:
+            from deadcanary.equivalents import (InvalidDeclaration, load,
+                                                render_equivalents)
+            try:
+                print(render_equivalents(report, load(project.root)))
+            except InvalidDeclaration as exc:
+                # Refusing loudly beats scoring against a file we do not trust.
+                print("deadcanary: %s" % exc, file=sys.stderr)
+                return 2
 
     if args.attest:
         # Only a run that measured everything may be recorded as proof. A partial
