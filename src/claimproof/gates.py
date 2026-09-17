@@ -23,7 +23,7 @@ import re
 from claimproof.core import Case, Finding, Gate
 
 __all__ = ["UnbackedClaims", "TypedScope", "SilentSkip", "NoDenominatorClaim",
-           "GitDiffUnbacked", "ExitCodeMismatch", "UnbackedTestCount"]
+           "GitDiffUnbacked", "ExitCodeMismatch", "UnbackedTestCount", "CIStatusUnbacked"]
 
 
 # Hard claims only. "should work", "I think this fixes it" and other hedges are
@@ -1097,4 +1097,128 @@ class UnbackedTestCount(Gate):
             Case("Reran the suite. --junit-xml=%s" % green, False,
                  "a report and no count cited against it"),
             Case("All 105 tests pass.", False, "no report named at all"),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 5: a claim that CI is green, checked against what CI actually said.
+# --------------------------------------------------------------------------
+
+#: Written by claimproof.ci.receipt() after a real query.
+_CI_RECEIPT = re.compile(
+    r"(?m)^\s*\[claimproof:ci\]\s+(\S+)\s+(\S+?)@(\S+)\s+(\d+)/(\d+)\s+failing\s*$")
+
+_CI_GREEN_CLAIM = re.compile(
+    r"(?i)\b(?:"
+    r"ci\s+(?:is\s+|has\s+|now\s+)?(?:green|passing|passed|clean|all\s+good)"
+    r"|(?:the\s+)?(?:build|pipeline|workflow)\s+(?:is\s+)?(?:green|passing|passed)"
+    r"|all\s+(?:the\s+)?checks?\s+(?:are\s+|is\s+|have\s+)?(?:green|passing|passed|pass)"
+    r"|checks?\s+are\s+green"
+    r")\b")
+
+#: The conclusions that really do mean it passed. Kept in step with
+#: claimproof.ci._GOOD -- two definitions of "green" is the defect this library
+#: spends its time catching, so they are asserted equal in the test suite.
+_CI_GOOD = {"success", "neutral", "skipped"}
+
+
+class CIStatusUnbacked(Gate):
+    """"CI is green" must agree with what the CI provider actually reported.
+
+    This is the claim furthest from its evidence anywhere in this library. The
+    truth lives on someone else's server, it moves after the reply is written,
+    and the sentence is usually written from a dashboard glanced at minutes
+    ago. Nothing in the text can settle it.
+
+    So `claimproof.ci.query()` asks the real API and writes a receipt, and this
+    reads the receipt back::
+
+        [claimproof:ci] failure owner/repo@a1b2c3 3/18 failing
+
+    A turn with no receipt is left alone -- that is `UnbackedClaims`' question.
+    A receipt saying `unknown` is NOT left alone: a lookup that failed and a
+    suite that passed produce the same silence, and a gate that reads the first
+    as the second is the exact failure this package was written about.
+    """
+
+    name = "ci-status-unbacked"
+
+    def __init__(self, lookup=None):
+        """`lookup(repo, ref)` may be supplied to query live instead.
+
+        It defaults to None so an ordinary instance never reaches the network --
+        including while running its own selftest cases, which would make the
+        gate's proof depend on someone's connection. Wire the live path
+        deliberately::
+
+            from claimproof import ci
+            CIStatusUnbacked(lookup=ci.query)
+        """
+        self.lookup = lookup
+
+    def _statuses(self, text: str) -> list[tuple[str, str, str, int, int]]:
+        found = [(c, repo, ref, int(f), int(t))
+                 for c, repo, ref, f, t in _CI_RECEIPT.findall(text)]
+        if found or self.lookup is None:
+            return found
+        # No receipt, but we were given a way to ask. Only ask about a ref the
+        # text actually names -- guessing the repo is how a gate ends up
+        # reporting on somebody else's build.
+        out = []
+        for m in re.finditer(r"\b([\w.-]+/[\w.-]+)@([0-9a-fA-F]{7,40}|\w[\w./-]*)\b", text):
+            try:
+                s = self.lookup(m.group(1), m.group(2))
+            except Exception:
+                continue
+            out.append((getattr(s, "conclusion", "unknown"), s.repo, s.ref,
+                        getattr(s, "failing", 0), getattr(s, "total", 0)))
+        return out
+
+    def inspect(self, text: str) -> list[Finding]:
+        statuses = self._statuses(text)
+        if not statuses:
+            return []
+
+        bad = [s for s in statuses if s[0] not in _CI_GOOD or s[3] > 0]
+        if not bad:
+            return []
+
+        lines = text.splitlines()
+        out: list[Finding] = []
+        for m in _CI_GREEN_CLAIM.finditer(text):
+            line = text[:m.start()].count("\n") + 1
+            conclusion, repo, ref, failing, total = bad[0]
+            if conclusion == "unknown":
+                why = "the status of %s@%s could not be determined" % (repo, ref)
+            elif failing:
+                why = ("%s@%s reports %d of %d check(s) failing"
+                       % (repo, ref, failing, total))
+            else:
+                why = "%s@%s concluded %r" % (repo, ref, conclusion)
+            out.append(Finding(
+                message="says CI is green, but " + why,
+                line=line,
+                excerpt=lines[line - 1].strip()[:120] if line <= len(lines) else ""))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        green = "[claimproof:ci] success o/r@a1b2c3d 0/18 failing\n"
+        red = "[claimproof:ci] failure o/r@a1b2c3d 3/18 failing\n"
+        pending = "[claimproof:ci] pending o/r@a1b2c3d 0/18 failing\n"
+        unknown = "[claimproof:ci] unknown o/r@a1b2c3d 0/0 failing\n"
+        return [
+            Case(red + "CI is green, so this is ready to merge.", True,
+                 "3 checks failing"),
+            Case(pending + "All checks passed.", True,
+                 "still running is not passed"),
+            Case(unknown + "The build is green.", True,
+                 "a lookup that failed must never read as a pass"),
+
+            Case(green + "CI is green, so this is ready to merge.", False,
+                 "the claim agrees with the receipt"),
+            Case(red + "CI is red -- 3 checks failing, looking at them now.", False,
+                 "an honest report of a failing build"),
+            Case(red + "Renamed the helper for clarity.", False,
+                 "a failing build and no claim about it"),
+            Case("CI is green.", False, "no receipt: not this gate's question"),
         ]

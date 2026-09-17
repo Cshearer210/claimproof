@@ -52,7 +52,7 @@ from typing import Iterable
 from claimproof import evidence
 from claimproof.core import Finding, Gate
 from claimproof.hooks import post_tool_use_hook
-from claimproof.gates import (ExitCodeMismatch, GitDiffUnbacked,
+from claimproof.gates import (CIStatusUnbacked, ExitCodeMismatch, GitDiffUnbacked,
                               UnbackedTestCount, UnbackedClaims)
 from claimproof.hooks import WRITE_TOOLS
 
@@ -159,7 +159,7 @@ def default_gates() -> list[Gate]:
     it stays something a caller opts into.
     """
     return [UnbackedClaims(window=2), GitDiffUnbacked(),
-            ExitCodeMismatch(), UnbackedTestCount()]
+            ExitCodeMismatch(), UnbackedTestCount(), CIStatusUnbacked()]
 
 
 def decide(payload: dict, gates: Iterable[Gate] | None = None) -> dict | None:
