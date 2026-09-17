@@ -54,7 +54,7 @@ from claimproof.core import Case, Finding, Gate, SelftestError
 from claimproof.coverage import Coverage, CoverageError, Diff, Entry
 from claimproof.harness import BROKE, OK, UNKNOWN, Harness, Result
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
 __all__ = [
     "Case", "Finding", "Gate", "SelftestError",
     "Harness", "Result", "OK", "BROKE", "UNKNOWN",
