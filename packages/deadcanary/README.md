@@ -94,6 +94,35 @@ cd src/deadcanary/_demo && dbt build --profiles-dir . && cd ../../..   # 10 gree
 python -m deadcanary src/deadcanary/_demo
 ```
 
+## Working on deadcanary itself
+
+The block above installs deadcanary for USE. Running the test suites from a clone needs
+both halves of the repo, with their dev extras -- the deadcanary tests import
+`claimproof`, and the measurement tool needs `pyarrow` to read its dataset.
+
+These exact commands are what CI's `deadcanary` job installs and runs on every push,
+so if this drifts, that job goes red rather than the docs going quietly wrong. They are
+not run by `tools/readme_runs.py`, which executes the quickstart blocks against a
+throwaway clone and cannot clone into itself:
+
+<!-- readme: illustration -->
+```bash
+git clone https://github.com/Cshearer210/claimproof
+cd claimproof
+python -m venv .venv && . .venv/bin/activate
+pip install -e ".[dev,dbt]"                    # claimproof, the other half
+pip install -e "./packages/deadcanary[dev]"    # deadcanary, editable
+
+pytest tests                                   # claimproof's suite
+pytest packages/deadcanary/tests               # deadcanary's suite
+```
+
+Miss the second install and the deadcanary tests cannot import the package, so they
+error during collection and read like a broken suite rather than a missing step. Miss
+`[dev]` on the first and the measurement tool refuses to run for want of `pyarrow` --
+correctly, since it will not guess at the data, but the message is easier to act on
+when you were expecting it.
+
 It finds both:
 
 ```
