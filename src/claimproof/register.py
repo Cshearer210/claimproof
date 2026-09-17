@@ -88,7 +88,10 @@ class Problem:
     gate: str
     message: str
     excerpt: str = ""
-    scope: str = ""
+    #: EVERY scope this finding has been seen in, not just the most recent. A
+    #: finding seen in two places is only gone when both have been re-examined
+    #: without it -- keeping one value closed findings nobody had looked at.
+    scopes: list[str] = field(default_factory=list)
     state: str = RED
     first_seen: str = ""
     last_seen: str = ""
@@ -108,9 +111,11 @@ class Problem:
 
     def line(self) -> str:
         again = f"  seen {self.times_seen}x" if self.times_seen > 1 else ""
+        where = f"  awaiting: {', '.join(self.scopes)}" if (
+            self.state == RED and self.scopes) else ""
         tail = f"\n        closed: {self.evidence or self.reason}" if self.closed_at else ""
         return (f"  {self.state:8s} {self.id}  [{self.gate}] {self.message[:70]}{again}"
-                f"{tail}")
+                f"{where}{tail}")
 
 
 class Register:
@@ -193,14 +198,16 @@ class Register:
                 existing = by_id.get(pid)
                 if existing is None:
                     p = Problem(id=pid, gate=gate, message=msg, excerpt=exc,
-                                scope=scope, first_seen=_now(), last_seen=_now())
+                                scopes=[scope] if scope else [],
+                                first_seen=_now(), last_seen=_now())
                     self.problems.append(p)
                     by_id[pid] = p
                     touched.append(p)
                     continue
                 existing.last_seen = _now()
                 existing.times_seen += 1
-                existing.scope = scope or existing.scope
+                if scope and scope not in existing.scopes:
+                    existing.scopes.append(scope)
                 if existing.state != RED:
                     # It was closed and it is back. That is a REGRESSION, and
                     # leaving it closed is how a register starts lying.
@@ -216,11 +223,12 @@ class Register:
 
         Returns (closed, not_re_examined).
 
-        ONLY rows whose scope matches `scope` can be closed by absence, because
-        only those were actually looked at. Everything else stays red and comes
-        back in the second list -- absent-and-fine and never-looked-at must not
-        produce the same output, which is the rule this whole library is built
-        on.
+        ONLY a finding seen in `scope` can be closed by absence, and only once
+        EVERY scope it was seen in has been re-examined without it. A finding
+        found in two turns is not gone because one of them came back clean.
+        Everything else stays red and comes back in the second list --
+        absent-and-fine and never-looked-at must not produce the same output,
+        which is the rule this whole library is built on.
         """
         if not scope:
             raise RegisterError(
@@ -236,13 +244,20 @@ class Register:
                     continue
                 if p.id in seen:
                     continue
-                if p.scope == scope:
-                    p.state, p.closed_at = FIXED, _now()
-                    p.evidence = (f"re-inspected by {gate} over {scope!r} and no longer "
-                                  f"found (seen {p.times_seen}x before this)")
-                    closed.append(p)
-                else:
+                if scope not in p.scopes:
+                    elsewhere.append(p)          # this run never looked where it lives
+                    continue
+                # This scope was examined and it is not here. Cross the scope off;
+                # the finding closes only when every place it was seen has been
+                # re-examined without it.
+                p.scopes = [s for s in p.scopes if s != scope]
+                if p.scopes:
                     elsewhere.append(p)
+                    continue
+                p.state, p.closed_at = FIXED, _now()
+                p.evidence = (f"re-inspected by {gate} over {scope!r} and no longer "
+                              f"found (seen {p.times_seen}x before this)")
+                closed.append(p)
         return closed, elsewhere
 
     # ----------------------------------------------------------- closing
@@ -484,6 +499,25 @@ def selftest() -> int:
                      "not-re-examined")
     if len(r4.red()) != 1:
         fails.append("a finding outside the examined scope was closed by absence")
+
+    # 4b. ONE finding seen in TWO scopes does not close when one comes back clean.
+    #     This is the case that found the defect: the register used to keep only
+    #     the latest scope, so re-examining it closed a finding nobody had looked
+    #     for in the other place.
+    r4b = Register()
+    r4b.record("g", [f("in both turns")], scope="turn-1")
+    r4b.record("g", [f("in both turns")], scope="turn-2")
+    closed, elsewhere = r4b.reconcile("g", [], scope="turn-2")
+    if closed:
+        fails.append("a finding seen in two scopes closed after only one was re-examined")
+    if len(r4b.red()) != 1:
+        fails.append("a finding still awaiting a scope did not stay red")
+    if r4b.red() and r4b.red()[0].scopes != ["turn-1"]:
+        fails.append("the re-examined scope was not crossed off: %s"
+                     % (r4b.red()[0].scopes if r4b.red() else None))
+    closed2, _ = r4b.reconcile("g", [], scope="turn-1")
+    if len(closed2) != 1:
+        fails.append("the finding did not close once EVERY scope had been re-examined")
 
     # 5. reconcile without a scope is refused rather than guessed at.
     try:

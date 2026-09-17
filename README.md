@@ -25,7 +25,7 @@ python -m claimproof.demo
 
 ![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](https://raw.githubusercontent.com/Cshearer210/claimproof/main/assets/demo.svg)
 
-*The first four acts of `python -m claimproof.demo`, drawn from the demo's real output.
+*The first four of eight acts of `python -m claimproof.demo`, drawn from the demo's real output.
 `tools/render_demo_svg.py` regenerates this image from a live run and refuses to render if the
 output drifts — the same standard the library holds everyone else to.*
 

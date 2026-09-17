@@ -19,6 +19,7 @@ recording software, a few KB on disk, crisp at any zoom.
 """
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import textwrap
@@ -49,11 +50,53 @@ RED = "#f85149"
 GREEN = "#3fb950"
 
 
+#: Written into the caption in words, because that is how the sentence reads.
+_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+          7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
+
+_ACT = re.compile(r"^(\d+)\. \S")
+
+
+def act_total(out: list[str]) -> int:
+    """How many numbered acts this demo really printed. 0 when it has none.
+
+    The denominator for the fraction the image draws. Without it "the first four
+    acts" is true of a four-act demo and of a forty-act one, and the asset cannot
+    tell you which it is.
+    """
+    return len({int(m.group(1)) for m in (_ACT.match(l) for l in out) if m})
+
+
+def caption_disagrees(readme: pathlib.Path, total: int) -> str:
+    """-> a reason the README's caption is now wrong, or "" if it is right.
+
+    Checked rather than assumed: the caption is the sentence a reader believes,
+    and it is the part that goes stale silently when the demo grows.
+    """
+    if total <= 0 or not readme.exists():
+        return ""
+    text = readme.read_text(encoding="utf-8")
+    line = next((l for l in text.splitlines()
+                 if "acts of `python -m claimproof.demo`" in l), None)
+    if line is None:
+        return ("the README no longer carries a caption naming the demo's acts, so "
+                "nothing tells a reader how much of the story the image shows")
+    want = (f"of {_WORDS.get(total, total)} acts", f"of {total} acts")
+    if any(w in line for w in want):
+        return ""
+    return (f"the demo now prints {total} acts and the README caption does not say so.\n"
+            f"  caption: {line.strip()[:110]}\n"
+            f"  expected it to contain {want[0]!r} or {want[1]!r}")
+
+
 def demo_lines(
     module: str = "claimproof.demo", timeout: int = 120,
     *, start_marker: str = "1. ", end_marker: str = "5. ",
-) -> list[str]:
-    """One bounded 'story' from the live demo's real output, verbatim.
+) -> tuple[list[str], int]:
+    """One bounded 'story' from the live demo's real output, and the act TOTAL.
+
+    The total is the denominator: it says what fraction of the demo the image
+    is showing, which a caption saying "the first four acts" cannot.
 
     The timeout is per-demo because the two do very different amounts of work.
     claimproof's prints text and finishes in a second. deadcanary's builds a real dbt
@@ -73,6 +116,16 @@ def demo_lines(
         [sys.executable, "-m", module],
         capture_output=True, text=True, timeout=timeout,
     )
+    if proc.returncode == 2:
+        # 2 is CANNOT TELL, not failure. deadcanary's demo exits 2 when dbt is not
+        # installed, and calling that "broken" sends somebody to debug a demo that
+        # is fine. Nothing is rendered either way -- only the sentence differs, and
+        # the sentence is what decides where the next hour goes.
+        detail = (proc.stdout or proc.stderr or "").strip().splitlines()
+        raise SystemExit(
+            "the demo could not run here (exit 2), so there is nothing to render "
+            "from. That is not a broken demo:\n  "
+            + "\n  ".join(detail[:4]))
     if proc.returncode != 0:
         raise SystemExit(f"demo exited {proc.returncode}; not rendering from a broken demo")
     out = proc.stdout.splitlines()
@@ -94,7 +147,7 @@ def demo_lines(
     lines = out[start_ix:end_ix]
     while lines and not lines[-1].strip():
         lines.pop()
-    return lines
+    return lines, act_total(out)
 
 
 def wrap(line: str) -> list[str]:
@@ -236,11 +289,28 @@ def main(argv: list[str] | None = None) -> int:
         print("usage: render_demo_svg.py [%s]" % " | ".join(DEMOS))
         return 2
     module, out, title, aria, timeout, start_marker, end_marker = DEMOS[which]
-    lines = demo_lines(module, timeout=timeout, start_marker=start_marker, end_marker=end_marker)
+    lines, total = demo_lines(module, timeout=timeout,
+                              start_marker=start_marker, end_marker=end_marker)
+
+    drawn = act_total(lines)
+    if total:
+        aria = f"{aria} Showing acts 1 to {drawn} of {total}."
+
+    # The caption is the sentence a reader believes. If the demo grew and the
+    # caption did not, REFUSE -- an image that cannot say what it is a part of
+    # goes stale without ever looking stale, which is the whole subject here.
+    if "--force" not in argv:
+        why = caption_disagrees(REPO / "README.md", total)
+        if why:
+            print(f"refusing to render: {why}")
+            print("  fix the caption, or pass --force if you are mid-edit")
+            return 1
+
     out.parent.mkdir(parents=True, exist_ok=True)
     svg = render(lines, title=title, aria=aria)
     out.write_text(svg, encoding="utf-8", newline="\n")
-    print(f"wrote {out} ({len(svg):,} bytes, {len(lines)} demo lines)")
+    print(f"wrote {out} ({len(svg):,} bytes, {len(lines)} demo lines"
+          + (f", acts 1-{drawn} of {total}" if total else "") + ")")
     return 0
 
 
