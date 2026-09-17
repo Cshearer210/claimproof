@@ -49,7 +49,9 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+from claimproof import evidence
 from claimproof.core import Finding, Gate
+from claimproof.hooks import post_tool_use_hook
 from claimproof.gates import (ExitCodeMismatch, GitDiffUnbacked,
                               UnbackedTestCount, UnbackedClaims)
 from claimproof.hooks import WRITE_TOOLS
@@ -64,6 +66,8 @@ __all__ = [
 #: it. It is the module's own import path, so it cannot collide with a hook
 #: somebody else wrote unless they invoke this module -- in which case it is us.
 MARKER = "-m claimproof.claude_code"
+#: The same module, told to run as the per-tool-call hook instead.
+POST_MARKER = "-m claimproof.claude_code posttooluse"
 
 #: The project's previous name. A hook installed before the rename carries this
 #: command; install() upgrades it in place and uninstall() removes it too, so
@@ -175,10 +179,20 @@ def decide(payload: dict, gates: Iterable[Gate] | None = None) -> dict | None:
     if not text or not did_work:
         return None
 
+    # What the tools actually did this turn, recorded by the PostToolUse hook
+    # while each result was still a fact. Without this the reply is judged only
+    # against its own prose, which is the gap the whole evidence store exists to
+    # close -- an exit code is a memory by the time the reply is written.
+    session = str(payload.get("session_id") or payload.get("session") or "unknown")
+    receipts = evidence.read(session)
+    if receipts:
+        text = text + "\n" + "\n".join(receipts)
+
     findings: list[Finding] = []
     for gate in (gates if gates is not None else default_gates()):
         findings.extend(gate.check(text))  # check() verifies the gate first
     if not findings:
+        evidence.clear(session)   # allowed: this turn's receipts have done their job
         return None
 
     shown = " | ".join(f'"{(f.excerpt or f.message)[:80]}"' for f in findings[:4])
@@ -199,32 +213,45 @@ def settings_file(user: bool = False, project: str | Path | None = None) -> Path
     base = Path.home() if user else Path(project or ".")
     return base / ".claude" / "settings.json"
 
-def hook_command(python: str | None = None) -> str:
-    """The command Claude Code will run at every Stop event.
+def hook_command(python: str | None = None, event: str = "Stop") -> str:
+    """The command Claude Code will run for `event`.
 
     Defaults to the interpreter running the install, by full path -- that is
     the one proven to have claimproof importable. Forward slashes on purpose:
     they survive JSON, cmd.exe, and every POSIX shell alike.
     """
     exe = (python or sys.executable).replace("\\", "/")
-    return f'"{exe}" {MARKER}'
+    marker = POST_MARKER if event == "PostToolUse" else MARKER
+    return f'"{exe}" {marker}'
 
 
-def _entries(data: dict) -> list:
-    return data.setdefault("hooks", {}).setdefault("Stop", [])
+def _entries(data: dict, event: str = "Stop") -> list:
+    return data.setdefault("hooks", {}).setdefault(event, [])
 
 
-def _installed(data: dict) -> bool:
-    for entry in data.get("hooks", {}).get("Stop", []):
+def _installed(data: dict, event: str = "Stop") -> bool:
+    """Is OUR hook already on `event`?
+
+    The Stop check must not be satisfied by the PostToolUse entry: its command
+    contains MARKER as a prefix, so a naive substring test would report the Stop
+    gate installed when only the recorder was, and the turn gate would silently
+    never be wired.
+    """
+    want = POST_MARKER if event == "PostToolUse" else MARKER
+    for entry in data.get("hooks", {}).get(event, []):
         for hook in entry.get("hooks", []) if isinstance(entry, dict) else []:
-            if MARKER in str(hook.get("command", "")):
-                return True
+            command = str(hook.get("command", ""))
+            if want not in command:
+                continue
+            if event != "PostToolUse" and POST_MARKER in command:
+                continue
+            return True
     return False
 
 
-def _strip(data: dict, marker: str) -> int:
-    """Remove every Stop hook whose command carries `marker`. Returns how many."""
-    stop = data.get("hooks", {}).get("Stop", [])
+def _strip(data: dict, marker: str, event: str = "Stop") -> int:
+    """Remove every `event` hook whose command carries `marker`. Returns how many."""
+    stop = data.get("hooks", {}).get(event, [])
     removed = 0
     for entry in list(stop):
         hooks = entry.get("hooks", []) if isinstance(entry, dict) else []
@@ -234,8 +261,8 @@ def _strip(data: dict, marker: str) -> int:
             entry["hooks"] = kept
         else:
             stop.remove(entry)
-    if not stop and "Stop" in data.get("hooks", {}):
-        del data["hooks"]["Stop"]
+    if not stop and event in data.get("hooks", {}):
+        del data["hooks"][event]
     if "hooks" in data and not data["hooks"]:
         del data["hooks"]
     return removed
@@ -272,14 +299,26 @@ def install(path: Path, python: str | None = None, dry_run: bool = False) -> str
     rather than doubled -- two copies of the same gate would block twice.
     """
     data = _load(path)
-    upgraded = _strip(data, OLD_MARKER)
-    if _installed(data):
+    upgraded = _strip(data, OLD_MARKER) + _strip(data, OLD_MARKER, "PostToolUse")
+    if _installed(data) and _installed(data, "PostToolUse"):
         return f"already installed in {path} -- nothing to do"
 
-    _entries(data).append({
-        "hooks": [{"type": "command", "command": hook_command(python),
-                   "timeout": 20}],
-    })
+    # Two events, because they answer different questions. PostToolUse records
+    # what each command really did, while the result is still a fact; Stop
+    # judges the finished reply against those records. Either alone is half a
+    # gate: the recorder blocks nothing, and the judge has nothing to read.
+    if not _installed(data):
+        _entries(data).append({
+            "hooks": [{"type": "command", "command": hook_command(python),
+                       "timeout": 20}],
+        })
+    if not _installed(data, "PostToolUse"):
+        _entries(data, "PostToolUse").append({
+            "matcher": "Bash",
+            "hooks": [{"type": "command",
+                       "command": hook_command(python, "PostToolUse"),
+                       "timeout": 10}],
+        })
     if dry_run:
         return (f"would write {path}:\n"
                 + json.dumps(data, indent=2))
@@ -296,7 +335,9 @@ def install(path: Path, python: str | None = None, dry_run: bool = False) -> str
 def uninstall(path: Path, dry_run: bool = False) -> str:
     """Remove exactly our entries -- current or pre-rename. Nothing else moves."""
     data = _load(path)
-    removed = _strip(data, MARKER) + _strip(data, OLD_MARKER)
+    removed = (_strip(data, MARKER) + _strip(data, OLD_MARKER)
+               + _strip(data, POST_MARKER, "PostToolUse")
+               + _strip(data, OLD_MARKER, "PostToolUse"))
     if not removed:
         return f"not installed in {path} -- nothing to do"
 
@@ -328,12 +369,34 @@ def _run_hook() -> int:
     return 0
 
 
+def _run_post_hook() -> int:
+    """The per-tool-call entry. Records evidence; almost never speaks.
+
+    Exit 0 always. This runs after EVERY Bash call, so a crash here would be a
+    crash on every command the agent runs -- the fastest way to get a gate
+    uninstalled there is. A failure announces itself on stderr and gets out of
+    the way.
+    """
+    try:
+        payload = json.load(sys.stdin)
+        code, message = post_tool_use_hook(payload, default_gates())
+    except Exception as exc:  # noqa: BLE001 - announced fail-open, by design
+        print(f"claimproof: post-tool hook did not run ({type(exc).__name__}: "
+              f"{exc}); continuing.", file=sys.stderr)
+        return 0
+    if code != 0 and message:
+        print(message, file=sys.stderr)
+        return 2
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m claimproof.claude_code",
         description="Wire the claims gate into Claude Code, or run as its Stop hook.",
     )
     sub = parser.add_subparsers(dest="cmd")
+    sub.add_parser("posttooluse", help=argparse.SUPPRESS)
     for name in ("install", "uninstall"):
         p = sub.add_parser(name)
         p.add_argument("--user", action="store_true",
@@ -352,6 +415,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.cmd is None:
         return _run_hook()
+    if args.cmd == "posttooluse":
+        return _run_post_hook()
 
     path = Path(args.settings) if args.settings else settings_file(
         user=args.user, project=args.project)
