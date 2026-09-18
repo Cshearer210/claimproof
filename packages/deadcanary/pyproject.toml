@@ -67,4 +67,7 @@ package-dir = { "" = "src" }
 # with the files deleted, because a stale build/lib from an earlier run was
 # what it was really measuring.
 [tool.setuptools.package-data]
-deadcanary = ["_demo/*.yml", "_demo/models/*", "_demo/seeds/*"]
+deadcanary = ["_demo/*.yml", "_demo/*.json", "_demo/models/*", "_demo/seeds/*"]
+# `_demo/*.json` carries manifest-sample.json, which is what targeted.selftest()
+# reads when no dbt run has produced _demo/target/. Without it in the wheel the
+# library cannot prove itself to anybody who installs it.

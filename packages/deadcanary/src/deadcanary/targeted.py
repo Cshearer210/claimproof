@@ -178,7 +178,14 @@ def selftest() -> None:
             Target("main", "raw_orders", "status", "VARCHAR"),
             Target("main", "raw_orders", "amount", "INTEGER")]
 
-    real = (pathlib.Path(__file__).parent / "_demo" / "target" / "manifest.json")
+    # dbt's real output when a run has produced it; the sample shipped beside the
+    # demo when it has not. `_demo/target/` is gitignored build output, so it is
+    # absent in CI and absent from the installed wheel -- reading only it meant
+    # this selftest could not run for anybody who installed the package.
+    demo = pathlib.Path(__file__).parent / "_demo"
+    real = demo / "target" / "manifest.json"
+    if not real.exists():
+        real = demo / "manifest-sample.json"
     manifest = json.loads(real.read_text(encoding="utf-8"))
     aims = aims_from_manifest(manifest, cols)
     assert aims, "the real demo manifest produced no aims at all"

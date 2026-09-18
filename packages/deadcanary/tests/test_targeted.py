@@ -16,7 +16,15 @@ from deadcanary import matrix, targeted
 from deadcanary.mutations import Target
 from deadcanary.targeted import aims_from_manifest, blind_to_own_purpose
 
-DEMO = Path(targeted.__file__).parent / "_demo" / "target" / "manifest.json"
+#: dbt's own output for the packaged demo, when a dbt run has produced it.
+BUILT = Path(targeted.__file__).parent / "_demo" / "target" / "manifest.json"
+#: The same output, trimmed to the nodes the parser walks and stripped of the one
+#: absolute path it carried. `target/` is gitignored -- it is 624 KB of build
+#: output naming whichever machine produced it -- so BUILT has never existed in
+#: CI, and four jobs errored at setup for exactly that reason. This is what they
+#: read instead. Regenerated from a real dbt run, never hand-written.
+FIXTURE = Path(targeted.__file__).parent / "_demo" / "manifest-sample.json"
+DEMO = BUILT if BUILT.exists() else FIXTURE
 RAW = [Target("main", "raw_orders", "id", "INTEGER"),
        Target("main", "raw_orders", "status", "VARCHAR"),
        Target("main", "raw_orders", "amount", "INTEGER"),
@@ -26,6 +34,24 @@ RAW = [Target("main", "raw_orders", "id", "INTEGER"),
 @pytest.fixture()
 def manifest():
     return json.loads(DEMO.read_text(encoding="utf-8"))
+
+
+def test_the_manifest_under_test_is_real_dbt_output():
+    """Whichever of the two was read, it has to be output dbt actually wrote.
+
+    The guard against this quietly becoming a hand-written dict: both files carry
+    dbt's own metadata block and real test nodes, and neither may carry a path
+    from the machine that built it.
+    """
+    man = json.loads(DEMO.read_text(encoding="utf-8"))
+    assert man.get("metadata", {}).get("dbt_schema_version"), (
+        f"{DEMO.name} carries no dbt metadata, so it is not dbt output")
+    tests = [n for n in man["nodes"].values() if n.get("resource_type") == "test"]
+    assert len(tests) >= 5, f"only {len(tests)} test node(s) in {DEMO.name}"
+    if DEMO == FIXTURE:
+        raw = DEMO.read_text(encoding="utf-8")
+        assert "/home/" not in raw and "C:\\Users" not in raw, (
+            "the committed fixture carries a path from the machine that built it")
 
 
 def test_its_own_cases_hold():
