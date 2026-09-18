@@ -35,18 +35,24 @@ output drifts — the same standard the library holds everyone else to.*
 > hook installed under the old name is upgraded in place rather than doubled. Nothing you already
 > wired up breaks.
 
-## The number this exists for
+## What it actually does
 
-**18,008 real agent runs ended with a confident claim of success. 12,578 of them had not fixed
-anything** — 69.8%, measured against the maintainers' own test suites across 73,269 completed
-runs. And claims carrying no evidence failed 83.0% of the time against 69.2% for claims that
-showed something, so an agent that shows its work is measurably more likely to be right.
+An agent finishes a turn and says the work is done. That sentence costs nothing to write and
+reads identically whether the work happened or not — which is the whole problem, because the
+next decision gets made on it.
 
-Measured with the gate below, unmodified, over a public CC-BY dataset. Method, limits and the
-script that reproduces it: **[FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/FINDINGS.md)**.
+`claimproof` reads the reply before the turn can end and asks one question of every completion
+claim: **is there evidence for this within a few lines of it?** A test result, a captured exit
+code, a diff, a file and line, real command output. If there is, the turn goes through untouched.
+If the claim is standing on its own, it is refused and the agent is told what is missing.
 
 Hedged language passes on purpose. A claim that admits its own uncertainty is the honest case,
 and a gate that punishes honesty teaches agents to be vague instead of accurate.
+
+It was tested against a public dataset of real agent runs before it was published, and the
+result, the method and the limits are all in
+**[FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/FINDINGS.md)** — including
+the finding that claims showing their work are measurably more likely to be right.
 
 ## A gate is unproven in BOTH directions until you prove it
 
@@ -172,6 +178,7 @@ it went, the number is a memory — and in prose a memory and a measurement are 
 That is the gap every gate below is aimed at, and it is why recording has to happen at the moment
 of the run rather than at the moment of the claim.
 
+<!-- fresh-eyes: illustration -->
 ```python
 from claimproof import capture
 
@@ -297,6 +304,7 @@ a gate may also declare `audit_exempt = "why"` about itself, and the reason is p
 ask is lost by being forgotten, a finding is lost by being rediscovered forever and never closed.
 A finding written as prose has no state, so each run rediscovers it and nothing ever closes.
 
+<!-- fresh-eyes: illustration -->
 ```python
 from claimproof import Register
 
