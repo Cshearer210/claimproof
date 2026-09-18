@@ -135,12 +135,48 @@ def test_the_synthetic_marker_exempts_one_line_and_not_the_file(tmp_path):
     assert hits == [2], f"expected only the unmarked line to be caught, got {hits}"
 
 
+#: The file dbt writes the absolute build path into. Asking about THIS, rather
+#: than about the directory holding it, is deliberate -- see below.
+BUILD_ARTIFACTS = (
+    "packages/deadcanary/src/deadcanary/_demo/target/manifest.json",
+    "packages/deadcanary/projects/jaffle_shop_duckdb/target/manifest.json",
+)
+
+
+def _ignored(rel):
+    r = subprocess.run(["git", "check-ignore", "-q", rel], cwd=REPO,
+                       capture_output=True, timeout=60)
+    if r.returncode not in (0, 1):
+        pytest.fail(f"git could not answer whether {rel} is ignored (exit {r.returncode}); "
+                    f"unanswerable is not clean")
+    return r.returncode == 0
+
+
 def test_the_build_output_that_caused_this_is_still_ignored():
-    """dbt's target/ is where the absolute paths come from. It stays untracked."""
-    for rel in ("packages/deadcanary/src/deadcanary/_demo/target",
-                "packages/deadcanary/projects/jaffle_shop_duckdb/target"):
-        r = subprocess.run(["git", "check-ignore", "-q", rel], cwd=REPO,
-                           capture_output=True, timeout=60)
-        assert r.returncode == 0, (
-            f"{rel} is no longer ignored; its build output carries the absolute path "
-            f"of whichever machine produced it")
+    """dbt's manifest is where the absolute paths come from. It stays untracked.
+
+    ⚠ IT ASKS ABOUT THE FILE, NEVER THE DIRECTORY, AND THAT IS THE WHOLE POINT.
+    The ignore rule is written `target/` -- a directory-only pattern -- so
+    `git check-ignore` on the bare path `.../target` answers "ignored" only when
+    the directory HAPPENS TO EXIST, because that is the only way git knows it is
+    a directory. This test passed on a machine that had run dbt and FAILED in CI,
+    which has never run it: a verdict that depends on local build leftovers is
+    not a verdict about the repo. Naming the file inside makes the answer the
+    same everywhere.
+    """
+    for rel in BUILD_ARTIFACTS:
+        assert _ignored(rel), (
+            f"{rel} is no longer ignored; dbt writes the absolute path of "
+            f"whichever machine produced it into that file")
+
+
+def test_this_ignore_check_can_still_say_no(tmp_path):
+    """A check that has only ever returned "ignored" has not been shown to look.
+
+    Points the same question at a path nothing ignores. If this comes back
+    "ignored" too, the check above is answering yes to everything and proves
+    nothing about the build output.
+    """
+    assert not _ignored("README.md"), (
+        "git reports README.md as ignored, so this check cannot tell "
+        "ignored from tracked and its clean verdict above means nothing")
