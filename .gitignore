@@ -27,3 +27,11 @@ MASTER-PLAN.md
 HANDOFF*.md
 LANE-*.md
 WORK-QUEUE.md
+
+# Session-local editor/agent state. These are written by whatever tool is open
+# on the repo, they differ per machine, and `settings.local.json` is where a
+# personal server address or an alert token ends up. They are harmless today
+# (54 bytes, one key) and that is not the point: they sit untracked in a PUBLIC
+# repo, so one `git add -A` publishes whatever they happen to hold that day.
+.claude/
+.mcp.json

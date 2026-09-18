@@ -415,7 +415,7 @@ class TypedScope(Gate):
             # Must flag.
             Case(text='def roots():\n    return ["/srv/app", "/opt/data"]',  # noscope: this gate's own must-fail fixture
                  expect_flagged=True, name="the classic typed-population bug"),
-            Case(text='SCAN_ROOTS = ["/home/me/projects"]',  # noscope: this gate's own must-fail fixture
+            Case(text='SCAN_ROOTS = ["/home/me/projects"]',  # noscope: this gate's own must-fail fixture; synthetic-path: invented user
                  expect_flagged=True, name="one path, and the name says scope"),
             Case(text='search_paths = ["C:\\\\Work\\\\a", "C:\\\\Work\\\\b"]',  # noscope: this gate's own must-fail fixture
                  expect_flagged=True, name="windows paths count too"),

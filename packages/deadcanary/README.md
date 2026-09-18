@@ -290,6 +290,21 @@ diff against. Commit it. From then on the build fails only if the count goes *up
 `--update-baseline` lets a genuine improvement ratchet the bar down — never up, and
 never on a run that regressed, however the flag is set.
 
+**When you already know the answer, assert it exactly.** `--expect-dead N` fails unless
+exactly N dead canaries come back. That is the wrong rule for a real project, for the
+reason above, and the right one for a fixture: this repo's own CI runs it against the
+packaged demo, which carries two dead canaries on purpose, so a broken tool cannot pass
+while the README still promises the demo works.
+
+<!-- readme: illustration -->
+```bash
+deadcanary path/to/a/known/fixture --expect-dead 2
+```
+
+It refuses to run alongside `--baseline`: the two are different rules about the same
+number, and silently letting one win would make the build's verdict depend on argument
+order.
+
 **A caught corruption is not automatically believed, either.** A test gets credit for
 catching a mutation if it fails once, after the mutation is applied — and a test that
 just fails sometimes, for reasons that have nothing to do with the data, would get the
