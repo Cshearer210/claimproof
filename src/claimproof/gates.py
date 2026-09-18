@@ -17,11 +17,15 @@ gate: everyone still believes it is running.
 from __future__ import annotations
 
 import ast
+import difflib
+import os
 import re
 
 from claimproof.core import Case, Finding, Gate
 
-__all__ = ["UnbackedClaims", "TypedScope", "SilentSkip"]
+__all__ = ["UnbackedClaims", "TypedScope", "SilentSkip", "NoDenominatorClaim",
+           "GitDiffUnbacked", "ExitCodeMismatch", "UnbackedTestCount", "CIStatusUnbacked",
+           "MergeDroppedASide", "ArtifactNameMismatch", "UnreadSource"]
 
 
 # Hard claims only. "should work", "I think this fixes it" and other hedges are
@@ -411,7 +415,7 @@ class TypedScope(Gate):
             # Must flag.
             Case(text='def roots():\n    return ["/srv/app", "/opt/data"]',  # noscope: this gate's own must-fail fixture
                  expect_flagged=True, name="the classic typed-population bug"),
-            Case(text='SCAN_ROOTS = ["/home/me/projects"]',  # noscope: this gate's own must-fail fixture
+            Case(text='SCAN_ROOTS = ["/home/me/projects"]',  # noscope: this gate's own must-fail fixture; synthetic-path: invented user
                  expect_flagged=True, name="one path, and the name says scope"),
             Case(text='search_paths = ["C:\\\\Work\\\\a", "C:\\\\Work\\\\b"]',  # noscope: this gate's own must-fail fixture
                  expect_flagged=True, name="windows paths count too"),
@@ -710,4 +714,899 @@ class SilentSkip(Gate):
                  expect_flagged=False,
                  name="True as the CONSERVATIVE answer, the opposite of passing"),
             Case(text="", expect_flagged=False, name="empty"),
+        ]
+
+
+# A clean/zero result claim: "0 issues", "no errors found", "found nothing",
+# "all clear". One optional adjective is allowed between the number/word and the
+# noun ("0 security issues"), matching the shape _EVIDENCE already uses.
+_ZERO_CLAIM = re.compile(
+    r"\b(?:0|no|zero|none)\s+(?:\w+\s+)?"
+    r"(?:issues?|errors?|problems?|findings?|failures?|bugs?)\s+(?:found|remain(?:ing)?)?"
+    r"|\ball\s+clear\b"
+    r"|\bfound\s+nothing\b"
+    r"|\bnothing\s+(?:wrong|found)\b",
+    re.I,
+)
+
+# A stated population: "of N", "N/N", "N files checked", "every file in the
+# repo", or an honest refusal ("I did not check"). Deliberately EXCLUDES "the
+# whole X" -- adversarial testing found "went through the whole authentication
+# module" reads as a real denominator but is just as unfalsifiable as none at
+# all: it names no count and nothing to re-derive it from.
+_DENOMINATOR = re.compile(
+    r"\bof\s+\d+\b"
+    r"|\b\d+\s*/\s*\d+\b"
+    r"|\b\d+\s+(?:\w+\s+)?(?:files?|checks?|cases?|items?)\s+checked\b"
+    r"|\bevery\s+\w+\s+in\s+the\s+\w+\b"
+    r"|\bi\s+did\s+not\s+check\b",
+    re.I,
+)
+
+
+class NoDenominatorClaim(Gate):
+    """Flags a clean/zero result with no stated population.
+
+    The mirror of `UnbackedClaims` for negative claims. "0 issues found" sounds
+    exactly as authoritative whether the scan covered 3 files or 3,000 -- or
+    whether anything was scanned at all. Without a denominator, a clean result
+    and a skipped check are the same sentence.
+    """
+
+    def inspect(self, text: str) -> list[Finding]:
+        findings: list[Finding] = []
+        for m in _ZERO_CLAIM.finditer(text):
+            start = max(0, m.start() - 120)
+            end = min(len(text), m.end() + 120)
+            neighbourhood = text[start:end]
+            if not _DENOMINATOR.search(neighbourhood):
+                line = text.count("\n", 0, m.start()) + 1
+                findings.append(Finding(
+                    message="a clean/zero result claim with no stated population "
+                            "nearby -- how many things were actually checked?",
+                    line=line, excerpt=m.group(0)[:60]))
+        return findings
+
+    def selftest_cases(self) -> list[Case]:
+        return [
+            # Must flag.
+            Case(text="0 issues found.", expect_flagged=True,
+                 name="bare zero, no population"),
+            Case(text="No errors found.", expect_flagged=True,
+                 name="bare 'no errors', no population"),
+            Case(text="All clear.", expect_flagged=True,
+                 name="all clear, alone"),
+            Case(text="I went through the whole authentication module.\n"
+                      "0 security issues found.",
+                 expect_flagged=True,
+                 name="'the whole X' is not a real denominator (adversarial)"),
+            Case(text="Found nothing wrong with the config.", expect_flagged=True,
+                 name="found-nothing phrasing, no population"),
+            # Must NOT flag.
+            Case(text="0 issues found out of 43 checks.", expect_flagged=False,
+                 name="zero with a real denominator"),
+            Case(text="0/26 findings across the sweep.", expect_flagged=False,
+                 name="N/N form"),
+            Case(text="Scanned 12 files checked, 0 issues found.",
+                 expect_flagged=False,
+                 name="files-checked form"),
+            Case(text="Every file in the repo was checked. 0 issues found.",
+                 expect_flagged=False,
+                 name="'every file in the repo', an honest population"),
+            Case(text="I did not check for this. 0 issues found in what I did look at.",
+                 expect_flagged=False,
+                 name="an honest refusal counts as stating the limit"),
+            Case(text="12 tests passed, 3 failed.", expect_flagged=False,
+                 name="a real non-zero result, nothing to flag"),
+            Case(text="", expect_flagged=False, name="empty"),
+        ]
+
+class GitDiffUnbacked(Gate):
+    """A claim that names a FILE as fixed must show that file in a real diff.
+
+    `UnbackedClaims` asks whether a turn showed evidence of any kind. This asks a
+    narrower and harder question: when the claim NAMES something -- "fixed the
+    parser bug in parser.py" -- does the diff in that same turn actually touch
+    `parser.py`?
+
+    WHY THAT IS A DIFFERENT QUESTION. A turn can be dense with evidence and still
+    be wrong about which file it changed. Test output, a traceback and a file
+    listing all satisfy "show your work" while the named file was never opened.
+    The failure looks exactly like success, which is the shape this whole library
+    exists for.
+
+    THE DIFF IS READ FROM THE TURN, NOT FROM THE REPOSITORY, and that is deliberate.
+    A gate that shells out to `git` answers a question about the working tree NOW,
+    which is not the same as what the turn did -- the tree moves between the claim
+    and the check, and a gate whose answer depends on timing is a gate nobody can
+    reproduce. Paste the diff into the turn and the check is deterministic, offline,
+    and provable from the text alone.
+
+    A turn carrying NO diff at all is left to `UnbackedClaims`; this gate has
+    nothing to say about it and says nothing, rather than reporting a second
+    finding for one defect.
+
+    >>> GitDiffUnbacked().check("Fixed the bug in parser.py.\n"
+    ...                         " src/other.py | 4 ++--")           # doctest: +ELLIPSIS
+    [Finding(...)]
+    """
+
+    #: A claim that names its target, e.g. "fixed the parser bug in parser.py".
+    NAMED_FIX = re.compile(
+        r"(?i)\b(?:fixed|repaired|patched|corrected|resolved)\b[^.\n]{0,80}?"
+        r"\b([\w./-]+\.(?:py|js|ts|tsx|go|rs|java|rb|sql|yml|yaml|toml|md))\b")
+    #: A `git diff --stat` line: `path/to/file.py | 12 +++---`
+    DIFF_STAT = re.compile(r"(?m)^\s*([\w./-]+\.\w+)\s*\|\s*\d+\s*[+-]")
+    #: A unified-diff header: `+++ b/path/to/file.py`
+    DIFF_HEAD = re.compile(r"(?m)^\+\+\+ b/([\w./-]+\.\w+)")
+
+    def inspect(self, text: str) -> list[Finding]:
+        touched = {os.path.basename(m) for m in self.DIFF_STAT.findall(text)}
+        touched |= {os.path.basename(m) for m in self.DIFF_HEAD.findall(text)}
+        if not touched:
+            return []          # no diff in this turn: UnbackedClaims' question, not ours
+        out: list[Finding] = []
+        for m in self.NAMED_FIX.finditer(text):
+            named = os.path.basename(m.group(1))
+            if named not in touched:
+                line = text[:m.start()].count("\n") + 1
+                out.append(Finding(
+                    message=("claims %r was fixed, but the diff in this turn touches "
+                             "%s" % (named, ", ".join(sorted(touched))[:80])),
+                    line=line,
+                    excerpt=" ".join(m.group(0).split())[:90]))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        stat = " src/claimproof/parser.py | 12 ++++++------\n"
+        other = " src/claimproof/other.py  |  4 ++--\n"
+        return [
+            # MUST FLAG: the named file is not the file that changed.
+            Case(text="Fixed the parser bug in parser.py.\n" + other,
+                 expect_flagged=True),
+            Case(text="Patched auth.py and the tests pass.\n"
+                      "+++ b/src/claimproof/other.py\n", expect_flagged=True),
+            # GUARD CASES -- each is a shape a careless version would flag.
+            Case(text="Fixed the parser bug in parser.py.\n" + stat,
+                 expect_flagged=False),
+            Case(text="Fixed the parser bug in parser.py.\n"
+                      "+++ b/src/claimproof/parser.py\n", expect_flagged=False),
+            # no diff anywhere: not this gate's question
+            Case(text="Fixed the parser bug in parser.py. All tests pass.",
+                 expect_flagged=False),
+            # a claim that names nothing cannot be checked against a diff
+            Case(text="Fixed it.\n" + other, expect_flagged=False),
+            # the file is named in prose but the claim is not a fix
+            Case(text="parser.py is where the tokenizer lives.\n" + other,
+                 expect_flagged=False),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 2: captured exit codes, not quoted ones.
+#
+# A claim about how a command went is only worth the exit code that was
+# recorded WHEN IT RAN. `claimproof.capture.run()` is the wrapper that records
+# it; this gate reads those receipts back out of the turn and compares them to
+# what the sentence says.
+# --------------------------------------------------------------------------
+
+# Written by claimproof.capture.run() at execution time. The format is fixed
+# and boring on purpose: a gate that has to guess at its own evidence format is
+# a gate that quietly stops finding anything the day the format drifts.
+_EXIT_RECEIPT = re.compile(r"(?m)^\s*\[claimproof:exit\]\s+(-?\d+)\s+(.*\S)\s*$")
+
+# "it exited 0", "exit code 2", "returned 1"
+_QUOTED_EXIT = re.compile(
+    r"(?i)\b(?:exit(?:ed|\s+code|\s+status)?|return(?:ed|\s+code)?)\s*[:=]?\s*(-?\d+)\b")
+
+# Narrower than the module-level _CLAIM: only claims about how a RUN went.
+_RUN_WENT_WELL = re.compile(
+    r"(?i)\b("
+    r"all (?:tests? )?pass(?:ing|ed|es)?|tests? pass(?:ing|ed|es)?|"
+    r"(?:the )?(?:suite|build|run|check)s? (?:is |are |was |were )?(?:green|clean|passing|passed)|"
+    r"exited cleanly|ran clean(?:ly)?|no errors|all green"
+    r")\b")
+
+
+class ExitCodeMismatch(Gate):
+    """A sentence about a command must agree with the exit code that was captured.
+
+    Two ways a turn can disagree with its own receipts, and this gate catches
+    exactly those two:
+
+    * It QUOTES an exit code no captured run produced. Saying "it exited 0" when
+      the recorded codes are 2 and 2 is not a rounding error -- it is the number
+      being written from memory instead of read from the run.
+    * It claims the run WENT WELL while every captured run failed. Deliberately
+      "every", not "any": a `grep` that finds nothing exits 1, and a gate that
+      fired on that would be switched off inside a week, taking the real cases
+      with it.
+
+    A turn with no receipts is left alone. That is not this gate's question --
+    it is `UnbackedClaims`', which asks whether a claim has any evidence at all.
+    """
+
+    name = "exit-code-mismatch"
+
+    def inspect(self, text: str) -> list[Finding]:
+        runs = [(int(rc), cmd) for rc, cmd in _EXIT_RECEIPT.findall(text)]
+        if not runs:
+            return []   # nothing was captured: not our question
+
+        codes = {rc for rc, _ in runs}
+        out: list[Finding] = []
+        lines = text.splitlines()
+
+        for m in _QUOTED_EXIT.finditer(text):
+            quoted = int(m.group(1))
+            if quoted in codes:
+                continue
+            line = text[:m.start()].count("\n") + 1
+            out.append(Finding(
+                message=("says exit %d, but the codes captured when the commands "
+                         "actually ran were %s"
+                         % (quoted, ", ".join(str(c) for c in sorted(codes)))),
+                line=line,
+                excerpt=lines[line - 1].strip()[:120] if line <= len(lines) else "",
+            ))
+
+        if 0 not in codes:
+            for m in _RUN_WENT_WELL.finditer(text):
+                line = text[:m.start()].count("\n") + 1
+                worst = sorted(runs, key=lambda r: -abs(r[0]))[0]
+                out.append(Finding(
+                    message=("claims the run went well, but every captured command "
+                            "failed -- %r exited %d" % (worst[1], worst[0])),
+                    line=line,
+                    excerpt=lines[line - 1].strip()[:120] if line <= len(lines) else "",
+                ))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        ok = "[claimproof:exit] 0 pytest -q\n"
+        bad = "[claimproof:exit] 1 pytest -q\n"
+        grep_miss = "[claimproof:exit] 1 grep -r TODO src/\n"
+        return [
+            Case(bad + "All tests pass.", True, "success claimed, only run failed"),
+            Case(bad + "The suite is green now.", True, "suite green, only run failed"),
+            Case(ok + "It exited 2, so I looked at the log.", True,
+                 "quotes an exit code no run produced"),
+
+            Case(ok + "All tests pass.", False, "claim agrees with the receipt"),
+            Case(ok + grep_miss + "All tests pass.", False,
+                 "grep found nothing (exit 1) but the suite really passed"),
+            Case(bad + "It failed with exit 1, so the fix is not done.", False,
+                 "honest report of a failing run"),
+            Case(bad + "Renamed the helper for clarity.", False,
+                 "a failing run and no claim about it"),
+            Case("All tests pass.", False, "no receipts captured at all"),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 3: a cited test count is read out of the real report, never the prose.
+# --------------------------------------------------------------------------
+
+# pytest --junit-xml=<path>, or the receipt capture.run() writes for one.
+_JUNIT_PATH = re.compile(
+    r"(?i)(?:--junit-?xml[= ]|\[claimproof:junit\]\s+)([^\s'\"`]+\.xml)")
+
+_CITED_COUNT = re.compile(
+    r"(?i)\b(?:all\s+)?(\d{1,6})\s+(?:tests?\s+(?:pass(?:ed|ing|es)?|succeeded)"
+    r"|pass(?:ed|ing)\b)")
+
+
+class UnbackedTestCount(Gate):
+    """A cited test count must match the JUnit report the turn names.
+
+    The principle is the one `Coverage` already uses: read the artifact, never
+    the sentence about it. What is new here is that the NUMBER is verified, not
+    merely the presence of a number-shaped string -- "all 105 tests pass" beside
+    a report holding 105 tests and 3 failures is the exact shape that reads as
+    proof and is not.
+
+    A named report that cannot be read is a finding, not a pass. A report that
+    cannot be opened and a suite that is genuinely green produce the same
+    silence otherwise, and only one of them is good news.
+    """
+
+    name = "test-count-unbacked"
+
+    def _read(self, path: str):
+        import xml.etree.ElementTree as ET
+        root = ET.parse(path).getroot()
+        nodes = [root] if root.tag == "testsuite" else list(root)
+        total = fail = err = skip = 0
+        for n in nodes:
+            total += int(n.get("tests", 0) or 0)
+            fail += int(n.get("failures", 0) or 0)
+            err += int(n.get("errors", 0) or 0)
+            skip += int(n.get("skipped", 0) or 0)
+        return total, fail, err, skip
+
+    def inspect(self, text: str) -> list[Finding]:
+        m = _JUNIT_PATH.search(text)
+        if not m:
+            return []   # no report named: not our question
+        path = m.group(1)
+
+        cited = list(_CITED_COUNT.finditer(text))
+        if not cited:
+            return []   # a report and no count to check against it
+
+        lines = text.splitlines()
+
+        def at(match):
+            line = text[:match.start()].count("\n") + 1
+            return line, (lines[line - 1].strip()[:120] if line <= len(lines) else "")
+
+        try:
+            total, fail, err, skip = self._read(path)
+        except Exception as exc:
+            line, excerpt = at(cited[0])
+            return [Finding(
+                message=("cites a test count, but the report it names (%s) could not "
+                         "be read: %s" % (path, exc.__class__.__name__)),
+                line=line, excerpt=excerpt)]
+
+        passed = total - fail - err - skip
+        out: list[Finding] = []
+        for c in cited:
+            n = int(c.group(1))
+            line, excerpt = at(c)
+            if fail or err:
+                out.append(Finding(
+                    message=("cites %d passing, but %s records %d failure(s) and "
+                             "%d error(s) out of %d" % (n, path, fail, err, total)),
+                    line=line, excerpt=excerpt))
+            elif n != passed:
+                out.append(Finding(
+                    message=("cites %d passing, but %s records %d passing out of %d"
+                             % (n, path, passed, total)),
+                    line=line, excerpt=excerpt))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        import tempfile
+        d = tempfile.mkdtemp(prefix="claimproof-junit-")
+
+        def write(name, tests, failures=0, errors=0, skipped=0):
+            p = os.path.join(d, name)
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write('<?xml version="1.0"?><testsuites><testsuite '
+                         'tests="%d" failures="%d" errors="%d" skipped="%d"/>'
+                         "</testsuites>" % (tests, failures, errors, skipped))
+            return p
+
+        green = write("green.xml", 105)
+        red = write("red.xml", 105, failures=3)
+        skipped = write("skipped.xml", 106, skipped=1)
+        missing = os.path.join(d, "nothing-here.xml")
+
+        return [
+            Case("All 105 tests pass. --junit-xml=%s" % red, True,
+                 "report records 3 failures"),
+            Case("200 tests passed. --junit-xml=%s" % green, True,
+                 "cited number is not the report's number"),
+            Case("All 105 tests pass. --junit-xml=%s" % missing, True,
+                 "named report cannot be read -- unknown is not clean"),
+
+            Case("All 105 tests pass. --junit-xml=%s" % green, False,
+                 "cited number matches the report"),
+            Case("105 passed, 1 skipped. --junit-xml=%s" % skipped, False,
+                 "skips are not failures and are not counted as passes"),
+            Case("Reran the suite. --junit-xml=%s" % green, False,
+                 "a report and no count cited against it"),
+            Case("All 105 tests pass.", False, "no report named at all"),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 5: a claim that CI is green, checked against what CI actually said.
+# --------------------------------------------------------------------------
+
+#: Written by claimproof.ci.receipt() after a real query.
+_CI_RECEIPT = re.compile(
+    r"(?m)^\s*\[claimproof:ci\]\s+(\S+)\s+(\S+?)@(\S+)\s+(\d+)/(\d+)\s+failing\s*$")
+
+_CI_GREEN_CLAIM = re.compile(
+    r"(?i)\b(?:"
+    r"ci\s+(?:is\s+|has\s+|now\s+)?(?:green|passing|passed|clean|all\s+good)"
+    r"|(?:the\s+)?(?:build|pipeline|workflow)\s+(?:is\s+)?(?:green|passing|passed)"
+    r"|all\s+(?:the\s+)?checks?\s+(?:are\s+|is\s+|have\s+)?(?:green|passing|passed|pass)"
+    r"|checks?\s+are\s+green"
+    r")\b")
+
+#: The conclusions that really do mean it passed. Kept in step with
+#: claimproof.ci._GOOD -- two definitions of "green" is the defect this library
+#: spends its time catching, so they are asserted equal in the test suite.
+_CI_GOOD = {"success", "neutral", "skipped"}
+
+
+class CIStatusUnbacked(Gate):
+    """"CI is green" must agree with what the CI provider actually reported.
+
+    This is the claim furthest from its evidence anywhere in this library. The
+    truth lives on someone else's server, it moves after the reply is written,
+    and the sentence is usually written from a dashboard glanced at minutes
+    ago. Nothing in the text can settle it.
+
+    So `claimproof.ci.query()` asks the real API and writes a receipt, and this
+    reads the receipt back::
+
+        [claimproof:ci] failure owner/repo@a1b2c3 3/18 failing
+
+    A turn with no receipt is left alone -- that is `UnbackedClaims`' question.
+    A receipt saying `unknown` is NOT left alone: a lookup that failed and a
+    suite that passed produce the same silence, and a gate that reads the first
+    as the second is the exact failure this package was written about.
+    """
+
+    name = "ci-status-unbacked"
+
+    def __init__(self, lookup=None):
+        """`lookup(repo, ref)` may be supplied to query live instead.
+
+        It defaults to None so an ordinary instance never reaches the network --
+        including while running its own selftest cases, which would make the
+        gate's proof depend on someone's connection. Wire the live path
+        deliberately::
+
+            from claimproof import ci
+            CIStatusUnbacked(lookup=ci.query)
+        """
+        self.lookup = lookup
+
+    def _statuses(self, text: str) -> list[tuple[str, str, str, int, int]]:
+        found = [(c, repo, ref, int(f), int(t))
+                 for c, repo, ref, f, t in _CI_RECEIPT.findall(text)]
+        if found or self.lookup is None:
+            return found
+        # No receipt, but we were given a way to ask. Only ask about a ref the
+        # text actually names -- guessing the repo is how a gate ends up
+        # reporting on somebody else's build.
+        out = []
+        for m in re.finditer(r"\b([\w.-]+/[\w.-]+)@([0-9a-fA-F]{7,40}|\w[\w./-]*)\b", text):
+            try:
+                s = self.lookup(m.group(1), m.group(2))
+            except Exception:
+                continue
+            out.append((getattr(s, "conclusion", "unknown"), s.repo, s.ref,
+                        getattr(s, "failing", 0), getattr(s, "total", 0)))
+        return out
+
+    def inspect(self, text: str) -> list[Finding]:
+        statuses = self._statuses(text)
+        if not statuses:
+            return []
+
+        bad = [s for s in statuses if s[0] not in _CI_GOOD or s[3] > 0]
+        if not bad:
+            return []
+
+        lines = text.splitlines()
+        out: list[Finding] = []
+        for m in _CI_GREEN_CLAIM.finditer(text):
+            line = text[:m.start()].count("\n") + 1
+            conclusion, repo, ref, failing, total = bad[0]
+            if conclusion == "unknown":
+                why = "the status of %s@%s could not be determined" % (repo, ref)
+            elif failing:
+                why = ("%s@%s reports %d of %d check(s) failing"
+                       % (repo, ref, failing, total))
+            else:
+                why = "%s@%s concluded %r" % (repo, ref, conclusion)
+            out.append(Finding(
+                message="says CI is green, but " + why,
+                line=line,
+                excerpt=lines[line - 1].strip()[:120] if line <= len(lines) else ""))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        green = "[claimproof:ci] success o/r@a1b2c3d 0/18 failing\n"
+        red = "[claimproof:ci] failure o/r@a1b2c3d 3/18 failing\n"
+        pending = "[claimproof:ci] pending o/r@a1b2c3d 0/18 failing\n"
+        unknown = "[claimproof:ci] unknown o/r@a1b2c3d 0/0 failing\n"
+        return [
+            Case(red + "CI is green, so this is ready to merge.", True,
+                 "3 checks failing"),
+            Case(pending + "All checks passed.", True,
+                 "still running is not passed"),
+            Case(unknown + "The build is green.", True,
+                 "a lookup that failed must never read as a pass"),
+
+            Case(green + "CI is green, so this is ready to merge.", False,
+                 "the claim agrees with the receipt"),
+            Case(red + "CI is red -- 3 checks failing, looking at them now.", False,
+                 "an honest report of a failing build"),
+            Case(red + "Renamed the helper for clarity.", False,
+                 "a failing build and no claim about it"),
+            Case("CI is green.", False, "no receipt: not this gate's question"),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 5: a merge that quietly kept one side.
+#
+# Ported from ~/Tools/divergence_gate.py, which exists because of a real
+# incident on 2026-09-07: one file was edited on two machines with DIFFERENT
+# changes, neither a superset, and whichever side pushed last would have
+# destroyed the other's work in silence. Nothing crashes when that happens.
+# The merge "succeeds", the claim is made in good faith, and one side's work
+# is simply gone.
+#
+# That tool compares two live copies. A gate cannot do that from a turn, and
+# should not pretend to -- but the RECEIPT of a one-sided resolution is right
+# there in the text, and it is unambiguous.
+# --------------------------------------------------------------------------
+
+# A claim that two things were COMBINED. One-sided words ("moved", "copied",
+# "replaced") are deliberately absent: those describe taking one side, and a
+# turn saying so honestly is not the failure here.
+_COMBINE_CLAIM = re.compile(
+    r"(?i)\b(?:merged|combined|consolidated|folded (?:in|together)|unified|"
+    r"reconciled|brought together)\b"
+    # Up to the end of the SENTENCE, not the first dot. A dot followed by a word
+    # character belongs to a name (`tools.py`); a dot followed by a space or the
+    # end of the line ends the sentence. Without this, "Merged tools.py and
+    # tools_old.py" was truncated to "Merged tools" and the second side vanished.
+    r"(?:[^.\n]|\.(?=\w)){0,90}")
+
+# The claim covers TWO sides. Without this the gate fires on "merged the PR",
+# where there is only ever one side to keep and no drop is possible.
+_TWO_SIDES = re.compile(
+    r"(?i)\b(?:both|each side|either side|two (?:copies|sides|versions|branches|files)|"
+    r"all sides)\b"
+    r"|\b[\w./-]+\s+(?:and|into|with)\s+[\w./-]+\b")
+
+# Receipts that say, in the tool's own words, that one side was taken WHOLE.
+# Every one of these is something git or a shell actually prints or is asked
+# to do -- none is inferred from prose.
+_ONE_SIDE_WON = re.compile(
+    r"(?i)(?:"
+    r"-s\s+ours\b|-s\s+theirs\b|--strategy=(?:ours|theirs)\b|"
+    r"-X\s+(?:ours|theirs)\b|--strategy-option=(?:ours|theirs)\b|"
+    r"git\s+checkout\s+--(?:ours|theirs)\b|"
+    r"git\s+push\s+(?:[^\n]*\s)?--force\b|\bforced update\b|"
+    r"\bcp\s+-?[a-zA-Z]*\s*\S+\s+\S+|\brsync\s+[^\n]*--delete\b|"
+    r"\boverwrote\b|\boverwritten\b|\boverwriting\b|\bclobbered\b|"
+    r"\bkept (?:the )?(?:newer|older|server|laptop|local|remote|left|right|first|second)"
+    r"\s+(?:copy|one|version|side)\b|"
+    r"\btook (?:the )?(?:newer|older|server|laptop|local|remote)\s+(?:copy|one|version|side)\b"
+    r")")
+
+# A receipt that proves a REAL merge happened -- both sides survived. Its
+# presence anywhere in the turn clears the turn, because a one-sided flag
+# quoted alongside a real merge is somebody explaining what they did NOT do.
+_REAL_MERGE = re.compile(
+    r"Merge made by the '[\w-]+' strategy"
+    r"|^Merge branch\b"
+    r"|<<<<<<<[\s\S]*?=======[\s\S]*?>>>>>>>"     # a resolved conflict, both hunks shown
+    r"|\b\d+ files? changed,\s*\d+ insertions?\(\+\),\s*\d+ deletions?\(-\)",
+    re.I | re.M)
+
+
+class MergeDroppedASide(Gate):
+    """A claim that two sides were combined, with a receipt that one side won.
+
+    `GitDiffUnbacked` asks whether the file you named is the file you touched.
+    This asks the question one level up: when you say two things were brought
+    together, does your own receipt say you took one of them whole?
+
+    WHY THAT IS WORTH ITS OWN GATE. A one-sided resolution is not an error. It
+    is a normal, correct thing to do, and git prints nothing alarming when you
+    do it. `-X ours` exits 0. `git push --force` exits 0. `cp` exits 0. The
+    turn that follows says "merged", which is the word a person would use, and
+    the side that was dropped leaves no trace anywhere in the output. So the
+    failure and the success are the same shape -- the condition this library
+    exists for -- and the only place the two can still be told apart is the
+    sentence sitting next to the receipt.
+
+    THE GATE IS DELIBERATELY DOUBLE-KEYED. It needs a combine-claim covering
+    TWO sides *and* a one-side-won receipt. Either alone is ordinary work: a
+    turn that says "took the server copy" is being honest, and a turn that says
+    "merged the PR" has only one side to keep. It is the pair that is wrong.
+
+    A turn carrying a real merge receipt is left alone entirely, even if it
+    also mentions `-X ours` -- somebody describing an option they rejected is
+    not somebody who used it.
+    """
+
+    name = "merge-dropped-a-side"
+
+    def inspect(self, text: str) -> list[Finding]:
+        if _REAL_MERGE.search(text):
+            return []
+        receipt = _ONE_SIDE_WON.search(text)
+        if not receipt:
+            return []
+        out: list[Finding] = []
+        for m in _COMBINE_CLAIM.finditer(text):
+            if not _TWO_SIDES.search(m.group(0)):
+                continue
+            out.append(Finding(
+                message=("claims two sides were combined, but the receipt in this turn "
+                         "takes one side whole (%s). Nothing in the output would show "
+                         "what the other side lost"
+                         % " ".join(receipt.group(0).split())[:48]),
+                line=text[:m.start()].count("\n") + 1,
+                excerpt=" ".join(m.group(0).split())[:90]))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        real = "Merge made by the 'ort' strategy.\n"
+        return [
+            # MUST FLAG -- the exact 2026-09-07 shape, and its common variants.
+            Case(text="Merged the laptop and server copies of recall_relevant.py.\n"
+                      "$ git merge -X ours laptop-branch\n",
+                 expect_flagged=True, name="bad: -X ours under a two-sided merge claim"),
+            Case(text="Combined both versions of the config.\n"
+                      "$ git checkout --theirs config.toml\n",
+                 expect_flagged=True, name="bad: checkout --theirs kept one side"),
+            Case(text="Consolidated the laptop notes and the server notes.\n"
+                      "I kept the newer copy where they disagreed.\n",
+                 expect_flagged=True, name="bad: 'kept the newer copy' is a silent drop"),
+            Case(text="Merged tools.py and tools_old.py.\n"
+                      "$ git push --force origin main\n",
+                 expect_flagged=True, name="bad: force push under a combine claim"),
+            # GUARD CASES -- each is a shape a careless version flags.
+            Case(text="Merged the laptop and server copies of recall_relevant.py.\n" + real,
+                 expect_flagged=False, name="guard: a real merge receipt"),
+            Case(text="Merged the pull request.\n$ git merge --ff-only feature\n",
+                 expect_flagged=False, name="guard: one-sided PR merge, no second side"),
+            Case(text="Took the server copy of tools.py; the laptop edits are gone.\n",
+                 expect_flagged=False, name="guard: honest about taking one side"),
+            Case(text="Never use `git merge -X ours` here; it would drop one machine's work.\n",
+                 expect_flagged=False, name="guard: the flag discussed, not claimed"),
+            Case(text="Merged both branches.\n"
+                      "3 files changed, 40 insertions(+), 2 deletions(-)\n",
+                 expect_flagged=False, name="guard: a diffstat showing both sides landed"),
+            Case(text="$ git merge -X ours other\nAuto-merging a.py\n",
+                 expect_flagged=False, name="guard: the receipt with no claim about it"),
+            # The claim span allows a dot inside a filename. This proves it still
+            # stops at a real sentence end rather than swallowing the next one.
+            Case(text="Merged the PR. Then I overwrote the stale cache with the new one.\n",
+                 expect_flagged=False, name="guard: the span stops at the sentence end"),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 6: the writer and the reader disagree about the filename.
+#
+# Ported from ~/Tools/state_file_pairs.py, built after this exact bug:
+#
+#     the writer  WROTE  build/regression-verdict-<HOST>.json
+#     the reader  READ   build/regression-verdict.json
+#
+# Two names for one file. The reader's name had never existed on disk, so for
+# four days it printed "no saved verdict yet", a check returned UNKNOWN every
+# run, and 47 regressions went unread. Nothing crashed. Nothing alarmed.
+#
+# In a turn the same defect is a claim citing an artifact by a name that is
+# one small difference away from the name the evidence actually shows.
+# --------------------------------------------------------------------------
+
+_ARTIFACT_EXT = (r"(?:json|jsonl|csv|tsv|txt|log|md|html|xml|yaml|yml|sqlite3|sqlite|db)")
+
+# "wrote the results to out/audit.json", "results are in report.json",
+# "see findings.jsonl", "saved to verdict.json"
+_CITES_ARTIFACT = re.compile(
+    r"(?i)\b(?:wrote|written|saved|stored|dumped|output|results?|findings?|report|"
+    r"verdict|see|in|at|to)\b[^.\n]{0,40}?"
+    r"\b([\w.\\/-]*[\w-]\." + _ARTIFACT_EXT + r")\b")
+
+# Any filename appearing anywhere in the turn. This is the evidence side: what
+# the tools in this turn actually named.
+_ANY_FILENAME = re.compile(r"\b([\w./-]*[\w-]\." + _ARTIFACT_EXT + r")\b")
+
+# Lines where a machine names a file it TOUCHED, rather than prose about one.
+# A name here is the ground truth the citation has to agree with.
+_WROTE_RECEIPT = re.compile(
+    r"(?i)(?:>|>>|\btee\b|\s-o\s|--out(?:put|file)?[= ]|"
+    r"\.write_text\(|json\.dump\(|\bopen\(|\bwrote\b|\bcreated\b|\bWriting\b)")
+
+
+def _near_miss(cited: str, seen: str) -> bool:
+    """Is `seen` the same name as `cited` with a small difference?
+
+    The bug this catches is never two unrelated files -- it is one file under
+    two spellings, so the test is deliberately strict. Same extension, and
+    either one stem contains the other (the `-<HOST>` suffix case, which is the
+    real incident) or the two are a close string match.
+    """
+    c, s = os.path.basename(cited), os.path.basename(seen)
+    if c == s:
+        return False
+    cs, ce = os.path.splitext(c)
+    ss, se = os.path.splitext(s)
+    if ce.lower() != se.lower() or not cs or not ss:
+        return False
+    if cs in ss or ss in cs:
+        return True
+    return difflib.SequenceMatcher(None, cs, ss).ratio() >= 0.75
+
+
+class ArtifactNameMismatch(Gate):
+    """A claim cites a file by a name the turn's own evidence spells differently.
+
+    THE SHAPE, and it is quiet in a way an outright missing file is not. A
+    missing artifact fails loudly the first time somebody opens it. A NEARLY
+    right name fails silently forever: the reader opens nothing, finds nothing,
+    and reports "no results yet", which is indistinguishable from a clean run.
+    The real instance cost four days and 47 unread regressions.
+
+    THE GATE ONLY FIRES ON A NEAR MISS, on purpose. If the cited name appears
+    nowhere near anything similar, the turn simply has no receipt for it, and
+    that is `UnbackedClaims`' question -- reporting it here as well would be
+    two findings for one defect. What this gate claims to know is narrower and
+    much harder to argue with: your own output names this file, and you cited
+    it under a different spelling.
+    """
+
+    name = "artifact-name-mismatch"
+
+    def inspect(self, text: str) -> list[Finding]:
+        produced: set[str] = set()
+        for line in text.splitlines():
+            if _WROTE_RECEIPT.search(line):
+                produced.update(_ANY_FILENAME.findall(line))
+        if not produced:
+            return []
+        bases = {os.path.basename(p) for p in produced}
+        out: list[Finding] = []
+        reported: set[str] = set()
+        for m in _CITES_ARTIFACT.finditer(text):
+            cited = m.group(1)
+            if cited in reported or os.path.basename(cited) in bases:
+                continue
+            near = sorted({p for p in produced if _near_miss(cited, p)})
+            if not near:
+                continue
+            reported.add(cited)
+            out.append(Finding(
+                message=("cites %r, but this turn's own output writes %s -- one file, "
+                         "two spellings. A reader on the cited name finds nothing and "
+                         "reports empty, which reads exactly like clean"
+                         % (cited, ", ".join(near)[:70])),
+                line=text[:m.start()].count("\n") + 1,
+                excerpt=" ".join(m.group(0).split())[:90]))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        return [
+            # MUST FLAG -- the measured 2026-09-07 incident, and a plain typo.
+            Case(text="The results are in regression-verdict.json.\n"
+                      "$ python report.py --out build/regression-verdict-linux.json\n",
+                 expect_flagged=True, name="bad: the real per-host suffix incident"),
+            Case(text="The findings are in findings.jsonl.\n"
+                      "  json.dump(rows, open('finding.jsonl', 'w'))\n",
+                 expect_flagged=True, name="bad: singular/plural spelling drift"),
+            # GUARD CASES.
+            Case(text="The results are in verdict.json.\n"
+                      "$ python report.py --out verdict.json\n",
+                 expect_flagged=False, name="guard: the names agree exactly"),
+            Case(text="The results are in verdict.json.\n"
+                      "$ python report.py --out unrelated-inventory.csv\n",
+                 expect_flagged=False, name="guard: unrelated file, not a near miss"),
+            Case(text="The results are in verdict.json. I have not run anything yet.\n",
+                 expect_flagged=False, name="guard: no write receipt at all"),
+            Case(text="The results are in build/verdict.json.\n"
+                      "$ python report.py --out ./build/verdict.json\n",
+                 expect_flagged=False, name="guard: same basename, different path prefix"),
+            Case(text="See README.md for the format.\n"
+                      "$ python report.py --out verdict.json\n",
+                 expect_flagged=False, name="guard: citing a file nobody claimed to write"),
+        ]
+
+
+# --------------------------------------------------------------------------
+# Feature 7: a source claimed as READ that was only searched.
+#
+# Ported from ~/Tools/research_receipt.py, which exists because a session ran
+# two keyword searches, read only the search PREVIEWS, opened ZERO actual
+# notes, and reported having gone through the source. Chris: "i dont believe
+# that you went through the x bookmarks... you are taking shortcuts to avoid
+# doing work."
+#
+# Every other gate here checks the OUTCOME of work. This one checks the INPUT
+# -- whether the thing the claim rests on was ever actually opened. A turn can
+# be full of real, genuine search output and still have read nothing.
+# --------------------------------------------------------------------------
+
+_READ_CLAIM = re.compile(
+    r"(?i)\b(?:read through|read|went through|gone through|reviewed|studied|"
+    r"mined|combed through|worked through)\b[^.\n]{0,60}?"
+    r"\b([\w./-]+\.(?:md|txt|py|js|ts|json|jsonl|csv|yaml|yml|html|pdf|rst))\b")
+
+# grep/ripgrep/search output: `path:12:matched text`, "N matches", "Found N".
+_SEARCH_SHAPED = re.compile(
+    r"^[\w./-]+:\d+:"
+    r"|\b(?:\d+\s+match(?:es)?|found\s+\d+\s+(?:match|result|hit|file)|"
+    r"grep\b|\brg\b|ripgrep|--include=|searched for|search results?)\b",
+    re.I | re.M)
+
+
+def _opened(text: str, name: str) -> bool:
+    """Did this turn actually OPEN that file, rather than match inside it?
+
+    An open leaves one of a small set of unmistakable marks. A grep hit leaves
+    `path:12:` and nothing else -- which is precisely the preview that got
+    reported as reading.
+    """
+    base = re.escape(os.path.basename(name))
+    full = re.escape(name)
+    opens = (
+        r"(?:cat|less|head|tail|bat|type)\s+[^\n]*" + full,
+        r"Read\(\s*[\"']?[^\n\"']*" + full,
+        r"(?:open|read_text|read_file|load)\(\s*[\"'][^\n\"']*" + full,
+        r"(?m)^[-=]{2,}[^\n]*" + base + r"[^\n]*[-=]{2,}\s*$",   # ==== file.md ====
+        r"(?m)^\s*<<<\s*" + base,
+    )
+    return any(re.search(p, text) for p in opens)
+
+
+class UnreadSource(Gate):
+    """A claim to have READ a named source, where the turn only searched it.
+
+    THE DIFFERENT QUESTION. Every other gate in this file asks whether the
+    OUTPUT is backed. This asks whether the INPUT was real. A turn can carry
+    genuine, correct, plentiful evidence -- real grep output, real match
+    counts, real file paths -- and still rest on a source nobody opened. Search
+    output looks like a reading receipt because it contains the file's own text.
+
+    WHY A SEARCH RECEIPT IS REQUIRED BEFORE THIS FIRES. A read-claim with no
+    evidence of any kind is `UnbackedClaims`' question and it already answers
+    it. This gate speaks only to the harder case where the turn DID do work on
+    that file and the work was a search: the shape that gets past every
+    evidence check, because the evidence is real.
+
+    An honest claim is left alone. "I searched X for Y" and "I grepped X" say
+    what happened and are never flagged -- the failure is calling a search a
+    reading, not doing a search.
+    """
+
+    name = "unread-source"
+
+    def inspect(self, text: str) -> list[Finding]:
+        if not _SEARCH_SHAPED.search(text):
+            return []
+        out: list[Finding] = []
+        reported: set[str] = set()
+        for m in _READ_CLAIM.finditer(text):
+            named = m.group(1)
+            if named in reported or _opened(text, named):
+                continue
+            reported.add(named)
+            out.append(Finding(
+                message=("claims %r was read, but the only receipt for it in this turn is "
+                         "a search. A search shows the lines that matched; it cannot show "
+                         "what the file says where nothing matched" % named),
+                line=text[:m.start()].count("\n") + 1,
+                excerpt=" ".join(m.group(0).split())[:90]))
+        return out
+
+    def selftest_cases(self) -> list[Case]:
+        grep = "_META-PATTERNS.md:41:  cache the embedding, not the answer\n"
+        return [
+            # MUST FLAG -- the measured incident: previews reported as reading.
+            Case(text="I read through _META-PATTERNS.md and there is nothing on caching.\n" + grep,
+                 expect_flagged=True, name="bad: grep previews reported as a read"),
+            Case(text="Went through notes/plan.md; it does not mention the deadline.\n"
+                      "$ rg deadline notes/\n3 matches\n",
+                 expect_flagged=True, name="bad: a match count standing in for a read"),
+            # GUARD CASES.
+            Case(text="I read through _META-PATTERNS.md.\n"
+                      "$ cat _META-PATTERNS.md\n" + grep,
+                 expect_flagged=False, name="guard: the file was actually opened"),
+            Case(text="I read through _META-PATTERNS.md.\n"
+                      "==== _META-PATTERNS.md ====\n" + grep,
+                 expect_flagged=False, name="guard: an opened-file banner"),
+            Case(text="I searched _META-PATTERNS.md for caching and found nothing.\n" + grep,
+                 expect_flagged=False, name="guard: honest -- it says searched"),
+            Case(text="I read through _META-PATTERNS.md and there is nothing on caching.\n",
+                 expect_flagged=False, name="guard: no search receipt -- UnbackedClaims' job"),
+            Case(text="Read notes/plan.md.\n  text = open('notes/plan.md').read()\n"
+                      "notes/plan.md:12: the deadline is Friday\n",
+                 expect_flagged=False, name="guard: an open() call is a real open"),
         ]
