@@ -54,11 +54,31 @@ _DRIVE = "C" + ":" + _B + _B + "Users" + _B + _B + "Owner"
 _NIX = "/" + "home" + "/" + "someone" + "/"
 
 
+def _inside_a_checkout():
+    """Is there a repo here to ask about at all?
+
+    ⚠ ASKED ONCE, AND SEPARATELY FROM EVERY OTHER GIT QUESTION, ON PURPOSE. The
+    "wheel installs and works from clean env" job copies `tests/` to a scratch
+    directory and runs them from OUTSIDE any checkout, deliberately, to prove the
+    installed package stands on its own. Every test in this file is a question
+    ABOUT THE REPO, so over there the honest answer is "nothing to examine" --
+    not a pass, and not a failure either. Without this the two are indistinguish-
+    able from git's exit code, and picking either one is wrong: treating it as
+    clean hides a real leak, and treating it as broken makes a correct job red.
+    """
+    out = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=REPO,
+                         capture_output=True, text=True, timeout=60)
+    return out.returncode == 0 and out.stdout.strip() == "true"
+
+
 def tracked_files():
+    if not _inside_a_checkout():
+        pytest.skip("not a git checkout, so there is nothing tracked to examine")
     out = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True,
                          text=True, timeout=120)
     if out.returncode != 0:
-        pytest.skip("not a git checkout, so there is nothing tracked to examine")
+        pytest.fail(f"git is here but ls-files failed (exit {out.returncode}); "
+                    f"unanswerable is not clean")
     return [f for f in out.stdout.splitlines() if f.strip()]
 
 
@@ -144,11 +164,13 @@ BUILD_ARTIFACTS = (
 
 
 def _ignored(rel):
+    if not _inside_a_checkout():
+        pytest.skip("not a git checkout, so there are no ignore rules to examine")
     r = subprocess.run(["git", "check-ignore", "-q", rel], cwd=REPO,
                        capture_output=True, timeout=60)
     if r.returncode not in (0, 1):
-        pytest.fail(f"git could not answer whether {rel} is ignored (exit {r.returncode}); "
-                    f"unanswerable is not clean")
+        pytest.fail(f"git is here but could not answer whether {rel} is ignored "
+                    f"(exit {r.returncode}); unanswerable is not clean")
     return r.returncode == 0
 
 
