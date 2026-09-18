@@ -78,7 +78,21 @@ EXEMPT = "exempt"
 #: raising it far enough must make a known-good gate go WEAK, and lowering it to
 #: zero must make a known-weak one pass. A threshold nobody has moved has never
 #: been tested (see how-we-work law 8).
-GUARD_SIMILARITY_FLOOR = 0.25
+#: How similar a guard case must be to SOME must-fire case before it counts as
+#: proving the gate discriminates. A guard case about the weather, sitting next
+#: to a must-fire case about a deploy, proves only that the gate ignores the
+#: weather -- it survives the gate being switched off AND jammed open, so it is
+#: green whatever the gate does.
+#:
+#: 0.45, MEASURED rather than picked. Across the 12 real gates in this package
+#: and its fixtures the closest guard scores 0.59 to 0.98; a deliberately junk
+#: guard scores 0.29. 0.45 sits in the middle of that empty band, so it rejects
+#: the junk with margin and keeps every real gate with margin.
+#:
+#: ~~0.25~~ was too low to do its job: it passed the junk case by 0.04. Found
+#: 2026-09-17 by building a deliberately weakly-tested gate to demonstrate the
+#: audit, and watching the audit call it proven.
+GUARD_SIMILARITY_FLOOR = 0.45
 
 
 @dataclass(frozen=True)
