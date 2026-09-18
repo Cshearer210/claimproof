@@ -41,6 +41,7 @@ from __future__ import annotations
 import difflib
 import importlib
 import importlib.util
+import os
 import inspect as _inspect
 import pkgutil
 import sys
@@ -169,6 +170,12 @@ def discover_gates(target: str) -> tuple[list[type[Gate]], list[str]]:
                 continue
             take(mod)
         return gates, problems
+
+    if os.sep in target or (os.altsep and os.altsep in target):
+        # It looks like a path and it is not there. Importing it as a module name
+        # produces "No module named '/home/.../src/claimproof'", which sends the
+        # reader looking for an import problem that does not exist.
+        return [], [f"{target}: no such file or directory"]
 
     try:
         mod = importlib.import_module(target)

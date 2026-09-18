@@ -6,6 +6,7 @@ runs, or the demo GAINS acts and the image keeps showing the same fraction while
 its caption says something that is no longer true. The renderer already refused
 the first. These cover the second.
 """
+import os
 import pathlib
 import subprocess
 import sys
@@ -15,14 +16,29 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parents[1]
 RENDERER = REPO / "tools" / "render_demo_svg.py"
 
-sys.path.insert(0, str(RENDERER.parent))
+# These are REPO-LAYOUT tests: they read tools/ and assets/ directly. The
+# "wheel installs and works from clean env" job copies only tests/ elsewhere and
+# runs them against the installed package, where neither exists. Skipping with a
+# stated reason is the honest answer there -- the thing under test is genuinely
+# absent, which is not the same as it being fine.
+pytestmark = pytest.mark.skipif(
+    not RENDERER.exists(),
+    reason="repo-layout test: tools/render_demo_svg.py is not on disk here")
+
+if RENDERER.exists():
+    sys.path.insert(0, str(RENDERER.parent))
 
 
 def _demo_output():
+    # INHERIT the environment and override only PYTHONPATH. Building a fresh dict
+    # with PATH and HOME works on Linux and breaks on Windows, where a python
+    # subprocess needs SYSTEMROOT and a Windows-shaped PATH -- the demo then
+    # produced no output at all and this test read that as "the demo lost its
+    # acts". Caught by CI on windows-latest, not by anything here.
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(REPO / "src")
     p = subprocess.run([sys.executable, "-m", "claimproof.demo"],
-                       cwd=REPO, capture_output=True, text=True, timeout=300,
-                       env={"PYTHONPATH": str(REPO / "src"), "PATH": "/usr/bin:/bin",
-                            "HOME": str(pathlib.Path.home())})
+                       cwd=REPO, capture_output=True, text=True, timeout=300, env=env)
     return p.returncode, p.stdout
 
 

@@ -195,6 +195,8 @@ def test_discovering_a_package_directory_loses_no_module():
     import pathlib as _pl
 
     pkg = _pl.Path(__file__).resolve().parents[1] / "src" / "claimproof"
+    if not pkg.is_dir():
+        pytest.skip("repo-layout test: src/claimproof is not on disk here")
     found, problems = discover_gates(str(pkg))
     assert not problems, f"a module dropped out of the population: {problems}"
     assert {g.__name__ for g in found} >= {"UnbackedClaims", "MergeDroppedASide"}
