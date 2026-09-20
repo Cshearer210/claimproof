@@ -9,6 +9,14 @@ dbt is stubbed rather than run. The subject under test is the bookkeeping -- wha
 counts as measured, what counts as nothing -- and that logic must be provable in
 under a second, not in the six minutes a real hunt takes.
 """
+
+import pytest
+
+# duckdb is an OPTIONAL backend. Without this line a clone that lacks it gets a COLLECTION
+# ERROR, which reads as broken software rather than a missing extra -- the worst first
+# impression a public repo can make on someone who just ran the tests.
+pytest.importorskip("duckdb", reason="the duckdb backend is an optional extra")
+
 import time
 import json
 import shutil

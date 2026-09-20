@@ -9,6 +9,14 @@ Most of these test the direction that decides whether the check survives: that
 it stays QUIET on ordinary work. A pre-flight that blocks normal development is
 removed within the week, and a removed check protects nothing.
 """
+
+import pytest
+
+# duckdb is an OPTIONAL backend. Without this line a clone that lacks it gets a COLLECTION
+# ERROR, which reads as broken software rather than a missing extra -- the worst first
+# impression a public repo can make on someone who just ran the tests.
+pytest.importorskip("duckdb", reason="the duckdb backend is an optional extra")
+
 import hashlib
 import json
 

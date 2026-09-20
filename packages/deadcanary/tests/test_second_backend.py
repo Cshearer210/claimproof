@@ -4,6 +4,14 @@
 could plug in. A seam nothing has ever plugged into is a claim, not a seam --
 so this hunts a project that has no dbt anywhere near it.
 """
+
+import pytest
+
+# duckdb is an OPTIONAL backend. Without this line a clone that lacks it gets a COLLECTION
+# ERROR, which reads as broken software rather than a missing extra -- the worst first
+# impression a public repo can make on someone who just ran the tests.
+pytest.importorskip("duckdb", reason="the duckdb backend is an optional extra")
+
 import json
 import shutil
 from pathlib import Path
