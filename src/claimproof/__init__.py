@@ -57,6 +57,7 @@ from claimproof.register import Problem, Register, RegisterError, StillRed
 from claimproof.core import Case, Finding, Gate, SelftestError
 from claimproof.coverage import Coverage, CoverageError, Diff, Entry
 from claimproof.harness import BROKE, OK, UNKNOWN, Harness, Result
+from claimproof.ground_truth import GroundTruth
 
 __version__ = "0.16.0"
 __all__ = [
