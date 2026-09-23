@@ -49,6 +49,7 @@ ALLOW = [
     r"^packages/[^/]+/(src|tests|tools|findings|assets)/",
     r"^packages/[^/]+/(pyproject\.toml|README\.md|LICENSE|CHANGELOG\.md|FINDINGS\.md|action\.yml)$",
     r"^packages/[^/]+/\.gitignore$",
+    r"^packages/[^/]+/conftest\.py$",   # pytest fixtures for that package's tests
     r"^examples/",
     r"^tools/",
     r"^assets/",

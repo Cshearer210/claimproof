@@ -67,7 +67,7 @@ def act_total(out: list[str]) -> int:
     return len({int(m.group(1)) for m in (_ACT.match(l) for l in out) if m})
 
 
-def caption_disagrees(readme: pathlib.Path, total: int) -> str:
+def caption_disagrees(readme: Path, total: int) -> str:
     """-> a reason the README's caption is now wrong, or "" if it is right.
 
     Checked rather than assumed: the caption is the sentence a reader believes,
