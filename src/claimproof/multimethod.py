@@ -317,9 +317,104 @@ def method_returns_success_in_except(root: str) -> list[Finding]:
     return out
 
 
+import re as _re
+
+_SKIP_M = {".git", "node_modules", "__pycache__", ".venv", "venv", "build", "dist", ".tox",
+           ".eggs", ".pytest_cache", "site-packages"}
+
+
+def _iter_py(root):
+    for dp, dirs, fs in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in _SKIP_M and not d.endswith(".egg-info")]
+        for f in fs:
+            if not f.endswith(".py"):
+                continue
+            rel = os.path.relpath(os.path.join(dp, f), root)
+            try:
+                yield rel, ast.parse(open(os.path.join(dp, f), encoding="utf-8", errors="replace").read())
+            except (SyntaxError, ValueError, OSError):
+                continue
+
+
+def method_assert_constant_prod(root: str) -> list[Finding]:
+    """A truthy CONSTANT assertion in production code (`assert True`, `assert "msg"`) -- it always
+    passes, so it looks like a guard but checks nothing. (In a test file this is test-cannot-fail's
+    job; here it is production code lying about a check.) Fix: assert the real condition; or if it is
+    a typo for `assert x, "msg"`, add the condition."""
+    out = []
+    for rel, tree in _iter_py(root):
+        if _is_test_file(rel):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assert) and isinstance(node.test, ast.Constant) and bool(node.test.value):
+                out.append(Finding(
+                    concept="claim", defect_class="assert-constant-in-production",
+                    location="%s:%d" % (rel, node.lineno),
+                    signal="assert on a truthy constant -- it can never fail",
+                    evidence="this reads as a guard but checks nothing",
+                    method="constant-assert", repo="claimproof", severity="med", confidence=0.8,
+                    both_directions_proven=True, extra={"id_key": "assertconst:%s:%d" % (rel, node.lineno)}))
+    return out
+
+
+def method_unreachable_except(root: str) -> list[Finding]:
+    """An except handler that can never run because a broader one (Exception/BaseException/bare)
+    appears before it in the same try -- the specific handling is dead. Fix: reorder so specific
+    handlers precede the broad one; or remove the dead handler."""
+    out = []
+    for rel, tree in _iter_py(root):
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Try):
+                for i, h in enumerate(node.handlers[:-1]):
+                    t = h.type
+                    broad = (t is None or (isinstance(t, ast.Name) and t.id in ("Exception", "BaseException"))
+                             or (isinstance(t, ast.Attribute) and t.attr in ("Exception", "BaseException")))
+                    if broad:
+                        nxt = node.handlers[i + 1]
+                        out.append(Finding(
+                            concept="read", defect_class="unreachable-except",
+                            location="%s:%d" % (rel, nxt.lineno),
+                            signal="a broad except precedes this handler, so it can never run",
+                            evidence="this error is not actually being handled",
+                            method="broad-before-specific", repo="claimproof", severity="med",
+                            confidence=0.85, both_directions_proven=True,
+                            extra={"id_key": "unreachexc:%s:%d" % (rel, nxt.lineno)}))
+                        break
+    return out
+
+
+def method_predicate_returns_none(root: str) -> list[Finding]:
+    """A predicate (is_/has_/can_/should_) that returns a real value on one path but can fall through
+    to an implicit None -- None is falsy but is not False, so a caller doing `if not is_x()` behaves
+    differently than intended. Fix: return False on the fall-through path; make all paths return bool."""
+    out = []
+    pred = _re.compile(r"^(is|has|can|should)_")
+    for rel, tree in _iter_py(root):
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and pred.match(node.name):
+                returns = [n for n in ast.walk(node) if isinstance(n, ast.Return)]
+                returns_value = any(r.value is not None for r in returns)
+                bare_return = any(r.value is None for r in returns)
+                last = node.body[-1] if node.body else None
+                falls_through = not isinstance(last, (ast.Return, ast.Raise))
+                if returns_value and (bare_return or falls_through):
+                    out.append(Finding(
+                        concept="claim", defect_class="predicate-returns-none",
+                        location="%s:%d" % (rel, node.lineno),
+                        signal="a predicate can fall through to None instead of returning a bool",
+                        evidence="%s returns a value on one path but None on another" % node.name,
+                        method="predicate-falls-through", repo="claimproof", severity="low",
+                        confidence=0.65, both_directions_proven=True,
+                        extra={"id_key": "prednone:%s:%s" % (rel, node.name)}, ignored_label=node.name))
+    return out
+
+
 METHODS = {
     "test-cannot-fail": [method_weak_oracle, method_return_ignored],
     "swallowed-exception": [method_silent_swallow, method_returns_success_in_except],
+    "assert-constant-in-production": [method_assert_constant_prod],
+    "unreachable-except": [method_unreachable_except],
+    "predicate-returns-none": [method_predicate_returns_none],
 }
 
 
