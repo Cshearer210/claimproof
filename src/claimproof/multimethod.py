@@ -203,12 +203,16 @@ def method_return_ignored(root: str) -> list[Finding]:
 METHODS = {"test-cannot-fail": [method_weak_oracle, method_return_ignored]}
 
 
-def scan(root: str) -> list[Triangulated]:
-    findings: list[Finding] = []
+def raw_findings(root: str) -> list[Finding]:
+    out: list[Finding] = []
     for methods in METHODS.values():
         for m in methods:
-            findings.extend(m(root))
-    return triangulate(findings)
+            out.extend(m(root))
+    return out
+
+
+def scan(root: str) -> list[Triangulated]:
+    return triangulate(raw_findings(root))
 
 
 # SARIF is emitted by the shared contract (finding.to_sarif) -- one definition, many readers.
