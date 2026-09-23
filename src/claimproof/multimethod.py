@@ -525,6 +525,138 @@ def selftest() -> int:
     finally:
         shutil.rmtree(d5, ignore_errors=True)
 
+    # ---- mutation-hardening BLOCK A: _local_modules / _project_imported_names / _is_testcase_class /
+    #      _collectable_tests dir-prune / _uses_raises / _is_constant_test
+    d = tempfile.mkdtemp(prefix="cp_a_")
+    try:
+        write(d, "core.py", "def go():\n    return 1\n")
+        write(d, "pkg/__init__.py", "")
+        write(d, "pkg/mod.py", "def h():\n    return 2\n")
+        # L57 & L90-Or: ABSOLUTE import of a local PACKAGE dir, called + ignored -> corroborated
+        write(d, "test_pkgabs.py", "from pkg import mod\ndef test_pkgabs():\n    mod.h()\n")
+        # L59: a plain directory (no __init__) is NOT a local module -> not corroborated
+        write(d, "plaindir/note.txt", "x")
+        write(d, "test_plain.py", "import plaindir\ndef test_plain():\n    plaindir.x()\n")
+        # L69-Gt: a relative import (node.level>0) counts as project -> corroborated
+        write(d, "pkg/test_rel.py", "from . import mod\ndef test_rel():\n    mod.h()\n")
+        # L90-And: a stdlib call must NOT count as project -> single weak-oracle only
+        write(d, "test_ext.py", "import json\ndef test_ext():\n    json.dumps(1)\n")
+        # L99: a unittest TestCase in a NON-test-named file must still be collected
+        write(d, "suite.py", "import unittest\nfrom core import go\nclass T(unittest.TestCase):\n    def test_x(self):\n        assert 1 == 1\n")
+        # L100: a plain (non-TestCase) class's test-named method must NOT be collected
+        write(d, "widget.py", "class Widget:\n    def test_mode(self):\n        pass\n")
+        # L107: a collectable test inside a SKIPPED dir must NOT be scanned
+        write(d, "node_modules/test_nm.py", "def test_nm():\n    assert True\n")
+        # L147: pytest raises used as a CALL (assertRaises) is a real oracle -> NOT flagged
+        write(d, "test_ar.py", "import unittest\nfrom core import go\nclass R(unittest.TestCase):\n    def test_r(self):\n        self.assertRaises(ValueError, go)\n")
+        # L165: an assert on a runtime CALL is a real oracle -> NOT weak
+        write(d, "test_callassert.py", "from core import go\ndef test_ca():\n    assert go()\n")
+        tri = scan(d)
+        by = {}
+        for t in tri:
+            by.setdefault(t.location.split(":")[0], t)
+        x = by.get("test_pkgabs.py")
+        if not x or x.corroboration != 2:
+            print("FAIL[L57/L90-Or]: absolute local-package call must corroborate ->", x); ok = False
+        x = by.get("test_plain.py")
+        if not x or x.corroboration != 1 or "return-ignored" in x.methods:
+            print("FAIL[L59]: a plain dir must NOT count as a local module ->", x); ok = False
+        x = by.get("pkg/test_rel.py")
+        if not x or x.corroboration != 2:
+            print("FAIL[L69-Gt]: relative-import (level>0) call must corroborate ->", x); ok = False
+        x = by.get("test_ext.py")
+        if not x or x.corroboration != 1 or "return-ignored" in x.methods:
+            print("FAIL[L90-And]: a stdlib call must NOT count as project ->", x); ok = False
+        if "suite.py" not in by:
+            print("FAIL[L99]: unittest TestCase in a non-test file was not collected"); ok = False
+        if "widget.py" in by:
+            print("FAIL[L100]: a plain class's test-named method was wrongly collected ->", by["widget.py"]); ok = False
+        if "node_modules/test_nm.py" in by:
+            print("FAIL[L107]: a test inside a skipped dir was scanned ->", by["node_modules/test_nm.py"]); ok = False
+        if "test_ar.py" in by:
+            print("FAIL[L147]: assertRaises-as-call test flagged (false positive) ->", by["test_ar.py"]); ok = False
+        if "test_callassert.py" in by:
+            print("FAIL[L165]: assert on a runtime call flagged as weak (false positive) ->", by["test_callassert.py"]); ok = False
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+    # ---- mutation-hardening BLOCK B: both_directions_proven must survive triangulation as
+    #      both_directions_any on a SINGLE-method finding (L183 weak-oracle, L204 return-ignored)
+    d2 = tempfile.mkdtemp(prefix="cp_b_")
+    try:
+        write(d2, "core.py", "def go():\n    return 1\n")
+        # weak-oracle ONLY (result used, constant assert) -> isolates L183's flag
+        write(d2, "test_const.py", "from core import go\ndef test_const():\n    x = go()\n    assert True\n")
+        # return-ignored ONLY (call ignored, but a real non-constant assert present) -> isolates L204
+        write(d2, "test_ri.py", "from core import go\ndef test_ri():\n    go()\n    assert 1 == 1 + 0\n")
+        tri2 = scan(d2)
+        by2 = {t.location.split(":")[0]: t for t in tri2}
+        x = by2.get("test_const.py")
+        if not x or "weak-oracle" not in x.methods or not x.both_directions_any:
+            print("FAIL[L183]: weak-oracle finding must carry both_directions_any=True ->", x); ok = False
+        x = by2.get("test_ri.py")
+        if not x or "return-ignored" not in x.methods or not x.both_directions_any:
+            print("FAIL[L204]: return-ignored finding must carry both_directions_any=True ->", x); ok = False
+    finally:
+        shutil.rmtree(d2, ignore_errors=True)
+
+    # ---- mutation-hardening BLOCK C: _clean_const / dir-prune in _handlers / _announces /
+    #      _is_broad / the Or-guard in method_silent_swallow & method_returns_success_in_except
+    d3 = tempfile.mkdtemp(prefix="cp_c_")
+    try:
+        # L214-Is & L274/L275: bare except returning True -> clean AND broad -> flagged, corroborated
+        write(d3, "zTrue.py", "def a():\n    try:\n        risky()\n    except:\n        return True\n")
+        # L214-Eq: return 0 is clean (flagged); return 5 is NOT clean (not flagged)
+        write(d3, "z0.py", "def a():\n    try:\n        risky()\n    except Exception:\n        return 0\n")
+        write(d3, "z5.py", "def a():\n    try:\n        risky()\n    except Exception:\n        return 5\n")
+        # L225: a broad swallow inside a SKIPPED dir must NOT be scanned
+        write(d3, "node_modules/swal.py", "def a():\n    try:\n        risky()\n    except Exception:\n        return True\n")
+        # L258 & L298/L315-Or: a logging announce before returning clean -> NOT flagged
+        write(d3, "zlog.py", "import logging\ndef a():\n    try:\n        risky()\n    except Exception:\n        logging.error(\'x\')\n        return True\n")
+        # L260 & L263-Or: sys.stderr.write / self.stderr.write announce -> NOT flagged
+        write(d3, "zstderr.py", "import sys\ndef a():\n    try:\n        risky()\n    except Exception:\n        sys.stderr.write(\'x\')\n        return True\n")
+        write(d3, "zself.py", "class C:\n    def a(self):\n        try:\n            risky()\n        except Exception:\n            self.stderr.write(\'x\')\n            return True\n")
+        # L260/L263-Eq: a NON-stderr .write() is not an announce -> MUST be flagged
+        write(d3, "zwrite.py", "def a(buf):\n    try:\n        risky()\n    except Exception:\n        buf.write(\'x\')\n        return True\n")
+        # L280: a TUPLE of specific exception types is not broad -> NOT flagged
+        write(d3, "zbroadtuple.py", "def a():\n    try:\n        risky()\n    except (OSError, ValueError):\n        return True\n")
+        # L276/L277: a single specific exception type is not broad -> NOT flagged
+        write(d3, "zspecific.py", "def a():\n    try:\n        risky()\n    except OSError:\n        return True\n")
+        # L298/L315-Or (reraise leg): a handler that re-raises must never be flagged even though it
+        # also returns a clean-looking value on an earlier (unreachable) line
+        write(d3, "r1.py", "def a():\n    try:\n        risky()\n    except Exception:\n        return True\n        raise\n")
+        tri3 = scan(d3)
+        by3 = {}
+        for t in tri3:
+            by3.setdefault(t.location.split(":")[0], t)
+        x = by3.get("zTrue.py")
+        if not x or x.corroboration != 2:
+            print("FAIL[L214-Is/L274/L275]: bare-except return-True must be broad+clean+corroborated ->", x); ok = False
+        x = by3.get("z0.py")
+        if not x or x.corroboration != 2:
+            print("FAIL[L214-Eq]: return 0 in a broad except must be treated as clean ->", x); ok = False
+        if "z5.py" in by3:
+            print("FAIL[L214-Eq]: return 5 must NOT be treated as a clean value ->", by3["z5.py"]); ok = False
+        if "node_modules/swal.py" in by3:
+            print("FAIL[L225]: a swallow inside a skipped dir was scanned ->", by3["node_modules/swal.py"]); ok = False
+        if "zlog.py" in by3:
+            print("FAIL[L258/L298/L315]: a logging-announced except was flagged ->", by3["zlog.py"]); ok = False
+        if "zstderr.py" in by3:
+            print("FAIL[L260/L263]: sys.stderr.write announce was flagged ->", by3["zstderr.py"]); ok = False
+        if "zself.py" in by3:
+            print("FAIL[L263-Or]: self.stderr.write announce was flagged ->", by3["zself.py"]); ok = False
+        x = by3.get("zwrite.py")
+        if not x:
+            print("FAIL[L260/L263-Eq]: a non-stderr .write() must still be flagged ->", x); ok = False
+        if "zbroadtuple.py" in by3:
+            print("FAIL[L280]: a tuple of specific exception types was treated as broad ->", by3["zbroadtuple.py"]); ok = False
+        if "zspecific.py" in by3:
+            print("FAIL[L276/L277]: a single specific exception type was treated as broad ->", by3["zspecific.py"]); ok = False
+        if "r1.py" in by3:
+            print("FAIL[L298/L315-Or]: a re-raising handler was flagged despite raise ->", by3["r1.py"]); ok = False
+    finally:
+        shutil.rmtree(d3, ignore_errors=True)
+
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

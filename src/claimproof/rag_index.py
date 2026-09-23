@@ -150,6 +150,66 @@ def selftest() -> int:
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
+    # KILLS line 106 (scatter keeps concepts with >1 label; mutant <=1 inverts it).
+    # selftest() never asserts on synonym_scatter at all, so this gap is uncovered.
+    import tempfile as _tf1, shutil as _sh1
+    d1 = _tf1.mkdtemp(prefix="rag_scatter_")
+    try:
+        # two DISTINCT gate labels for one concept -> genuine synonym scatter
+        write(d1, "g_a.py", "def guard_alpha(x):\n    if not x:\n        raise ValueError('n')\n")
+        write(d1, "g_b.py", "def enforce_beta(y):\n    if not y:\n        raise ValueError('n')\n")
+        sc = index(d1)["synonym_scatter"]
+        if "gate" not in sc or len(sc["gate"]) < 2:
+            print("FAIL: a concept with >1 label must appear in synonym_scatter ->", sc); ok = False
+        if any(len(v) <= 1 for v in sc.values()):
+            print("FAIL: synonym_scatter must never list a single/zero-label concept ->", sc); ok = False
+    finally:
+        _sh1.rmtree(d1, ignore_errors=True)
+
+    # KILLS line 51 (skip filter: 'not in _SKIP and not egg-info'; mutant flips And->Or so a
+    # _SKIP dir like .venv gets walked). selftest() never plants a file inside a skipped dir.
+    import tempfile as _tf2, shutil as _sh2
+    d2 = _tf2.mkdtemp(prefix="rag_skip_")
+    try:
+        write(d2, ".venv/gate_hidden.py", "def check_hidden(user):\n    return True\n")
+        keys = {t.findings[0].extra["id_key"] for t in index(d2)["mismatches"]}
+        if any(".venv" in k for k in keys):
+            print("FAIL: a file inside a _SKIP dir (.venv) must not be scanned ->", keys); ok = False
+    finally:
+        _sh2.rmtree(d2, ignore_errors=True)
+
+    # KILLS line 90 (const_verdict Finding's both_directions_proven True->False).
+    # In the corroborated gate_bad case both methods fire and each carries True, so mutating one is
+    # masked by any([False, True]) -> still True. A gate that USES its input but returns a constant
+    # fires ONLY constant-verdict (single method), exposing the flag directly.
+    import tempfile as _tf3, shutil as _sh3
+    d3 = _tf3.mkdtemp(prefix="rag_cv_")
+    try:
+        write(d3, "gm.py", "def guard_write(path):\n    print(path)\n    return True\n")
+        raw = raw_findings(d3)
+        cv = [f for f in raw if f.method == "constant-verdict"]
+        if len(cv) != 1 or cv[0].both_directions_proven is not True:
+            print("FAIL: constant-verdict finding must set both_directions_proven=True ->", cv); ok = False
+    finally:
+        _sh3.rmtree(d3, ignore_errors=True)
+
+    # KILLS line 98 (input_ignored Finding's both_directions_proven True->False), masked in the
+    # corroborated case for the same reason as line 90. A gate that IGNORES its input and returns a
+    # NON-constant fires ONLY input-ignored (single method), exposing the flag directly.
+    import tempfile as _tf4, shutil as _sh4
+    d4 = _tf4.mkdtemp(prefix="rag_ii_")
+    try:
+        write(d4, "gi.py", "def check_thing(user):\n    return compute()\n")
+        raw = raw_findings(d4)
+        ii = [f for f in raw if f.method == "input-ignored"]
+        cvv = [f for f in raw if f.method == "constant-verdict"]
+        if cvv:
+            print("FAIL: a non-constant return must not fire constant-verdict ->", cvv); ok = False
+        if len(ii) != 1 or ii[0].both_directions_proven is not True:
+            print("FAIL: input-ignored finding must set both_directions_proven=True ->", ii); ok = False
+    finally:
+        _sh4.rmtree(d4, ignore_errors=True)
+
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
