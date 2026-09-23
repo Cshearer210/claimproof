@@ -34,9 +34,9 @@ import ast
 import os
 
 try:
-    from .finding import Finding, triangulate, Triangulated
+    from .finding import Finding, triangulate, Triangulated, to_sarif
 except ImportError:                                  # run directly for --selftest
-    from finding import Finding, triangulate, Triangulated  # type: ignore
+    from finding import Finding, triangulate, Triangulated, to_sarif  # type: ignore
 
 _TEST_FILE = ("test_", "_test")
 
@@ -211,24 +211,7 @@ def scan(root: str) -> list[Triangulated]:
     return triangulate(findings)
 
 
-def to_sarif(tri: list[Triangulated], tool_name: str = "claimproof") -> dict:
-    """Minimal SARIF 2.1.0 so findings annotate code inline in GitHub's UI (refinement 7).
-    Corroboration is carried in the message so a reader sees how many methods agreed."""
-    results = []
-    for t in tri:
-        path, _, line = t.location.partition(":")
-        results.append({
-            "ruleId": t.defect_class,
-            "level": "warning" if t.trust == "single-method" else "error",
-            "message": {"text": "%s [%s] found by %d method(s): %s"
-                        % (t.defect_class, t.trust, t.corroboration, ", ".join(t.methods))},
-            "locations": [{"physicalLocation": {
-                "artifactLocation": {"uri": path},
-                "region": {"startLine": int(line) if line.isdigit() else 1}}}],
-        })
-    return {"$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
-            "runs": [{"tool": {"driver": {"name": tool_name, "rules": [
-                {"id": c} for c in sorted(METHODS)]}}, "results": results}]}
+# SARIF is emitted by the shared contract (finding.to_sarif) -- one definition, many readers.
 
 
 # ---------------------------------------------------------------- proof
@@ -306,7 +289,7 @@ def main(argv) -> int:
         print("  [%s] %s  methods=%s  %s" % (t.trust, t.location, ",".join(t.methods), t.defect_class))
     if "--sarif" in argv:
         out = argv[argv.index("--sarif") + 1]
-        open(out, "w").write(_json.dumps(to_sarif(tri), indent=2))
+        open(out, "w").write(_json.dumps(to_sarif(tri, "claimproof"), indent=2))
         print("SARIF written:", out)
     return 1 if tri else 0
 

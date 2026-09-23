@@ -55,8 +55,14 @@ class Finding:
 
     def identity(self) -> str:
         """Stable id from WHAT/WHERE, NOT from method -- so two methods dedupe to one finding and
-        loop-until-dry re-runs converge instead of re-reporting the same defect forever."""
-        key = "%s\x1f%s\x1f%s" % (self.concept, self.defect_class, self.location)
+        loop-until-dry re-runs converge instead of re-reporting the same defect forever.
+
+        A detector may set extra['id_key'] when the natural identity of a defect is NOT its location
+        string -- e.g. a duplicate whose identity is the DUPLICATED CONTENT, found by two methods
+        that list different path-sets. Both then share one id_key and triangulate correctly."""
+        idk = self.extra.get("id_key")
+        key = ("K\x1f%s\x1f%s" % (self.defect_class, idk)) if idk else \
+              ("%s\x1f%s\x1f%s" % (self.concept, self.defect_class, self.location))
         return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
     def to_json(self) -> str:
@@ -129,6 +135,29 @@ def method_disagreements(findings: list[Finding]) -> list[str]:
             out.append("%s: flagged by {%s} but called clean by {%s} -- disagreement is a finding"
                        % (loc, ",".join(sorted(methods)), ",".join(sorted(clearers))))
     return out
+
+
+def to_sarif(tri: list[Triangulated], tool_name: str) -> dict:
+    """The ONE SARIF 2.1.0 emitter for every repo (one definition, many readers). Findings annotate
+    code inline in GitHub's UI; corroboration is carried in the message so a reviewer sees how many
+    independent methods agreed. A corroborated finding is an error; a single-method lead is a warning."""
+    rules: dict[str, None] = {}
+    results = []
+    for t in tri:
+        rules[t.defect_class] = None
+        path, _, line = t.location.partition(":")
+        results.append({
+            "ruleId": t.defect_class,
+            "level": "warning" if t.trust == "single-method" else "error",
+            "message": {"text": "%s [%s] found by %d method(s): %s"
+                        % (t.defect_class, t.trust, t.corroboration, ", ".join(t.methods))},
+            "locations": [{"physicalLocation": {
+                "artifactLocation": {"uri": path},
+                "region": {"startLine": int(line) if line.split("|")[0].strip().isdigit() else 1}}}],
+        })
+    return {"$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
+            "runs": [{"tool": {"driver": {"name": tool_name,
+                      "rules": [{"id": r} for r in sorted(rules)]}}, "results": results}]}
 
 
 def selftest() -> int:
