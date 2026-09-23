@@ -46,12 +46,17 @@ def _params(fn):
 
 def gate_label_mismatches(root: str) -> list[Finding]:
     out = []
+    seen = set()
     for dp, dirs, fs in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in _SKIP]
+        dirs[:] = [d for d in dirs if d not in _SKIP and not d.endswith(".egg-info")]
         for f in fs:
             if not f.endswith(".py"):
                 continue
             path = os.path.join(dp, f)
+            rp = os.path.realpath(path)
+            if rp in seen:
+                continue
+            seen.add(rp)
             rel = os.path.relpath(path, root)
             try:
                 tree = ast.parse(open(path, encoding="utf-8", errors="replace").read())

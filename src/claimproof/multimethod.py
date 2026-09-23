@@ -102,12 +102,17 @@ def _is_testcase_class(cls: ast.ClassDef) -> bool:
 
 def _collectable_tests(root: str):
     """Yield (rel, funcnode, project_calls) for every function a standard runner would collect."""
+    seen = set()
     for dirpath, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", ".venv")]
+        dirs[:] = [d for d in dirs if d not in _SKIP_M and not d.endswith(".egg-info")]
         for fn in files:
             if not fn.endswith(".py"):
                 continue
             path = os.path.join(dirpath, fn)
+            rp = os.path.realpath(path)
+            if rp in seen:                                # dedupe symlinked mirrors (by-kind/, etc.)
+                continue
+            seen.add(rp)
             rel = os.path.relpath(path, root)
             try:
                 tree = ast.parse(open(path, encoding="utf-8", errors="replace").read())
@@ -215,13 +220,16 @@ def _clean_const(node) -> bool:
 
 
 def _handlers(root: str):
+    seen = set()
     for dirpath, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", ".venv",
-                   "venv", "build", "dist", ".tox", ".eggs", ".pytest_cache", "site-packages")
-                   and not d.endswith(".egg-info")]
+        dirs[:] = [d for d in dirs if d not in _SKIP_M and not d.endswith(".egg-info")]
         for fn in files:
             if not fn.endswith(".py"):
                 continue
+            rp = os.path.realpath(os.path.join(dirpath, fn))
+            if rp in seen:
+                continue
+            seen.add(rp)
             rel = os.path.relpath(os.path.join(dirpath, fn), root)
             try:
                 tree = ast.parse(open(os.path.join(dirpath, fn), encoding="utf-8", errors="replace").read())
@@ -324,11 +332,16 @@ _SKIP_M = {".git", "node_modules", "__pycache__", ".venv", "venv", "build", "dis
 
 
 def _iter_py(root):
+    seen = set()
     for dp, dirs, fs in os.walk(root):
         dirs[:] = [d for d in dirs if d not in _SKIP_M and not d.endswith(".egg-info")]
         for f in fs:
             if not f.endswith(".py"):
                 continue
+            rp = os.path.realpath(os.path.join(dp, f))
+            if rp in seen:
+                continue
+            seen.add(rp)
             rel = os.path.relpath(os.path.join(dp, f), root)
             try:
                 yield rel, ast.parse(open(os.path.join(dp, f), encoding="utf-8", errors="replace").read())
