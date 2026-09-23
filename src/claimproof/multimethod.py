@@ -236,6 +236,28 @@ def _reraises(h) -> bool:
     return any(isinstance(n, ast.Raise) for n in ast.walk(h))
 
 
+def _announces(h) -> bool:
+    """A handler that PRINTS or LOGS the error before continuing is an ANNOUNCED fail-open, not a
+    SILENT swallow. Chris's defect is the SILENT one. Announced fail-open (e.g. a hook that prints
+    'gate did not run; allowing the turn' to stderr) is legitimate and must not be flagged (measured
+    FP on claimproof's own code + the hook layer, 2026-09-23)."""
+    _LOG = {"error", "warning", "warn", "exception", "critical", "info", "debug", "log", "print"}
+    for n in ast.walk(h):
+        if isinstance(n, ast.Call):
+            f = n.func
+            nm = f.id if isinstance(f, ast.Name) else (f.attr if isinstance(f, ast.Attribute) else "")
+            if nm in _LOG:
+                return True
+            # sys.stderr.write(...) / self.stderr.write(...)
+            if nm == "write":
+                d = f
+                while isinstance(d, ast.Attribute):
+                    if d.attr == "stderr" or (isinstance(d.value, ast.Name) and d.value.id in ("sys",)):
+                        return True
+                    d = d.value
+    return False
+
+
 def _is_broad(h) -> bool:
     """Only a BROAD catch (bare except, or Exception/BaseException) is the dangerous swallow.
     `except OSError: return []` and other SPECIFIC catches returning a default are idiomatic and
@@ -265,7 +287,7 @@ def method_silent_swallow(root: str) -> list[Finding]:
     """The handler does nothing observable: pass-only, or returns a clean value, and never re-raises."""
     out = []
     for rel, h in _handlers(root):
-        if _reraises(h) or not _is_broad(h):
+        if _reraises(h) or not _is_broad(h) or _announces(h):
             continue
         if _pass_only(h) or _returns_clean(h):
             out.append(Finding(
@@ -282,7 +304,7 @@ def method_returns_success_in_except(root: str) -> list[Finding]:
     """The handler returns a value that reads as SUCCESS (True/0/''/empty), disguising the failure."""
     out = []
     for rel, h in _handlers(root):
-        if _reraises(h) or not _is_broad(h):
+        if _reraises(h) or not _is_broad(h) or _announces(h):
             continue
         if _returns_clean(h):
             out.append(Finding(
