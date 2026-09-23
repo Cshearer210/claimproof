@@ -8,6 +8,7 @@ from pathlib import Path
 
 from deadcanary.hunt import (KILLED, NOOP, SURVIVED, UNDONE, DbtProject,
                              CannotMeasure, hunt)
+from deadcanary.safety import LooksLive
 
 #: Where the recorded proof lives. Beside the report it is proof of.
 CLAIMS_NAME = "deadcanary-claims.json"
@@ -105,6 +106,35 @@ def ratchet(found: int, baseline_path: Path, update: bool = False) -> tuple[int,
     return 0, message
 
 
+def _targeted_section(project, report: dict) -> str:
+    """Each test against the corruption written for it, or an honest reason why not."""
+    import json as _json
+
+    from deadcanary.mutations import Target
+    from deadcanary.targeted import aims_from_manifest, blind_to_own_purpose, render_aims
+
+    manifest_path = project.root / "target" / "manifest.json"
+    if not manifest_path.is_file():
+        return ("\n  TARGETED CORRUPTIONS: unavailable -- dbt wrote no manifest, so which "
+                "test guards which column is not knowable.")
+    manifest = _json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    # The corruptible set is exactly what the sweep actually touched. Deriving it
+    # from the report rather than re-querying the warehouse keeps the two halves
+    # describing the same run.
+    seen, targets = set(), []
+    for c in report.get("corruptions", []):
+        key = (c.get("table"), c.get("column"))
+        if key in seen or not all(key):
+            continue
+        seen.add(key)
+        targets.append(Target(c.get("schema") or "main", c["table"], c["column"],
+                              c.get("dtype") or ""))
+
+    aims = aims_from_manifest(manifest, targets)
+    return render_aims(aims, blind_to_own_purpose(report, aims))
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="deadcanary", description="Find the data tests that cannot fail.")
@@ -120,6 +150,25 @@ def main(argv: list[str] | None = None) -> int:
                     help="with --verify-null, how many clean rebuilds to check each "
                          "credited test against (default: 2)")
     ap.add_argument("--json", action="store_true", help="machine-readable report on stdout")
+    ap.add_argument("--equivalents", action="store_true",
+                    help="apply the declarations in deadcanary-equivalents.json: "
+                         "corruptions you have decided no correct test could catch. "
+                         "Every exclusion is printed with its reason, the raw count is "
+                         "always shown beside the adjusted one, and a declaration that "
+                         "matches nothing in the run is reported as stale.")
+    ap.add_argument("--targeted", action="store_true",
+                    help="report each test against the corruption written to trip it -- "
+                         "a not_null test versus a null in its own column, a unique test "
+                         "versus a duplicate. A test that misses THAT is blind to the one "
+                         "thing it exists to detect, which is a sharper finding than "
+                         "'it never fired'. Costs no extra run time: it reads the sweep "
+                         "that already happened.")
+    ap.add_argument("--matrix", action="store_true",
+                    help="also print the kill matrix: which test caught which "
+                         "corruption, which corruptions only ONE test catches (lose "
+                         "that test and real damage stops being seen), and which "
+                         "tests catch nothing another test does not already catch. "
+                         "The data is in every run already; this surfaces it.")
     ap.add_argument("--quiet", action="store_true",
                     help="gate mode: exit 1 if any test is a dead canary")
     ap.add_argument("--expect-dead", type=int, metavar="N",
@@ -175,6 +224,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = hunt(project, limit=args.limit, echo=not (args.json or args.quiet),
                        verify_null=args.verify_null, null_repeats=args.null_repeats)
+    except LooksLive as exc:
+        # Exit 2, not 1: nothing was measured, and a refusal must never be
+        # confused with a clean run or with a finding.
+        print(f"deadcanary: {exc}", file=sys.stderr)
+        return 2
     except CannotMeasure as exc:
         print(f"deadcanary: {exc}", file=sys.stderr)
         return 2                      # cannot tell -- never 0, which would read as a pass
@@ -182,7 +236,33 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps({k: v for k, v in report.items() if k != "outcomes"}, indent=2))
     elif not args.quiet:
-        print(render(report))
+        text = render(report)
+        # Chris's own standing law, turned on this tool: a count with no named
+        # examples is a draft, not a measurement -- a wrong count and a right one
+        # are the same shape, a number, while a wrong EXAMPLE is obvious on
+        # sight. deadcanary's headline is exactly that shape, so it is checked
+        # here rather than trusted to stay right.
+        from deadcanary.matrix import count_without_examples
+        bare = count_without_examples(text)
+        if bare:
+            text += ("\n\n  [deadcanary refused its own summary: a dead-canary count "
+                     "was stated with no examples named beside it]\n    "
+                     + "\n    ".join(bare))
+        print(text)
+        if args.matrix:
+            from deadcanary.matrix import render_matrix
+            print(render_matrix(report))
+        if args.targeted:
+            print(_targeted_section(project, report))
+        if args.equivalents:
+            from deadcanary.equivalents import (InvalidDeclaration, load,
+                                                render_equivalents)
+            try:
+                print(render_equivalents(report, load(project.root)))
+            except InvalidDeclaration as exc:
+                # Refusing loudly beats scoring against a file we do not trust.
+                print("deadcanary: %s" % exc, file=sys.stderr)
+                return 2
 
     if args.attest:
         # Only a run that measured everything may be recorded as proof. A partial

@@ -4,6 +4,14 @@ These run against a real DuckDB in memory rather than a mock, because the whole
 point of a mutation is that it changes a real table, and a mock would happily
 accept SQL that no database would.
 """
+
+import pytest
+
+# duckdb is an OPTIONAL backend. Without this line a clone that lacks it gets a COLLECTION
+# ERROR, which reads as broken software rather than a missing extra -- the worst first
+# impression a public repo can make on someone who just ran the tests.
+pytest.importorskip("duckdb", reason="the duckdb backend is an optional extra")
+
 import duckdb
 import pytest
 

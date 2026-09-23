@@ -14,3 +14,10 @@ full_run.txt
 demo/.user.yml
 demo/*.bak
 deadcanary-claims.json
+
+# The demo warehouse is built by `dbt build` when a reader follows the README.
+# Its output is not source and must never be committed into a public repo.
+src/deadcanary/_demo/target/
+src/deadcanary/_demo/logs/
+src/deadcanary/_demo/.user.yml
+src/deadcanary/_demo/*.duckdb.wal

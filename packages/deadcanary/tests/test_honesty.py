@@ -9,6 +9,15 @@ dbt is stubbed rather than run. The subject under test is the bookkeeping -- wha
 counts as measured, what counts as nothing -- and that logic must be provable in
 under a second, not in the six minutes a real hunt takes.
 """
+
+import pytest
+
+# duckdb is an OPTIONAL backend. Without this line a clone that lacks it gets a COLLECTION
+# ERROR, which reads as broken software rather than a missing extra -- the worst first
+# impression a public repo can make on someone who just ran the tests.
+pytest.importorskip("duckdb", reason="the duckdb backend is an optional extra")
+
+import time
 import json
 import shutil
 from pathlib import Path
@@ -16,7 +25,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from deadcanary.hunt import (
+from deadcanary.hunt import (CannotMeasure,
     BROKE, KILLED, NOOP, SURVIVED, UNDONE, DbtProject, NothingToCorrupt,
     apply_one, hunt,
 )
@@ -452,3 +461,83 @@ def test_a_leftover_backup_is_never_mistaken_for_the_warehouse(tmp_path):
     p = DbtProject(root)
 
     assert p.database.name == "w.duckdb", f"adopted {p.database.name} as the warehouse"
+
+
+# ---------------------------------------------- THE STALE ARTIFACT (2026-09-17)
+
+class _NeverRefreshes(DbtProject):
+    """A project whose dbt fails to start, exactly as a missing dbt does.
+
+    `_ran_at` is set the way the real `dbt()` sets it, and `run_results.json` is
+    left untouched -- which is precisely what happened on a machine with no dbt
+    installed: every invocation failed and the stale file was read back after
+    every corruption.
+    """
+
+    def dbt(self, *args, timeout=1200):
+        self._ran_at = time.time() + 5      # the artifact is older than this run
+
+        class R:
+            returncode = 1
+        return R()
+
+
+class _Refreshes(DbtProject):
+    """The same, except dbt really does rewrite its results."""
+
+    def __init__(self, root, results):
+        super().__init__(root)
+        self._results = results
+
+    def dbt(self, *args, timeout=1200):
+        self._ran_at = time.time()
+        time.sleep(0.01)
+        (self.root / "target" / "run_results.json").write_text(
+            json.dumps({"results": [{"unique_id": k, "status": v}
+                                    for k, v in self._results.items()]}), encoding="utf-8")
+
+        class R:
+            returncode = 0
+        return R()
+
+
+def test_a_stale_result_file_is_not_a_result(tmp_path):
+    """The defect this pins cost a completely confident, completely wrong answer.
+
+    With dbt missing, every invocation failed, `run_results.json` was never
+    rewritten, and the same statuses were read back after every corruption. No
+    test ever changed status, so all seven looked unable to fail and the tool
+    reported complete coverage with seven dead canaries.
+
+    A tool whose whole argument is that a check which cannot look must not report
+    clean had to not do that itself.
+    """
+    root = _make_project(tmp_path)
+    # An artifact from an EARLIER, real run -- which is exactly what makes this
+    # dangerous. A missing file is obvious; a plausible one that nobody rewrote
+    # reads as a result.
+    (root / "target" / "run_results.json").write_text(
+        json.dumps({"results": [{"unique_id": k, "status": v}
+                                for k, v in HEALTHY.items()]}), encoding="utf-8")
+    p = _NeverRefreshes(root)
+    p.dbt("test")
+
+    with pytest.raises(CannotMeasure) as caught:
+        p.test_results()
+    assert "older than the run" in str(caught.value)
+
+
+def test_a_refreshed_result_file_is_read_normally(tmp_path):
+    """The other direction. A check that can only ever refuse is equally broken."""
+    root = _make_project(tmp_path)
+    p = _Refreshes(root, HEALTHY)
+    p.dbt("test")
+    assert p.test_results() == HEALTHY
+
+
+def test_a_missing_result_file_is_not_a_pass(tmp_path):
+    root = _make_project(tmp_path)
+    p = DbtProject(root)
+    (root / "target" / "run_results.json").unlink(missing_ok=True)
+    with pytest.raises(CannotMeasure):
+        p.test_results()

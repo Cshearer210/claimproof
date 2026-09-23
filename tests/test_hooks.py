@@ -35,6 +35,13 @@ def test_it_reads_the_payload_under_any_of_the_common_keys(key):
     assert code == BLOCK
 
 
+@pytest.mark.parametrize("payload", [None, [], "not a dict", 42, {}])
+def test_a_malformed_payload_is_treated_as_no_text_not_a_crash(payload):
+    code, msg = stop_hook(payload, [UnbackedClaims()])
+    assert code == ALLOW
+    assert msg == ""
+
+
 class BrokenGate(Gate):
     """Passes everything, and its own fixtures say it should not."""
 

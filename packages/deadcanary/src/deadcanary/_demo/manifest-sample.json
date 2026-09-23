@@ -1,0 +1,133 @@
+{
+ "metadata": {
+  "adapter_type": "duckdb",
+  "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v12.json",
+  "dbt_version": "1.12.5"
+ },
+ "nodes": {
+  "test.deadcanary_demo.accepted_values_stg_orders_status__placed__shipped__completed.b263cf4045": {
+   "attached_node": "model.deadcanary_demo.stg_orders",
+   "column_name": "status",
+   "name": "accepted_values_stg_orders_status__placed__shipped__completed",
+   "package_name": "deadcanary_demo",
+   "path": "accepted_values_stg_orders_status__placed__shipped__completed.sql",
+   "resource_type": "test",
+   "test_metadata": {
+    "kwargs": {
+     "column_name": "status",
+     "model": "{{ get_where_subquery(ref('stg_orders')) }}",
+     "values": [
+      "placed",
+      "shipped",
+      "completed"
+     ]
+    },
+    "name": "accepted_values",
+    "namespace": null
+   },
+   "unique_id": "test.deadcanary_demo.accepted_values_stg_orders_status__placed__shipped__completed.b263cf4045"
+  },
+  "test.deadcanary_demo.not_null_orders_amount.106140f9fd": {
+   "attached_node": "model.deadcanary_demo.orders",
+   "column_name": "amount",
+   "name": "not_null_orders_amount",
+   "package_name": "deadcanary_demo",
+   "path": "not_null_orders_amount.sql",
+   "resource_type": "test",
+   "test_metadata": {
+    "kwargs": {
+     "column_name": "amount",
+     "model": "{{ get_where_subquery(ref('orders')) }}"
+    },
+    "name": "not_null",
+    "namespace": null
+   },
+   "unique_id": "test.deadcanary_demo.not_null_orders_amount.106140f9fd"
+  },
+  "test.deadcanary_demo.not_null_orders_customer_id.c5f02694af": {
+   "attached_node": "model.deadcanary_demo.orders",
+   "column_name": "customer_id",
+   "name": "not_null_orders_customer_id",
+   "package_name": "deadcanary_demo",
+   "path": "not_null_orders_customer_id.sql",
+   "resource_type": "test",
+   "test_metadata": {
+    "kwargs": {
+     "column_name": "customer_id",
+     "model": "{{ get_where_subquery(ref('orders')) }}"
+    },
+    "name": "not_null",
+    "namespace": null
+   },
+   "unique_id": "test.deadcanary_demo.not_null_orders_customer_id.c5f02694af"
+  },
+  "test.deadcanary_demo.not_null_orders_order_id.cf6c17daed": {
+   "attached_node": "model.deadcanary_demo.orders",
+   "column_name": "order_id",
+   "name": "not_null_orders_order_id",
+   "package_name": "deadcanary_demo",
+   "path": "not_null_orders_order_id.sql",
+   "resource_type": "test",
+   "test_metadata": {
+    "kwargs": {
+     "column_name": "order_id",
+     "model": "{{ get_where_subquery(ref('orders')) }}"
+    },
+    "name": "not_null",
+    "namespace": null
+   },
+   "unique_id": "test.deadcanary_demo.not_null_orders_order_id.cf6c17daed"
+  },
+  "test.deadcanary_demo.not_null_stg_orders_order_id.81cfe2fe64": {
+   "attached_node": "model.deadcanary_demo.stg_orders",
+   "column_name": "order_id",
+   "name": "not_null_stg_orders_order_id",
+   "package_name": "deadcanary_demo",
+   "path": "not_null_stg_orders_order_id.sql",
+   "resource_type": "test",
+   "test_metadata": {
+    "kwargs": {
+     "column_name": "order_id",
+     "model": "{{ get_where_subquery(ref('stg_orders')) }}"
+    },
+    "name": "not_null",
+    "namespace": null
+   },
+   "unique_id": "test.deadcanary_demo.not_null_stg_orders_order_id.81cfe2fe64"
+  },
+  "test.deadcanary_demo.unique_orders_order_id.fed79b3a6e": {
+   "attached_node": "model.deadcanary_demo.orders",
+   "column_name": "order_id",
+   "name": "unique_orders_order_id",
+   "package_name": "deadcanary_demo",
+   "path": "unique_orders_order_id.sql",
+   "resource_type": "test",
+   "test_metadata": {
+    "kwargs": {
+     "column_name": "order_id",
+     "model": "{{ get_where_subquery(ref('orders')) }}"
+    },
+    "name": "unique",
+    "namespace": null
+   },
+   "unique_id": "test.deadcanary_demo.unique_orders_order_id.fed79b3a6e"
+  },
+  "test.deadcanary_demo.unique_stg_orders_order_id.e3b841c71a": {
+   "attached_node": "model.deadcanary_demo.stg_orders",
+   "column_name": "order_id",
+   "name": "unique_stg_orders_order_id",
+   "package_name": "deadcanary_demo",
+   "path": "unique_stg_orders_order_id.sql",
+   "resource_type": "test",
+   "test_metadata": {
+    "kwargs": {
+     "column_name": "order_id",
+     "model": "{{ get_where_subquery(ref('stg_orders')) }}"
+    },
+    "name": "unique",
+    "namespace": null
+   },
+   "unique_id": "test.deadcanary_demo.unique_stg_orders_order_id.e3b841c71a"
+  }
+ }
+}

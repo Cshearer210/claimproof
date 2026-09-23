@@ -35,8 +35,8 @@ from deadcanary.gate import (GreenTestsUnproven, attest, current_values, recheck
 from deadcanary.hunt import BROKE, KILLED, NOOP, SURVIVED, DbtProject, Outcome, hunt
 from deadcanary.mutations import CATALOGUE, Mutation, Target, discover, plan
 
-__version__ = "0.2.1"
-__all__ = [
+__version__ = "0.4.0"
+__all__ = ["Matrix", "kill_matrix", "render_matrix", 
     "DbtProject", "hunt", "Outcome",
     "KILLED", "SURVIVED", "NOOP", "BROKE",
     "Mutation", "Target", "CATALOGUE", "discover", "plan",
@@ -46,3 +46,9 @@ __all__ = [
     "GreenTestsUnproven", "attest", "recheck", "current_values", "suite_fingerprint",
     "__version__",
 ]
+
+from deadcanary.matrix import Matrix, kill_matrix, render_matrix  # noqa: E402
+from deadcanary.targeted import Aim, aims_from_manifest  # noqa: E402
+from deadcanary.equivalents import Equivalence, load as load_equivalents  # noqa: E402
+from deadcanary.sqlchecks import SqlChecksProject  # noqa: E402
+from deadcanary.safety import LooksLive, assert_not_live  # noqa: E402

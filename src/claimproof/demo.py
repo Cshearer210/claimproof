@@ -15,6 +15,8 @@ from claimproof import Case, Gate, Harness, SelftestError
 from claimproof.gates import UnbackedClaims
 from claimproof.hooks import BLOCK, stop_hook
 from claimproof.ledger import Ledger, NothingLeft
+from claimproof.core import Finding
+from claimproof.register import Register
 
 BAR = "-" * 68
 
@@ -37,6 +39,11 @@ class NeverFails(Gate):
     """Looks like a gate. Returns clean on everything. Nobody would notice."""
 
     name = "looks-fine"
+    #: Declared so `claimproof audit` reports this as exempt-with-a-reason
+    #: rather than as a finding. It is SUPPOSED to fail its own contract --
+    #: step 5 of the demo exists to show exactly that happening.
+    audit_exempt = ("a deliberately broken gate, used by the demo to show one "
+                    "being refused at construction")
 
     def inspect(self, text):
         return []
@@ -103,8 +110,68 @@ def main() -> int:
     code = h.run()
     print(f"  -> exit {code}")
 
+    print("\n7. A gate can pass its own selftest and still prove nothing.")
+    print(BAR)
+    from claimproof.audit import audit_gate
+
+    class GuardProvesNothing(Gate):
+        """Fires on the bad case, stays quiet on a guard with nothing in common."""
+
+        name = "guard-proves-nothing"
+
+        def inspect(self, text):
+            return [Finding("no receipt")] if "done, no receipt" in text else []
+
+        def selftest_cases(self):
+            return [Case("the migration is done, no receipt at all", True),
+                    Case("z", False)]
+
+    GuardProvesNothing().verify()      # its own contract is satisfied
+    print("  | verify() passes: it flags its bad case and leaves its guard alone")
+    verdict = audit_gate(GuardProvesNothing)
+    print(BAR)
+    print(f"  -> audit says {verdict.verdict}:")
+    for line in _wrapped(verdict.detail):
+        print(f"     {line}")
+
+    print("\n8. A finding stays red until something proves it is gone.")
+    print(BAR)
+    reg = Register()
+    reg.record("unbacked-claims", [Finding("claims done with no receipt")],
+               scope="turn-41")
+    reg.record("unbacked-claims", [Finding("claims done with no receipt")],
+               scope="turn-42")
+    red = reg.red()[0]
+    print(f"  | the same finding twice is one row, seen {red.times_seen}x")
+    closed, not_examined = reg.reconcile("unbacked-claims", [], scope="turn-42")
+    print("  | re-inspected turn-42: the finding is not there any more")
+    print(f"  | closed {len(closed)}, still waiting on {len(not_examined)}")
+    still = reg.red()
+    print(BAR)
+    if still:
+        print(f"  -> and {len(still)} stayed RED: {still[0].message}")
+        print("     it was found in turn-41, which nothing re-examined. Absent because")
+        print("     it was fixed and absent because nobody looked are not the same answer.")
+    else:
+        print("  -> nothing stayed red. THIS SHOULD NOT HAPPEN.")
+        return 1
+
     print("\nNothing above was mocked. Every verdict came from the real code.\n")
     return 0
+
+
+def _wrapped(text: str, width: int = 66) -> list[str]:
+    """Wrap a detail line so the demo stays inside a terminal and inside the SVG."""
+    words, line, out = text.split(), "", []
+    for w in words:
+        if len(line) + len(w) + 1 > width:
+            out.append(line)
+            line = w
+        else:
+            line = f"{line} {w}".strip()
+    if line:
+        out.append(line)
+    return out
 
 
 if __name__ == "__main__":
