@@ -5,7 +5,7 @@ the README points at. The subcommands are additions, never a change to that.
 """
 import sys
 
-_SUBS = {"demo", "audit", "register"}
+_SUBS = {"demo", "audit", "register", "check"}
 
 
 def main(argv=None) -> int:
@@ -18,6 +18,9 @@ def main(argv=None) -> int:
         return run(rest)
     if sub == "register":
         from claimproof.register import main as run
+        return run(rest)
+    if sub == "check":
+        from claimproof.report import main as run
         return run(rest)
     from claimproof.demo import main as run
     return run()

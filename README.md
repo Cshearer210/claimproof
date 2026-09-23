@@ -35,6 +35,20 @@ output drifts — the same standard the library holds everyone else to.*
 > hook installed under the old name is upgraded in place rather than doubled. Nothing you already
 > wired up breaks.
 
+## Drops into CI
+
+```bash
+python -m claimproof check reply.txt                 # every gate over a reply, human-readable
+python -m claimproof check reply.txt --format json   # for a script
+python -m claimproof check reply.txt --format sarif  # for GitHub code scanning / a dashboard
+python -m claimproof check reply.txt --root .        # also check cited files against the real repo (ground truth)
+```
+
+Exit `0` clean / `1` found something. Choose which gates run with a `.claimproof.json`
+(`{"select": [...], "ignore": [...]}` by gate name); silence one on a reply with a line
+`# claimproof: allow UnbackedClaims`. Add your own gate under the `claimproof.gates` entry point
+or a `claimproof_plugin_*` module exposing `GATES = [YourGate]`.
+
 ## What it actually does
 
 An agent finishes a turn and says the work is done. That sentence costs nothing to write and

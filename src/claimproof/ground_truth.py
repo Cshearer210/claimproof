@@ -35,9 +35,11 @@ __all__ = ["GroundTruth"]
 
 # a path-like token: a slash-bearing or extensioned path, quoted or bare
 _PATH = re.compile(r"[`'\"]?((?:~?/)?(?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]{1,6})[`'\"]?")
-# a line that ASSERTS an artifact exists / was produced
-_MADE = re.compile(r"\b(creat|wrote|writ|generat|saved|produc|output|wrote out|results? (?:are|is) in|"
-                   r"see|available (?:in|at)|find (?:it|them) in)\w*", re.I)
+# a line that ASSERTS an artifact was PRODUCED. Deliberately only strong production verbs -- a bare
+# "see X" or "in X" is a reference, not a claim of production, and flagging it is crying wolf (the
+# guard case "See core.py:41." must stay quiet).
+_MADE = re.compile(r"(creat|wrote|writ|generat|saved|produc|\boutput\b|"
+                   r"results?\s+(?:are\s+|is\s+)?in\b)", re.I)
 # a line that ASSERTS a named source is finished
 _DONE_IMPL = re.compile(r"\b(implement|finish|complet|wrote|add(?:ed)?)\w*\b", re.I)
 _PLACEHOLDER = re.compile(r"\bTODO\b|\bFIXME\b|raise NotImplementedError|^\s*pass\s*$|\.\.\.\s*$", re.M)
@@ -85,6 +87,10 @@ class GroundTruth(Gate):
                     continue
                 # ignore command-ish tokens and obvious non-artifacts
                 if tok.endswith((".", "/")) or " " in tok:
+                    continue
+                # a file:line reference (core.py:41) is a code location, not an artifact claim
+                after = line[m.end():m.end() + 2]
+                if after[:1] == ":" and after[1:2].isdigit():
                     continue
                 ap = self._abs(tok)
                 exists = os.path.exists(ap)
