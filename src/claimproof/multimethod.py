@@ -216,7 +216,9 @@ def _clean_const(node) -> bool:
 
 def _handlers(root: str):
     for dirpath, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", ".venv", "venv")]
+        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", ".venv",
+                   "venv", "build", "dist", ".tox", ".eggs", ".pytest_cache", "site-packages")
+                   and not d.endswith(".egg-info")]
         for fn in files:
             if not fn.endswith(".py"):
                 continue
@@ -234,6 +236,20 @@ def _reraises(h) -> bool:
     return any(isinstance(n, ast.Raise) for n in ast.walk(h))
 
 
+def _is_broad(h) -> bool:
+    """Only a BROAD catch (bare except, or Exception/BaseException) is the dangerous swallow.
+    `except OSError: return []` and other SPECIFIC catches returning a default are idiomatic and
+    must not be flagged (measured FP on real code 2026-09-23)."""
+    t = h.type
+    if t is None:
+        return True
+    if isinstance(t, ast.Name):
+        return t.id in ("Exception", "BaseException")
+    if isinstance(t, ast.Attribute):
+        return t.attr in ("Exception", "BaseException")
+    return False
+
+
 def _pass_only(h) -> bool:
     body = [s for s in h.body if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant)
                                       and isinstance(s.value.value, str))]  # ignore a docstring
@@ -249,7 +265,7 @@ def method_silent_swallow(root: str) -> list[Finding]:
     """The handler does nothing observable: pass-only, or returns a clean value, and never re-raises."""
     out = []
     for rel, h in _handlers(root):
-        if _reraises(h):
+        if _reraises(h) or not _is_broad(h):
             continue
         if _pass_only(h) or _returns_clean(h):
             out.append(Finding(
@@ -266,7 +282,7 @@ def method_returns_success_in_except(root: str) -> list[Finding]:
     """The handler returns a value that reads as SUCCESS (True/0/''/empty), disguising the failure."""
     out = []
     for rel, h in _handlers(root):
-        if _reraises(h):
+        if _reraises(h) or not _is_broad(h):
             continue
         if _returns_clean(h):
             out.append(Finding(

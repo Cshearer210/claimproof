@@ -124,7 +124,9 @@ def build_label_map(root: str) -> ConceptMap:  # nopop: walks an arbitrary TARGE
     """Walk a target repo and learn its labels per concept from behaviour."""  # not this system
     cm = ConceptMap()
     for dirpath, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", ".venv")]
+        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", ".venv",
+                   "venv", "build", "dist", ".tox", ".eggs", ".pytest_cache", "site-packages")
+                   and not d.endswith(".egg-info")]
         for fn in files:
             if not fn.endswith(".py"):
                 continue

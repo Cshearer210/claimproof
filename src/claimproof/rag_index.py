@@ -30,7 +30,8 @@ except ImportError:
     from finding import Finding, triangulate, Triangulated  # type: ignore
 
 GATE_WORDS = {"gate", "guard", "validate", "enforce", "verify", "check", "ensure"}
-_SKIP = {".git", "node_modules", "__pycache__", ".venv", "venv"}
+_SKIP = {".git", "node_modules", "__pycache__", ".venv", "venv", "build", "dist", ".tox", ".eggs",
+         ".pytest_cache", "site-packages"}
 
 
 def _params(fn):
