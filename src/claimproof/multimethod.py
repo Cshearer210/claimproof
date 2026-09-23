@@ -200,7 +200,89 @@ def method_return_ignored(root: str) -> list[Finding]:
     return out
 
 
-METHODS = {"test-cannot-fail": [method_weak_oracle, method_return_ignored]}
+# ---------------------------------------------------------------- swallowed-exception (absent-looks-clean)
+def _clean_const(node) -> bool:
+    """A value that disguises FAILURE as SUCCESS. True / 0 / '' / empty container. Deliberately NOT
+    None or False -- returning those after an error is a common, legitimate signal, not a disguise."""
+    if isinstance(node, ast.Constant):
+        v = node.value
+        return v is True or (isinstance(v, int) and not isinstance(v, bool) and v == 0) or v == ""
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return not node.elts
+    if isinstance(node, ast.Dict):
+        return not node.keys
+    return False
+
+
+def _handlers(root: str):
+    for dirpath, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", ".venv", "venv")]
+        for fn in files:
+            if not fn.endswith(".py"):
+                continue
+            rel = os.path.relpath(os.path.join(dirpath, fn), root)
+            try:
+                tree = ast.parse(open(os.path.join(dirpath, fn), encoding="utf-8", errors="replace").read())
+            except (SyntaxError, ValueError, OSError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ExceptHandler):
+                    yield rel, node
+
+
+def _reraises(h) -> bool:
+    return any(isinstance(n, ast.Raise) for n in ast.walk(h))
+
+
+def _pass_only(h) -> bool:
+    body = [s for s in h.body if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant)
+                                      and isinstance(s.value.value, str))]  # ignore a docstring
+    return len(body) == 1 and isinstance(body[0], (ast.Pass,))
+
+
+def _returns_clean(h) -> bool:
+    return any(isinstance(n, ast.Return) and n.value is not None and _clean_const(n.value)
+               for n in ast.walk(h))
+
+
+def method_silent_swallow(root: str) -> list[Finding]:
+    """The handler does nothing observable: pass-only, or returns a clean value, and never re-raises."""
+    out = []
+    for rel, h in _handlers(root):
+        if _reraises(h):
+            continue
+        if _pass_only(h) or _returns_clean(h):
+            out.append(Finding(
+                concept="read", defect_class="swallowed-exception",
+                location="%s:%d" % (rel, h.lineno),
+                signal="except handler swallows the error and continues (no re-raise)",
+                evidence="a failure here is turned into a normal-looking outcome",
+                method="silent-swallow", repo="claimproof", severity="high", confidence=0.7,
+                both_directions_proven=True, extra={"id_key": "swallow:%s:%d" % (rel, h.lineno)}))
+    return out
+
+
+def method_returns_success_in_except(root: str) -> list[Finding]:
+    """The handler returns a value that reads as SUCCESS (True/0/''/empty), disguising the failure."""
+    out = []
+    for rel, h in _handlers(root):
+        if _reraises(h):
+            continue
+        if _returns_clean(h):
+            out.append(Finding(
+                concept="read", defect_class="swallowed-exception",
+                location="%s:%d" % (rel, h.lineno),
+                signal="except handler returns a success-looking value (True/0/''/empty)",
+                evidence="the caller cannot tell this failed",
+                method="returns-success", repo="claimproof", severity="high", confidence=0.7,
+                both_directions_proven=True, extra={"id_key": "swallow:%s:%d" % (rel, h.lineno)}))
+    return out
+
+
+METHODS = {
+    "test-cannot-fail": [method_weak_oracle, method_return_ignored],
+    "swallowed-exception": [method_silent_swallow, method_returns_success_in_except],
+}
 
 
 def raw_findings(root: str) -> list[Finding]:
@@ -273,6 +355,29 @@ def selftest() -> int:
             print("FAIL: unittest constant-oracle test missed"); ok = False
     finally:
         shutil.rmtree(d, ignore_errors=True)
+
+    # swallowed-exception: return-clean-in-except -> corroborated; pass-only -> single; re-raise and
+    # legit fallback (return a variable / return None) -> NOT flagged
+    d5 = tempfile.mkdtemp(prefix="cp_sw_")
+    try:
+        write(d5, "s.py",
+              "def a():\n    try:\n        risky()\n    except Exception:\n        return True\n"      # corroborated
+              "def b():\n    try:\n        risky()\n    except Exception:\n        pass\n"              # silent-swallow only
+              "def c():\n    try:\n        risky()\n    except Exception as e:\n        raise\n"        # re-raises -> ok
+              "def d():\n    try:\n        risky()\n    except Exception:\n        return None\n"        # None -> ok
+              "def e(default):\n    try:\n        risky()\n    except Exception:\n        return default\n")  # fallback -> ok
+        tri5 = scan(d5)
+        sw = {t.location: t for t in tri5 if t.defect_class == "swallowed-exception"}
+        corr = [t for t in sw.values() if t.corroboration == 2]
+        single = [t for t in sw.values() if t.corroboration == 1]
+        if not corr:
+            print("FAIL: return-True-in-except should be corroborated ->", list(sw.values())); ok = False
+        if not single:
+            print("FAIL: pass-only except should be single-method ->", list(sw.values())); ok = False
+        if len(sw) != 2:
+            print("FAIL: re-raise / return-None / return-fallback must NOT be flagged ->", list(sw)); ok = False
+    finally:
+        shutil.rmtree(d5, ignore_errors=True)
 
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
