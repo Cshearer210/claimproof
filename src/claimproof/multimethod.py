@@ -240,8 +240,24 @@ def _handlers(root: str):
                     yield rel, node
 
 
+def _own_scope(node):
+    """Like ast.walk, but does not descend into a nested function/lambda/comprehension --
+    a return/raise defined THERE belongs to a different scope, not to NODE's own control
+    flow (measured false positive/negative on a handler that only defines+calls a helper,
+    2026-09-23)."""
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        yield n
+        for child in ast.iter_child_nodes(n):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda,
+                                   ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+                continue
+            stack.append(child)
+
+
 def _reraises(h) -> bool:
-    return any(isinstance(n, ast.Raise) for n in ast.walk(h))
+    return any(isinstance(n, ast.Raise) for n in _own_scope(h))
 
 
 def _announces(h) -> bool:
@@ -277,6 +293,13 @@ def _is_broad(h) -> bool:
         return t.id in ("Exception", "BaseException")
     if isinstance(t, ast.Attribute):
         return t.attr in ("Exception", "BaseException")
+    if isinstance(t, ast.Tuple):
+        for elt in t.elts:
+            if isinstance(elt, ast.Name) and elt.id in ("Exception", "BaseException"):
+                return True
+            if isinstance(elt, ast.Attribute) and elt.attr in ("Exception", "BaseException"):
+                return True
+        return False
     return False
 
 
@@ -288,7 +311,7 @@ def _pass_only(h) -> bool:
 
 def _returns_clean(h) -> bool:
     return any(isinstance(n, ast.Return) and n.value is not None and _clean_const(n.value)
-               for n in ast.walk(h))
+               for n in _own_scope(h))
 
 
 def method_silent_swallow(root: str) -> list[Finding]:
@@ -396,6 +419,26 @@ def method_unreachable_except(root: str) -> list[Finding]:
     return out
 
 
+def _terminates(stmt) -> bool:
+    """True when STMT exits every reachable path via return/raise -- recursing into an
+    exhaustive if/else or a try/except so a predicate ending in one is not wrongly judged
+    to fall through to implicit None (measured over-fire on ordinary if/else predicates,
+    2026-09-23)."""
+    if isinstance(stmt, (ast.Return, ast.Raise)):
+        return True
+    if isinstance(stmt, ast.If) and stmt.orelse:
+        return (bool(stmt.body) and _terminates(stmt.body[-1])
+                and bool(stmt.orelse) and _terminates(stmt.orelse[-1]))
+    if isinstance(stmt, ast.Try):
+        branches = [stmt.body] + [h.body for h in stmt.handlers]
+        if stmt.orelse:
+            branches.append(stmt.orelse)
+        if stmt.finalbody and stmt.finalbody[-1] and _terminates(stmt.finalbody[-1]):
+            return True
+        return bool(branches) and all(b and _terminates(b[-1]) for b in branches)
+    return False
+
+
 def method_predicate_returns_none(root: str) -> list[Finding]:
     """A predicate (is_/has_/can_/should_) that returns a real value on one path but can fall through
     to an implicit None -- None is falsy but is not False, so a caller doing `if not is_x()` behaves
@@ -409,7 +452,7 @@ def method_predicate_returns_none(root: str) -> list[Finding]:
                 returns_value = any(r.value is not None for r in returns)
                 bare_return = any(r.value is None for r in returns)
                 last = node.body[-1] if node.body else None
-                falls_through = not isinstance(last, (ast.Return, ast.Raise))
+                falls_through = last is None or not _terminates(last)
                 if returns_value and (bare_return or falls_through):
                     out.append(Finding(
                         concept="claim", defect_class="predicate-returns-none",
@@ -656,6 +699,77 @@ def selftest() -> int:
             print("FAIL[L298/L315-Or]: a re-raising handler was flagged despite raise ->", by3["r1.py"]); ok = False
     finally:
         shutil.rmtree(d3, ignore_errors=True)
+
+    # ---- mutation-hardening BLOCK D: nested-scope leak in _reraises/_returns_clean
+    #      (2026-09-23 confirmed defect #1)
+    d4 = tempfile.mkdtemp(prefix="cp_d_")
+    try:
+        # a handler that only defines+calls a NESTED helper returning True must NOT be
+        # flagged: the handler itself falls through to implicit None.
+        write(d4, "nest.py",
+              "def f():\n    try:\n        risky()\n    except Exception:\n"
+              "        def helper():\n            return True\n        helper()\n")
+        # the same shape for _reraises: a nested helper that raises must not count as
+        # the OUTER handler re-raising.
+        write(d4, "nestraise.py",
+              "def f():\n    try:\n        risky()\n    except Exception:\n"
+              "        def helper():\n            raise ValueError()\n        helper()\n"
+              "        return True\n")
+        tri4 = scan(d4)
+        by4 = {t.location.split(":")[0]: t for t in tri4}
+        if "nest.py" in by4:
+            print("FAIL[nested-scope]: a handler with only a nested-return helper was "
+                  "flagged as returning clean ->", by4["nest.py"]); ok = False
+        if "nestraise.py" not in by4:
+            print("FAIL[nested-scope]: a handler that itself returns True (nested raise "
+                  "does not count as the outer handler re-raising) was not flagged"); ok = False
+    finally:
+        shutil.rmtree(d4, ignore_errors=True)
+
+    # ---- mutation-hardening BLOCK E: redundant broad-tuple except clause
+    #      (2026-09-23 confirmed defect #3)
+    d6 = tempfile.mkdtemp(prefix="cp_e_")
+    try:
+        # a tuple that INCLUDES Exception is broad -- must be flagged like a bare except.
+        write(d6, "broadtuple.py",
+              "def a():\n    try:\n        risky()\n    except (Exception, ValueError):\n        pass\n")
+        # a tuple of only SPECIFIC types is still not broad -- must not be flagged
+        # (guards the existing zbroadtuple.py case from regressing).
+        write(d6, "specifictuple.py",
+              "def a():\n    try:\n        risky()\n    except (OSError, ValueError):\n        pass\n")
+        tri6 = scan(d6)
+        by6 = {t.location.split(":")[0]: t for t in tri6}
+        if "broadtuple.py" not in by6:
+            print("FAIL[broad-tuple]: except (Exception, ValueError) was not treated as "
+                  "broad"); ok = False
+        if "specifictuple.py" in by6:
+            print("FAIL[broad-tuple]: a tuple of only specific types was wrongly treated "
+                  "as broad ->", by6["specifictuple.py"]); ok = False
+    finally:
+        shutil.rmtree(d6, ignore_errors=True)
+
+    # ---- mutation-hardening BLOCK F: exhaustive if/else must terminate a predicate
+    #      (2026-09-23 confirmed defect #2)
+    d7 = tempfile.mkdtemp(prefix="cp_f_")
+    try:
+        # an if/else whose every branch returns a bool must NOT be flagged -- it can
+        # never fall through to None, even though its last statement is not itself a
+        # Return node.
+        write(d7, "ifelse.py",
+              "def is_valid(x):\n    if x:\n        return True\n    else:\n        return False\n")
+        # the genuinely-falling-through control (an if with NO else) must still fire.
+        write(d7, "noelse.py",
+              "def is_x(x):\n    if x:\n        return True\n")
+        tri7 = scan(d7)
+        by7 = {t.location.split(":")[0]: t for t in tri7}
+        if "ifelse.py" in by7:
+            print("FAIL[if-else-terminates]: an exhaustive if/else predicate was wrongly "
+                  "flagged as falling through ->", by7["ifelse.py"]); ok = False
+        if "noelse.py" not in by7:
+            print("FAIL[if-else-terminates]: an if with no else must still be flagged as "
+                  "falling through"); ok = False
+    finally:
+        shutil.rmtree(d7, ignore_errors=True)
 
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
