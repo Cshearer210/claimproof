@@ -51,6 +51,12 @@ class Finding:
     ignored_label: str = ""      # a label this detector deliberately did NOT rely on (portability proof)
     fixable_by: str = ""         # which repo/stage can fix it, "" = human decision
     status: str = "found"        # found | verified | fixed | regressed
+    source_span: str = ""        # the EXACT code span the finding points at ("file:start-end" or a
+                                 # short snippet) -- tighter than `location`, so a grader can re-open
+                                 # and diff it (bookmark #6: source-span-grounded findings)
+    evidence_strength: str = "unspecified"  # measured | cited | circumstantial | unspecified;
+                                 # "cited" = evidence is only a comment/docstring (the weak
+                                 # CITED-IS-CODE case) so a grader can discount it
     extra: dict[str, Any] = field(default_factory=dict)
 
     def identity(self) -> str:
@@ -137,6 +143,24 @@ def method_disagreements(findings: list[Finding]) -> list[str]:
     return out
 
 
+def _sarif_locations(location: str) -> list[dict]:
+    """A finding's `location` carries THREE shapes (see the Finding.location docstring): a plain
+    file:line, a pipe-joined duplicate path-set ("a/util.py | b/util.py"), or a structural locator
+    ("call-graph:orphan:mod.f"). Only the first is a real file position -- the other two must never
+    be emitted as a physicalLocation.uri, or the annotation points at a path that does not exist."""
+    if " | " in location:
+        # a duplicate found across more than one path -- one physicalLocation per real path.
+        paths = [p.strip() for p in location.split(" | ") if p.strip()]
+        return [{"physicalLocation": {"artifactLocation": {"uri": p}}} for p in paths]
+    path, sep, rest = location.partition(":")
+    if sep and rest.isdigit():
+        return [{"physicalLocation": {
+            "artifactLocation": {"uri": path},
+            "region": {"startLine": int(rest)}}}]
+    # a structural locator (no single file:line shape) -- a logical location, never a fabricated uri.
+    return [{"logicalLocations": [{"fullyQualifiedName": location}]}]
+
+
 def to_sarif(tri: list[Triangulated], tool_name: str) -> dict:
     """The ONE SARIF 2.1.0 emitter for every repo (one definition, many readers). Findings annotate
     code inline in GitHub's UI; corroboration is carried in the message so a reviewer sees how many
@@ -145,15 +169,12 @@ def to_sarif(tri: list[Triangulated], tool_name: str) -> dict:
     results = []
     for t in tri:
         rules[t.defect_class] = None
-        path, _, line = t.location.partition(":")
         results.append({
             "ruleId": t.defect_class,
             "level": "warning" if t.trust == "single-method" else "error",
             "message": {"text": "%s [%s] found by %d method(s): %s"
                         % (t.defect_class, t.trust, t.corroboration, ", ".join(t.methods))},
-            "locations": [{"physicalLocation": {
-                "artifactLocation": {"uri": path},
-                "region": {"startLine": int(line) if line.split("|")[0].strip().isdigit() else 1}}}],
+            "locations": _sarif_locations(t.location),
         })
     return {"$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0",
             "runs": [{"tool": {"driver": {"name": tool_name,
@@ -188,12 +209,23 @@ def selftest() -> int:
     if tri2[0].trust != "single-method":
         print("FAIL: one method should be single-method ->", tri2[0].trust); ok = False
 
+    # 4b. source-span schema (bookmark #6): the two new fields round-trip through to_json, and the
+    # defaults are safe for every finding that does not set them.
+    fs = Finding("read", "swallowed-exception", "svc.py:12", "except: pass swallows all",
+                 method="ast", source_span="svc.py:12-14", evidence_strength="measured")
+    d = json.loads(fs.to_json())
+    if d.get("source_span") != "svc.py:12-14" or d.get("evidence_strength") != "measured":
+        print("FAIL: source_span/evidence_strength must round-trip ->", d); ok = False
+    if json.loads(f_other.to_json()).get("evidence_strength") != "unspecified":
+        print("FAIL: evidence_strength must default to 'unspecified'"); ok = False
+
     # 5. method_disagreements: one method flags a spot, another clears it -> a finding.
     flag = Finding("test", "dead-canary", "t_a.py:1", "mutation survived", method="mutation")
     clr = Finding("test", "clean-verdict", "t_a.py:1", "asserts on real return", method="ast")
     dis = method_disagreements([flag, clr])
-    if len(dis) != 1:
-        print("FAIL: a flag+clear on one location should disagree ->", dis); ok = False
+    #    and it names the RIGHT direction: mutation flagged it, ast cleared it (not the reverse).
+    if len(dis) != 1 or "flagged by {mutation}" not in dis[0] or "called clean by {ast}" not in dis[0]:
+        print("FAIL: a flag+clear on one location should disagree, naming who flagged vs cleared ->", dis); ok = False
 
     # 6. two methods that BOTH flag (no clear) do NOT count as a disagreement
     dis2 = method_disagreements([f_ast, f_mut])
@@ -203,6 +235,66 @@ def selftest() -> int:
     # 7. concept must be a known concept (portability contract)
     if f_ast.concept not in CONCEPTS:
         print("FAIL: concept not in the shared list"); ok = False
+
+    # 8. corroboration >=2 but NO method proved both directions -> 'multi-method', NOT corroborated.
+    #    This is the whole trust ladder: two methods AGREEING is only trustworthy once at least one
+    #    of them proved it fires on known-bad and stays quiet on known-good (both_directions).
+    g1 = Finding("wire", "function-unwired", "m.py:5", "no caller", method="ast")
+    g2 = Finding("wire", "function-unwired", "m.py:5", "no caller", method="callgraph")
+    t8 = triangulate([g1, g2])
+    if t8[0].corroboration != 2 or t8[0].trust != "multi-method":
+        print("FAIL: 2 methods, neither proven, must be multi-method not corroborated ->",
+              t8[0].trust); ok = False
+
+    # 9. triangulate sorts most-corroborated FIRST (a reader trusts the lead).
+    t9 = triangulate([g1, g2, f_other])
+    if t9[0].corroboration != 2 or t9[-1].corroboration != 1:
+        print("FAIL: triangulate must sort most-corroborated first ->",
+              [x.corroboration for x in t9]); ok = False
+
+    # 10. to_json serialises faithfully AND deterministically (sorted keys -> stable diffs).
+    d = json.loads(f_ast.to_json())
+    if d.get("defect_class") != "no-clean-without-looking" or "concept" not in d \
+            or d.get("both_directions_proven") is not True:
+        print("FAIL: to_json must serialise the finding faithfully ->", d); ok = False
+    if not f_ast.to_json().startswith('{"both_directions_proven"'):
+        print("FAIL: to_json must sort keys (stable output)"); ok = False
+
+    # 11. SARIF: a corroborated finding is an error, a single-method lead is a warning, rules listed.
+    sar = to_sarif(triangulate([f_ast, f_mut, f_other]), "test-tool")
+    #    check the level attaches to the RIGHT finding (a swapped mapping keeps the level SET
+    #    identical, so asserting the set alone cannot catch it) -- key off each message's trust word.
+    lvl = {}
+    for r in sar["runs"][0]["results"]:
+        for word in ("corroborated", "single-method"):
+            if word in r["message"]["text"]:
+                lvl[word] = r["level"]
+    if lvl.get("corroborated") != "error" or lvl.get("single-method") != "warning":
+        print("FAIL: SARIF level must follow trust (corroborated=error, single-method=warning) ->",
+              lvl); ok = False
+    if not sar["runs"][0]["tool"]["driver"]["rules"]:
+        print("FAIL: SARIF must list the rule ids"); ok = False
+
+    # 12. SARIF must never fabricate a physicalLocation for a non-file:line location -- a
+    #     pipe-joined duplicate path-set becomes one physicalLocation per real path, and a
+    #     structural locator becomes a logicalLocation, never a truncated/garbled uri.
+    f_pipe = Finding("read", "same-content-duplicate", "a/util.py | b/util.py", "",
+                      method="same-content", both_directions_proven=True, severity="high")
+    f_struct = Finding("wire", "function-unwired", "call-graph:orphan:mod.f", "no caller",
+                        method="callgraph")
+    sar2 = to_sarif(triangulate([f_pipe]), "test-tool")
+    locs = sar2["runs"][0]["results"][0]["locations"]
+    uris = [l.get("physicalLocation", {}).get("artifactLocation", {}).get("uri") for l in locs]
+    if uris != ["a/util.py", "b/util.py"]:
+        print("FAIL: pipe-joined location must become one physicalLocation per real path ->",
+              locs); ok = False
+
+    sar3 = to_sarif(triangulate([f_struct]), "test-tool")
+    locs3 = sar3["runs"][0]["results"][0]["locations"]
+    if "physicalLocation" in locs3[0] or \
+            locs3[0].get("logicalLocations", [{}])[0].get("fullyQualifiedName") != "call-graph:orphan:mod.f":
+        print("FAIL: a structural locator must become a logicalLocation, never a fabricated uri ->",
+              locs3); ok = False
 
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
