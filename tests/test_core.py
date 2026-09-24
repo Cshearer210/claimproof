@@ -192,6 +192,33 @@ DELIBERATELY_UNVERIFIABLE = {
 }
 
 
+def _ledger_fixture():
+    """A NothingLeft built on a ledger with a known-open item."""
+    from claimproof.ledger import Ledger, NothingLeft
+
+    led = Ledger()
+    led.ask("fix the parser")
+    return NothingLeft(led)
+
+
+def _register_fixture():
+    """A StillRed built on a register with a known-red finding."""
+    from claimproof.core import Finding
+    from claimproof.register import Register, StillRed
+
+    reg = Register()
+    reg.record("fixture-gate", [Finding("a claim with no receipt")], scope="fixture")
+    return StillRed(reg)
+
+
+#: Gates that take constructor arguments, and how to build one for verification.
+#: A gate missing from here is reported by the test below rather than skipped.
+ARGUMENT_FIXTURES = {
+    "claimproof.ledger.NothingLeft": _ledger_fixture,
+    "claimproof.register.StillRed": _register_fixture,
+}
+
+
 def test_every_gate_the_library_ships_proves_itself_in_both_directions():
     """The rule applies to us first. A library that exempts itself teaches nothing."""
     gates = _shipped_gates()
@@ -204,19 +231,41 @@ def test_every_gate_the_library_ships_proves_itself_in_both_directions():
         try:
             gate = cls()
         except TypeError:
-            needs_arguments.append(path)     # built by its own module's tests, with a fixture
-            continue
+            # It takes an argument. Build it with a fixture and VERIFY it rather
+            # than excusing it: the old version kept a hand-written list of
+            # gates it skipped, so each new one was covered by nothing until
+            # somebody remembered to add it. A gate with no fixture still
+            # announces itself below.
+            factory = ARGUMENT_FIXTURES.get(path)
+            if factory is None:
+                needs_arguments.append(path)
+                continue
+            gate = factory()
         cases = gate.selftest_cases()
-        assert any(c.expect_flagged for c in cases), f"{path}: no case it is required to flag"
-        assert any(not c.expect_flagged for c in cases), f"{path}: no guard case to leave alone"
-        gate.verify()
+        if cases:
+            assert any(c.expect_flagged for c in cases), \
+                f"{path}: no case it is required to flag"
+            assert any(not c.expect_flagged for c in cases), \
+                f"{path}: no guard case to leave alone"
+            gate.verify()
+        else:
+            # A gate answering against LIVE state cannot declare class-level
+            # cases: a must-flag case would only be valid while something
+            # happened to be open. Those gates override verify() and prove
+            # themselves against a fixture instead. The bar is not lowered --
+            # verify() must come back having actually checked something, so a
+            # gate that declares nothing AND checks nothing still fails here.
+            proved = gate.verify()
+            assert proved, (
+                f"{path}: declares no selftest cases and its verify() checked "
+                f"nothing either, so nothing about it has ever been proven")
         checked.append(path)
 
     # State the denominator rather than a bare pass, and make a new unbuildable
     # gate announce itself instead of quietly falling out of coverage.
-    assert needs_arguments == ["claimproof.ledger.NothingLeft"], (
-        f"the set of gates this test cannot construct changed: {needs_arguments}. "
-        f"Give the new one a fixture here, or it is not covered by anything."
+    assert needs_arguments == [], (
+        f"these gates take constructor arguments and have no fixture, so nothing "
+        f"here verifies them: {needs_arguments}. Add one to ARGUMENT_FIXTURES."
     )
     assert len(checked) >= 3, f"only verified {checked}"
 

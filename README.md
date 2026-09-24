@@ -25,7 +25,7 @@ python -m claimproof.demo
 
 ![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](https://raw.githubusercontent.com/Cshearer210/claimproof/main/assets/demo.svg)
 
-*The first four acts of `python -m claimproof.demo`, drawn from the demo's real output.
+*The first four of eight acts of `python -m claimproof.demo`, drawn from the demo's real output.
 `tools/render_demo_svg.py` regenerates this image from a live run and refuses to render if the
 output drifts — the same standard the library holds everyone else to.*
 
@@ -35,18 +35,24 @@ output drifts — the same standard the library holds everyone else to.*
 > hook installed under the old name is upgraded in place rather than doubled. Nothing you already
 > wired up breaks.
 
-## The number this exists for
+## What it actually does
 
-**18,008 real agent runs ended with a confident claim of success. 12,578 of them had not fixed
-anything** — 69.8%, measured against the maintainers' own test suites across 73,269 completed
-runs. And claims carrying no evidence failed 83.0% of the time against 69.2% for claims that
-showed something, so an agent that shows its work is measurably more likely to be right.
+An agent finishes a turn and says the work is done. That sentence costs nothing to write and
+reads identically whether the work happened or not — which is the whole problem, because the
+next decision gets made on it.
 
-Measured with the gate below, unmodified, over a public CC-BY dataset. Method, limits and the
-script that reproduces it: **[FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/FINDINGS.md)**.
+`claimproof` reads the reply before the turn can end and asks one question of every completion
+claim: **is there evidence for this within a few lines of it?** A test result, a captured exit
+code, a diff, a file and line, real command output. If there is, the turn goes through untouched.
+If the claim is standing on its own, it is refused and the agent is told what is missing.
 
 Hedged language passes on purpose. A claim that admits its own uncertainty is the honest case,
 and a gate that punishes honesty teaches agents to be vague instead of accurate.
+
+It was tested against a public dataset of real agent runs before it was published, and the
+result, the method and the limits are all in
+**[FINDINGS.md](https://github.com/Cshearer210/claimproof/blob/main/FINDINGS.md)** — including
+the finding that claims showing their work are measurably more likely to be right.
 
 ## A gate is unproven in BOTH directions until you prove it
 
@@ -131,9 +137,14 @@ conversational turns are never inspected: only turns that actually edited files 
 work are held to the standard, because a hook that nags small talk gets uninstalled, and then it
 catches nothing.
 
+It wires two events, because they answer different questions. `PostToolUse` records what each
+command really did, while the result is still a fact. `Stop` judges the finished reply against
+those records. Either alone is half a gate: the recorder blocks nothing, and the judge has nothing
+to read.
+
 `install` merges into `.claude/settings.json` without touching anything else in it, running it
-twice adds one entry not two, `uninstall` removes exactly that entry, and a settings file that
-does not parse is refused loudly rather than replaced. Errors at runtime allow the turn *and say
+twice adds nothing the second time, `uninstall` removes exactly our entries and leaves a stranger's
+hooks alone, and a settings file that does not parse is refused loudly rather than replaced. Errors at runtime allow the turn *and say
 so on stderr* — an announced skip, never a silent one, for exactly the reason `gates.SilentSkip`
 exists.
 
@@ -154,10 +165,70 @@ raise SystemExit(run_stop_hook([UnbackedClaims()]))   # JSON on stdin, exit 2 bl
 ```
 
 There is a `pre_tool_use_hook` too, for refusing a write that would violate a declared invariant
-before it lands rather than catching it in review.
+before it lands rather than catching it in review — and a `post_tool_use_hook`, which is the
+subject of the next section.
 
 Malformed input fails **open**. A hook that wedges every turn gets deleted within the hour, and a
 deleted hook protects nothing.
+
+## The exit code is gone by the time the sentence is written
+
+A command's exit code exists only while the process is being reaped. By the time a reply says how
+it went, the number is a memory — and in prose a memory and a measurement are the same shape.
+That is the gap every gate below is aimed at, and it is why recording has to happen at the moment
+of the run rather than at the moment of the claim.
+
+<!-- fresh-eyes: illustration -->
+```python
+from claimproof import capture
+
+ran = capture.run(["pytest", "-q"])     # also writes: [claimproof:exit] 1 pytest -q
+```
+
+Wired into Claude Code, you do not call that yourself: the `PostToolUse` hook records every
+command's real exit code as it happens, and the `Stop` hook reads them back before judging the
+reply. Four gates then check a sentence against evidence rather than against itself.
+
+| gate | reads | refuses |
+|---|---|---|
+| `GitDiffUnbacked` | `git diff --stat` in the turn | "fixed `parser.py`" when the diff touches `other.py` |
+| `ExitCodeMismatch` | exit codes captured when commands ran | "all tests pass" when every captured command failed |
+| `UnbackedTestCount` | the JUnit XML the turn names | "all 105 tests pass" over a report holding 3 failures |
+| `CIStatusUnbacked` | the CI provider, asked through `gh` | "CI is green" when 3 of 18 checks are failing |
+| `MergeDroppedASide` | the merge receipt in the turn | "merged both copies" over `git merge -X ours`, which took one whole |
+| `ArtifactNameMismatch` | the filenames the turn's own commands wrote | "results are in `verdict.json`" when it wrote `verdict-linux.json` |
+| `UnreadSource` | whether the named file was OPENED or only searched | "I read through `NOTES.md`" backed by nothing but grep hits |
+
+### Three of those check the work you did, not the sentence you wrote
+
+`MergeDroppedASide` is the one people argue with until they have lost a day to it. Taking one side
+of a merge whole is a normal thing to do and git says nothing unusual when you do it: `-X ours`
+exits 0, `--force` exits 0, `cp` exits 0. The turn afterwards says "merged", because that is the
+word a person would use — and the side that was dropped leaves no trace in any output. So the gate
+needs two things at once before it speaks: a claim covering TWO sides, and a receipt that took one
+of them whole. A turn that says "I took the server copy" is honest and is never flagged.
+
+`ArtifactNameMismatch` fires only on a NEAR miss — your own output writes
+`regression-verdict-linux.json` and your sentence cites `regression-verdict.json`. A missing file
+fails loudly the first time somebody opens it; a nearly-right name fails silently forever, because
+the reader finds nothing and reports "no results yet", which is indistinguishable from a clean run.
+
+`UnreadSource` asks about the INPUT rather than the output, which no other gate here does. A turn
+can carry real, plentiful, correct evidence — genuine grep output, real match counts — and still
+rest on a file nobody opened. Search output looks like a reading receipt because it contains the
+file's own text. Saying "I searched X" is honest and is never flagged; the failure is calling a
+search a reading.
+
+Each stays silent when its evidence is absent — no diff, no receipt, no named report, no CI
+lookup. That restraint is the load-bearing part. A gate that fires on an ordinary turn does not
+look broken, it looks like a discovery, and it gets uninstalled inside a week, taking the real
+cases with it. So `ExitCodeMismatch` fires only when **every** captured command failed, because a
+`grep` that finds nothing exits 1 and that is not a defect.
+
+The other direction matters just as much. A CI lookup that failed and a suite that passed produce
+the same silence, so every way the lookup can fail — no `gh`, not authenticated, no network, a repo
+that does not exist, a ref with no runs yet — comes back as `unknown`, and `unknown` never reads as
+green.
 
 ## Integrations
 
@@ -200,6 +271,59 @@ record instead of into the void. Partial claims ("done with the parser fix") pas
 of *total* completion is checked against the list, and a true "all done" over a clear list passes
 untouched. There is a CLI for harnesses that drive it from outside:
 `python -m claimproof.ledger ask|split|done|skip|show|gate`.
+
+## The check on the checks — `claimproof audit`
+
+`Gate.verify()` asks whether a gate's cases agree with its code. Both were written by the same
+hand, so a gate can pass that and still rest on nothing: a must-fire case that something else
+happens to flag, a guard case with nothing in common with the bad one.
+
+`audit` answers it by MUTATION rather than by opinion. It neuters the gate — `inspect` returns
+nothing — and every must-fire case has to break. Then it jams the gate open — `inspect` fires on
+everything — and every guard case has to break. A gate that survives either mutation has cases
+that do not depend on it.
+
+```console
+$ python -m claimproof audit claimproof.gates
+  proven   unbacked-claims   25 cases (8 must-fire, 17 guard)
+           fails when neutered, fails when jammed open, and its closest guard is 0.72 similar
+           to a must-fire case
+  ...
+11 of 11 auditable gate(s) proven under 'claimproof.gates'
+```
+
+It discovers gates by walking the module, never from a list of class names, so one added next week
+is audited without anyone remembering. **Exit 0 every gate proven, 1 something unproven, 2 could
+not tell — and finding NO gates is 2, never 0.** A gate that takes constructor arguments is
+reported `unknown` rather than broken, because `NothingLeft(ledger)` is built that way on purpose;
+a gate may also declare `audit_exempt = "why"` about itself, and the reason is printed.
+
+## A finding stays red until something proves it is gone — `Register`
+
+`Ledger` tracks what was ASKED. `Register` tracks what was FOUND, and they fail differently: an
+ask is lost by being forgotten, a finding is lost by being rediscovered forever and never closed.
+A finding written as prose has no state, so each run rediscovers it and nothing ever closes.
+
+<!-- fresh-eyes: illustration -->
+```python
+from claimproof import Register
+
+reg = Register("problems.json")
+reg.record("unbacked-claims", gate.inspect(turn), scope="turn-41")
+...
+closed, not_examined = reg.reconcile("unbacked-claims", gate.inspect(turn), scope="turn-41")
+reg.close("a1b2c3d4", "pytest: 7 passed, the claim now carries its receipt")
+```
+
+**The hard part is absence.** When a gate stops reporting something it was either fixed or not
+looked at, and those are identical from outside. So `reconcile()` takes the scope that was
+actually examined and closes only findings inside it; everything else stays red and comes back as
+NOT RE-EXAMINED. Closing by hand needs evidence and refuses bare claim-words. A finding that
+reappears after being closed goes red again, and `rediscovered()` surfaces the ones reported over
+and over — the number that shows detection is working and nothing is being fixed.
+
+`StillRed` is the enforcement end: a gate that refuses "everything is clean" while the board is
+not.
 
 ## Checks that look at the world, not the code
 

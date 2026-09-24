@@ -12,12 +12,14 @@ rather than a rewrite.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from typing import Callable, Iterable, Sequence
 
+from claimproof import capture, evidence
 from claimproof.core import Finding, Gate
 
-__all__ = ["BLOCK", "ALLOW", "stop_hook", "pre_tool_use_hook", "gate_invariant",
+__all__ = ["BLOCK", "ALLOW", "stop_hook", "pre_tool_use_hook", "post_tool_use_hook", "gate_invariant",
            "run_stop_hook"]
 
 #: Tools whose payload carries text about to be written to a file.
@@ -69,12 +71,17 @@ def stop_hook(payload: dict, gates: Iterable[Gate]) -> tuple[int, str]:
     here instead of quietly waving the turn through.
 
     The payload comes from someone else's runtime, so its fields are whatever
-    that runtime sends -- a number, a list of content blocks, a nested dict.
-    Found 2026-08-07 by feeding it hostile payloads: a non-string `text` raised
-    TypeError and took the whole turn down. A gate that kills the turn it was
-    guarding gets uninstalled, so anything text-shaped is read as text and
-    anything else is treated as no text at all.
+    that runtime sends -- a number, a list of content blocks, a nested dict, or
+    not a dict at all. Found 2026-08-07 by feeding it hostile payloads: a
+    non-string `text` raised TypeError and took the whole turn down. Found
+    2026-09-16, same class: `payload=None` (or a list, or a bare string) reached
+    `payload.get(...)` unguarded and raised AttributeError -- one layer up from
+    the first hostile-FIELD case. A gate that kills the turn it was guarding
+    gets uninstalled, so anything text-shaped is read as text and anything else
+    -- including a malformed payload itself -- is treated as no text at all.
     """
+    if not isinstance(payload, dict):
+        payload = {}
     text = _as_text(payload.get("text") or payload.get("message")
                     or payload.get("transcript") or "")
 
@@ -210,3 +217,100 @@ def run_stop_hook(gates: Iterable[Gate], stream=None) -> int:
     if message:
         print(message, file=sys.stderr)
     return code
+
+
+#: Tools whose payload is a command with a real exit code behind it.
+RUN_TOOLS = ("Bash", "bash", "shell", "run_command", "execute_command")
+
+
+def _exit_code_of(response) -> int | None:
+    """The exit code a runtime reported, or None if it reported none.
+
+    Runtimes disagree about this field, so several spellings are accepted. What
+    is NOT done here is inferring failure from the presence of stderr: plenty of
+    healthy commands write to stderr, and a gate built on that guess would fire
+    on ordinary turns and be uninstalled. No code reported means no code known.
+    """
+    if isinstance(response, dict):
+        for key in ("exit_code", "exitCode", "returncode", "return_code", "code", "status"):
+            v = response.get(key)
+            if isinstance(v, bool):
+                continue
+            if isinstance(v, int):
+                return v
+            if isinstance(v, str) and re.fullmatch(r"-?\d+", v.strip()):
+                return int(v.strip())
+        err = response.get("is_error", response.get("isError"))
+        if isinstance(err, bool):
+            return 1 if err else 0
+    return None
+
+
+def post_tool_use_hook(
+    payload: dict,
+    gates: Iterable[Gate] = (),
+    session: str | None = None,
+    store: bool = True,
+) -> tuple[int, str]:
+    """Record what a tool just really did, and judge the claim attached to it.
+
+    `stop_hook` runs once, at the end, when every exit code has already become
+    a memory. This runs after each tool call, while the result is still a fact,
+    and it does two things:
+
+    * **Records the real exit code** as a receipt, so `ExitCodeMismatch` has
+      something to check the final reply against. This is the half that makes
+      that gate work outside a demo -- without it, a turn's text carries a
+      captured exit code only if the author remembered to use `capture.run`.
+    * **Judges any claim carried in the same tool call** against the evidence
+      just produced -- a commit message, a file being written -- so a false
+      intermediate claim is caught before the rest of the task is built on it.
+
+    Returns (exit_code, message). BLOCK means the message goes back to the
+    agent; the tool has already run, so this is a correction rather than a veto.
+    A call with nothing to judge returns ALLOW, quietly, which is almost all of
+    them.
+    """
+    if not isinstance(payload, dict):
+        payload = {}
+    tool = str(payload.get("tool_name") or payload.get("tool") or "")
+    tool_input = payload.get("tool_input") or payload.get("input") or {}
+    response = payload.get("tool_response") or payload.get("output") or {}
+    session = session or str(payload.get("session_id") or payload.get("session") or "unknown")
+
+    receipt_line = ""
+    if tool in RUN_TOOLS or tool.lower() in {t.lower() for t in RUN_TOOLS}:
+        code = _exit_code_of(response)
+        command = ""
+        if isinstance(tool_input, dict):
+            command = str(tool_input.get("command") or tool_input.get("cmd") or "")
+        if code is not None and command:
+            receipt_line = capture.receipt(command, code)
+            if store:
+                evidence.record(session, receipt_line)
+
+    gates = list(gates)
+    if not gates:
+        return ALLOW, ""
+
+    # What this call itself said, plus what it actually produced. Both, because
+    # a claim is only wrong relative to its own evidence.
+    said = _as_text(tool_input) if not isinstance(tool_input, dict) else "\n".join(
+        str(tool_input[f]) for f in ("command", "description", "message", "content",
+                                     "new_string", "text")
+        if tool_input.get(f))
+    text = "\n".join(p for p in (receipt_line, said, _as_text(response)) if p)
+    if not text.strip():
+        return ALLOW, ""
+
+    findings: list[Finding] = []
+    for gate in gates:
+        findings.extend(gate.check(text))
+    if not findings:
+        return ALLOW, ""
+
+    return BLOCK, _render(
+        findings,
+        "Mid-task claim does not match what that tool call actually produced.",
+        "Correct it now, before the rest of the task is built on it.",
+    )

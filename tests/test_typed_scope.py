@@ -25,7 +25,7 @@ def test_its_own_selftest_cases_all_hold():
 
 @pytest.mark.parametrize("source", [
     'def roots():\n    return ["/srv/app", "/opt/data"]',  # noscope: must-fail fixture
-    'SCAN_ROOTS = ["/home/me/projects"]',  # noscope: must-fail fixture
+    'SCAN_ROOTS = ["/home/me/projects"]',  # noscope: must-fail fixture; synthetic-path: invented user
     'search_paths = ["/var/a", "/var/b", "/var/c"]',  # noscope: must-fail fixture
     'anchors = ["C:\\\\Work"]',  # noscope: must-fail fixture
     'BASE_DIRS = ["/opt/one", "/opt/two"]',  # noscope: must-fail fixture
@@ -37,7 +37,7 @@ def test_a_typed_population_is_flagged(source):
 @pytest.mark.parametrize("source", [
     'LOGFILE = "/var/log/app.log"',
     'ROOT = "/srv/app"',
-    'CONFIG = "/home/me/.config/thing.toml"',
+    'CONFIG = "/home/me/.config/thing.toml"',  # synthetic-path: invented user
     "roots = discover_roots()",
     "roots = [p for p in Path('/').iterdir()]",
     'SCAN_ROOTS = ["/srv/only-mount"]  # noscope: one known mount, not a population',

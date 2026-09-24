@@ -6,6 +6,53 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Three gates ported from tools that caught real incidents**, each shipping with its own
+  must-fire cases, guard cases, and fixtures:
+  - `MergeDroppedASide` — a claim that two sides were combined, next to a receipt that took one
+    side whole (`-X ours`, `checkout --theirs`, `--force`, "kept the newer copy"). Double-keyed:
+    it needs the two-sided claim AND the one-sided receipt, because either alone is ordinary
+    work. A real merge receipt anywhere in the turn clears it.
+  - `ArtifactNameMismatch` — a claim citing a file by a name the turn's own output spells
+    differently. Fires only on a NEAR miss, so a file simply not shown stays `UnbackedClaims`'
+    question and one defect never produces two findings.
+  - `UnreadSource` — a claim to have READ a named file where the only receipt is a search. The
+    one gate here that checks the INPUT rather than the outcome. "I searched X" is honest and is
+    never flagged.
+- **`python -m claimproof audit` — the check on the checks.** Proves each gate's own selftest
+  cases are load-bearing, by MUTATION: neuter the gate and every must-fire case must break; jam
+  it open and every guard case must break. Also rejects a guard case too dissimilar from any
+  must-fire case to prove the gate discriminates (floor 0.25, proven by moving it in both
+  directions). Discovers gates by walking, never from a typed list. Exit 0 / 1 / 2, and an audit
+  that found NO gates exits 2 — a tool that looked at nothing must not report clean.
+- **`claimproof.Register` — findings stay red until something proves they are gone.** One row per
+  defect by fingerprint, so finding it again raises a count instead of making a new row.
+  `reconcile(gate, findings, scope)` closes only what was inside the scope actually examined and
+  reports everything else as NOT RE-EXAMINED, because absent-and-fixed and never-looked-at are
+  identical from outside. Closing needs evidence and refuses bare claim-words; a finding that
+  comes back goes red again. `StillRed` refuses "everything is clean" while the board is not.
+- `python -m claimproof` now dispatches `demo` (still the default), `audit` and `register`.
+
+### Fixed
+- **A false pass in `NothingLeft.verify()` and `StillRed.verify()`.** Both built their internal
+  probe as `class _Probe(NothingLeft)`, naming the module-level class, so a SUBCLASS overriding
+  `inspect` verified the PARENT's behaviour and reported itself proven. Both now build the probe
+  from `type(self)`. Found by a test that tried to mutate one of them and could not.
+- `_COMBINE_CLAIM` bounded its span with `[^.\n]`, which stops at the dot inside `tools.py`, so
+  "Merged tools.py and tools_old.py" was truncated to "Merged tools" and the second side vanished.
+  A dot is now allowed inside a word and still ends the sentence elsewhere, with a guard case
+  holding that boundary.
+- `audit.main()` read `--selftest` off `sys.argv` instead of its own argument, so the flag worked
+  from a shell and silently did nothing when called as a library.
+- Auditing the whole package reported the audit's OWN fixture gates as findings. The module now
+  excludes itself from its population, by identity rather than by name.
+- Discovering a package DIRECTORY loaded its files one at a time, giving each a top-level module
+  name, so `crewai.py` dropped out with "attempted relative import with no known parent package".
+  A directory holding `__init__.py` is imported as a package.
+
+
+## [0.3.0] - 2026-09-16
+
+### Added
 - **deadcanary: a `--baseline`/`--update-baseline` CI ratchet.** `--expect-dead N` demands
   an exact count and breaks the moment a healthy test suite grows, so it gets deleted
   rather than fixed. `--baseline PATH` asks the narrower question a CI gate actually

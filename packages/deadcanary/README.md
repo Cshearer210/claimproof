@@ -70,6 +70,10 @@ pip install deadcanary[demo]
 python -m deadcanary.demo
 ```
 
+![A real run: fourteen corruptions applied to a dbt project, and the green tests that none of them could make fail](https://raw.githubusercontent.com/Cshearer210/claimproof/main/packages/deadcanary/assets/demo.gif)
+
+*A real run against the demo warehouse that ships inside the package. Every number on screen came from that run, not from a mock-up.*
+
 ![A dbt project is built, its data is corrupted on purpose one column at a time, and the tests that never noticed are named. Two of seven green tests turn out to be incapable of failing.](https://raw.githubusercontent.com/Cshearer210/claimproof/main/packages/deadcanary/assets/demo.svg)
 
 *A live run of `python -m deadcanary.demo` — the mutation hunt and the two tests that never
@@ -94,6 +98,35 @@ cd src/deadcanary/_demo && dbt build --profiles-dir . && cd ../../..   # 10 gree
 python -m deadcanary src/deadcanary/_demo
 ```
 
+## Working on deadcanary itself
+
+The block above installs deadcanary for USE. Running the test suites from a clone needs
+both halves of the repo, with their dev extras -- the deadcanary tests import
+`claimproof`, and the measurement tool needs `pyarrow` to read its dataset.
+
+These exact commands are what CI's `deadcanary` job installs and runs on every push,
+so if this drifts, that job goes red rather than the docs going quietly wrong. They are
+not run by `tools/readme_runs.py`, which executes the quickstart blocks against a
+throwaway clone and cannot clone into itself:
+
+<!-- readme: illustration -->
+```bash
+git clone https://github.com/Cshearer210/claimproof
+cd claimproof
+python -m venv .venv && . .venv/bin/activate
+pip install -e ".[dev,dbt]"                    # claimproof, the other half
+pip install -e "./packages/deadcanary[dev]"    # deadcanary, editable
+
+pytest tests                                   # claimproof's suite
+pytest packages/deadcanary/tests               # deadcanary's suite
+```
+
+Miss the second install and the deadcanary tests cannot import the package, so they
+error during collection and read like a broken suite rather than a missing step. Miss
+`[dev]` on the first and the measurement tool refuses to run for want of `pyarrow` --
+correctly, since it will not guess at the data, but the message is easier to act on
+when you were expecting it.
+
 It finds both:
 
 ```
@@ -113,6 +146,125 @@ are ordinary, sensible-looking SQL. Both quietly disarm the test above them.
 
 The other five tests in that project are alive, and the run says which corruption
 killed each one.
+
+## Which test caught which corruption
+
+The headline count is the least the run can tell you. Every sweep already records, per
+corruption, exactly which tests failed because of it -- and `--matrix` surfaces it:
+
+<!-- readme: illustration -->
+```
+  KILL MATRIX -- which test caught which corruption
+  ----------------------------------------------------------------------
+  !  blank_every_email on customers.email          NOTHING CAUGHT IT
+  2  duplicate_order_rows on orders.id             row_count_orders, unique_orders_id
+  1  null_out_customer_id on orders.customer_id    not_null_customers_id  (only this one)
+
+  3 corruption(s) measured, 1 caught by exactly one test, 1 caught by nothing.
+
+  SINGLE POINTS OF FAILURE -- lose this test and this damage stops being seen:
+    not_null_customers_id  is the only thing that catches  null_out_customer_id
+```
+
+Three things a dead-canary count cannot tell you, and this can:
+
+* **A corruption only one test catches is a single point of failure.** Delete that test,
+  or let it go green for an unrelated reason, and real damage stops being detected -- while
+  the dead-canary count does not move at all.
+* **A corruption five tests catch** is redundancy. Fine, but it means the suite is narrower
+  than its size suggests.
+* **A test whose every catch is also caught by something else** is not dead, so nothing
+  flags it, and deleting it would not change what the suite can detect.
+
+## Ask each test the question it was written to answer
+
+`--targeted` pairs every column test with the corruption that breaks the exact
+guarantee it claims: a `not_null` test against a null in its own column, a `unique`
+test against a duplicate, an `accepted_values` test against a value nobody agreed to.
+
+<!-- readme: illustration -->
+```
+  TARGETED CORRUPTIONS -- each test asked the question it exists to answer
+  ----------------------------------------------------------------------
+  BLIND accepted_values_stg_orders_status <- unexpected_category on raw_orders.status
+  BLIND not_null_orders_amount            <- blank_required on raw_orders.amount
+    ok  not_null_orders_customer_id       <- blank_required on raw_orders.customer_id
+
+  2 of 3 targeted test(s) missed the corruption written for them.
+  4 test(s) could not be targeted at all, and are NOT counted either way.
+```
+
+That is a different finding from a dead canary, and a harder one to argue with.
+"This test never fired" invites the answer "nothing broke". "This `not_null` test
+does not notice a null in its own column" does not.
+
+It costs no extra run time -- it reads the sweep that already happened.
+
+⚠ **The bridge is a name match, not lineage, and the report says so.** dbt tests
+attach to models, and models are rebuilt from source every run, so the corruptible
+tables are the raw sources upstream. Mapping a model column back to the source
+column it came from is real lineage and this does not do it -- it matches on column
+name. Where the demo renames `id` to `order_id`, four tests come back **UNREACHABLE**
+rather than being quietly dropped or, worse, reported as covered. A question nobody
+could pose is not a question that was answered.
+
+## When no test could have caught it
+
+Mutation testing has a name for a change no test can possibly detect: an *equivalent
+mutant*. Deciding it automatically is undecidable in general, and no tool in this field
+does it, so this is the manual version -- you declare one, in writing, with a reason:
+
+```json
+{"negative_amount on raw_orders.id": {
+   "why": "id is a surrogate key never used in arithmetic, so a sign flip is
+           indistinguishable from the original value downstream",
+   "declared_by": "chris", "declared_at": "2026-09-17"}}
+```
+
+<!-- readme: illustration -->
+```
+  10 corruption(s) nothing caught. 1 declared semantically equivalent, so 9 remain unexplained.
+
+  Declared equivalent -- excluded from the score, on the record:
+    ~ negative_amount on raw_orders.id -- chris, 2026-09-17
+      id is a surrogate key never used in arithmetic, so a sign flip is ...
+```
+
+⛔ **A file that removes findings from your own score is the easiest way to manufacture
+a good one, so three rules make that hard to do quietly.** A declaration with no real
+reason is **refused**, not warned about -- the reason is the entire artefact. The raw
+count is always printed beside the adjusted one, so "8 uncaught" never appears alone.
+And a declaration matching nothing in the run is reported **stale**, because a file full
+of exclusions for corruptions that no longer exist is how a score stays green while the
+project moves underneath it. An unreadable file refuses the run rather than reading as
+no exclusions at all.
+
+## It refuses to corrupt anything that looks live
+
+This tool damages real rows on purpose to see whether your checks notice. Against
+production that is not a test, it is an incident -- so "only run it against a
+development warehouse" is enforced at the door rather than written in a document
+and left to memory:
+
+```
+deadcanary: refusing to corrupt what looks like a production warehouse.
+  - the project's profile selects the 'prod' target, and this corrupts real rows
+    in whatever it is pointed at
+  - the warehouse path names 'prod' (/warehouses/warehouse_prod.duckdb)
+
+If this really is a development copy, set
+DEADCANARY_I_KNOW_THIS_IS_NOT_PRODUCTION=1 and run again.
+```
+
+It refuses **before** the first corruption -- a test asserts the warehouse is
+byte-for-byte unchanged after a refused run -- and exits 2, because a refusal must
+never be confused with a clean result or with a finding.
+
+**Calibrated to refuse rarely**, which is the half that decides whether a check like
+this survives. Only unambiguous signals count: a profile target named `prod`, or a
+warehouse path naming it. `reproduction-cases`, `productivity`, `prodigy` and
+`aliveness` are all left alone, and there is a test for each. A pre-flight that blocks
+ordinary development is removed within the week, and a removed check protects nothing.
 
 ## Use it in CI
 
@@ -137,6 +289,21 @@ No file there yet records one and passes, the same way a first commit has nothin
 diff against. Commit it. From then on the build fails only if the count goes *up*, and
 `--update-baseline` lets a genuine improvement ratchet the bar down — never up, and
 never on a run that regressed, however the flag is set.
+
+**When you already know the answer, assert it exactly.** `--expect-dead N` fails unless
+exactly N dead canaries come back. That is the wrong rule for a real project, for the
+reason above, and the right one for a fixture: this repo's own CI runs it against the
+packaged demo, which carries two dead canaries on purpose, so a broken tool cannot pass
+while the README still promises the demo works.
+
+<!-- readme: illustration -->
+```bash
+deadcanary path/to/a/known/fixture --expect-dead 2
+```
+
+It refuses to run alongside `--baseline`: the two are different rules about the same
+number, and silently letting one win would make the build's verdict depend on argument
+order.
 
 **A caught corruption is not automatically believed, either.** A test gets credit for
 catching a mutation if it fails once, after the mutation is applied — and a test that
@@ -227,6 +394,34 @@ carries a fresh timestamp and invocation id on every build, so fingerprinting th
 would reopen the claim after every single run. A checker that cries wolf gets switched
 off within a week, and then the one time it is right is ignored too.
 
+## It is not a dbt tool
+
+`hunt()` needs five things from a project: run the checks, read their verdicts, and
+snapshot/restore the warehouse around each one. That is the whole contract
+(`QualityProject`), and it was extracted from the dbt implementation rather than
+guessed at ahead of it.
+
+A seam nothing has ever plugged into is a claim, not a seam -- so a second backend
+ships, and it depends on nothing. A project is a DuckDB file and a list of SQL
+assertions, where a check fails when its query returns rows:
+
+```json
+{"checks": [
+   {"name": "customer_id_is_never_null",
+    "sql": "select * from raw_orders where customer_id is null"},
+   {"name": "impossible_check",
+    "sql": "select * from raw_orders where 1 = 0"}]}
+```
+
+Hunted, the second one comes back as a dead canary and the first does not -- with no
+dbt anywhere near it. That runs in the test suite on every commit.
+
+⚠ **Great Expectations was the named candidate and was tried first.** On a current
+interpreter pip resolves it to 0.18.x, the legacy API, while 1.x is current; a backend
+bound to a deprecated API, heavy enough that CI could not honestly run it, would make
+the second backend the most fragile thing in the package. Adapting GE or Soda is the
+same five methods, now against a working example rather than a docstring.
+
 ## Two kinds of project, one report
 
 Where a project's raw data lives decides what there is to break.
@@ -255,7 +450,7 @@ Parquet sources are recognised and declined rather than skipped quietly. A
 project with nothing corruptible at all is refused out loud with exit 2 -- cannot
 tell -- never exit 0, which would read as "your tests are fine".
 
-## The five ways a tool like this lies, and what stops each one
+## The six ways a tool like this lies, and what stops each one
 
 This is the interesting part, and it is most of the work. A tool that corrupts data and
 counts silence has three easy ways to produce an impressive number that means nothing.
@@ -291,6 +486,17 @@ and, before file support existed, it discovered zero tables and reported a compl
 with no findings. Exit 0. It looked exactly like a healthy project.
 → **`NothingToCorrupt`, and the CLI exits 2 — cannot tell.** A tool arguing that absent
 and fine must never look like present and fine was doing precisely that about itself.
+
+**6. The test runner never ran, and the old results were read back.** dbt writes its
+verdicts to `target/run_results.json`, and this tool reads that file rather than parsing
+console output. Run it where dbt is not installed and every invocation fails silently, the
+file is never rewritten, and the *same* statuses are read after every corruption. No test
+ever changes status, so every test looks unable to fail. *Found 2026-09-17 by running this
+on a machine with no dbt: it reported complete coverage and declared all seven demo tests
+dead canaries.* A confident, wholly wrong answer, from the exact failure this project
+exists to name.
+→ the results file must be **newer than the run that was supposed to write it**, dbt
+failing to start is told apart from a test failing, and either way the CLI exits 2.
 
 Each of those turns a flattering lie into an honest gap. That is the entire design.
 
