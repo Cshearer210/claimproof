@@ -66,7 +66,7 @@ def _project_imported_names(tree, local_mods):
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             base = (node.module or "").split(".")[0]
-            if base in local_mods or (node.level and node.level > 0):
+            if base in local_mods or node.level > 0:   # level>0 == relative import (the `and` was redundant)
                 for a in node.names:
                     names.add(a.asname or a.name)
         elif isinstance(node, ast.Import):
@@ -770,6 +770,85 @@ def selftest() -> int:
                   "falling through"); ok = False
     finally:
         shutil.rmtree(d7, ignore_errors=True)
+
+    # ---- NEW-CODE COVERAGE 2026-09-23: kill mutation survivors from the repo-improve fixes ----
+    import ast as _a2, os as _os2, tempfile as _tf2
+    def _EH(src):
+        return _a2.parse(src).body[0].handlers[0]
+    # _is_broad tuple branch: a tuple naming Exception (as a Name or an Attribute) IS broad; a tuple of
+    # only specific errors is NOT. The old swallow tests used only bare/`except Exception`, never a tuple.
+    if not _is_broad(_EH("try:\n    pass\nexcept (ValueError, Exception):\n    pass")):
+        print("FAIL: a tuple naming Exception was not judged broad"); ok = False
+    if not _is_broad(_EH("try:\n    pass\nexcept (io.UnsupportedOperation, ex.BaseException):\n    pass")):
+        print("FAIL: a tuple with an Attribute Exception was not judged broad (kills L301)"); ok = False
+    if _is_broad(_EH("try:\n    pass\nexcept (ValueError, KeyError):\n    pass")):
+        print("FAIL: a tuple of specific errors was judged broad (kills L303 return False)"); ok = False
+
+    # _terminates: exhaustive if/else and try branches terminate; the non-exhaustive shapes do not.
+    # None of these were exercised (predicate tests used only bare `return`).
+    def _T(src):
+        return _terminates(_a2.parse(src).body[-1])
+    if not _T("if a:\n    return 1\nelse:\n    return 2"):
+        print("FAIL: an exhaustive if/else should terminate (kills L429/L430)"); ok = False
+    if _T("if a:\n    return 1"):
+        print("FAIL: an if with no else should NOT terminate"); ok = False
+    try:
+        if _T("x = 1"):
+            print("FAIL: a bare assignment should NOT terminate"); ok = False
+    except Exception as _e:
+        print("FAIL: _terminates crashed on a plain statement (kills L429 and->or) -> %r" % _e); ok = False
+    try:
+        if not _T("try:\n    return 1\nexcept ValueError:\n    return 2"):
+            print("FAIL: a try where body+handler both return should terminate (kills L438)"); ok = False
+    except Exception as _e:
+        print("FAIL: _terminates crashed on a try/except (kills L433 list concat) -> %r" % _e); ok = False
+    if _T("try:\n    return 1\nexcept ValueError:\n    x = 1"):
+        print("FAIL: a try whose handler does not return should NOT terminate (kills L438 and->or)"); ok = False
+    if not _T("try:\n    x = 1\nfinally:\n    return 9"):
+        print("FAIL: a try whose finally returns should terminate (kills L436/L437)"); ok = False
+
+    # _is_broad L303 (final fall-through): a handler whose type is neither None/Name/Attribute/Tuple
+    # -- e.g. a subscript `except handlers[0]:` -- is NOT broad. return False->True would judge it broad.
+    if _is_broad(_EH("try:\n    pass\nexcept reg[0]:\n    pass")):
+        print("FAIL: an exotic (subscript) handler type was judged broad (kills L303)"); ok = False
+    # _terminates L430 and-chain: an if/else where EITHER branch is non-terminal must NOT terminate.
+    # The exhaustive case (both return) alone can't kill an and->or flip; a non-terminal branch can.
+    if _T("if a:\n    return 1\nelse:\n    x = 1"):
+        print("FAIL: if/else with a non-terminal else should NOT terminate (kills L430 tail and)"); ok = False
+    if _T("if a:\n    x = 1\nelse:\n    return 2"):
+        print("FAIL: if/else with a non-terminal body should NOT terminate (kills L430 head and)"); ok = False
+
+    # _iter_py: a .py inside a skip-dir (build/) or an .egg-info dir must NOT be walked. No selftest
+    # created either, so the skip guard (L360) was uncovered.
+    dI = _tf2.mkdtemp(prefix="cpI_")
+    try:
+        write(dI, "good.py", "x = 1\n")
+        write(dI, "build/bad.py", "x = 1\n")
+        write(dI, "pkg.egg-info/bad2.py", "x = 1\n")
+        rels = {rel for rel, _t in _iter_py(dI)}
+        if "good.py" not in rels:
+            print("FAIL: _iter_py missed an ordinary file"); ok = False
+        if any("build" in r for r in rels):
+            print("FAIL: _iter_py walked a build/ dir (kills L360 skip guard)"); ok = False
+        if any("egg-info" in r for r in rels):
+            print("FAIL: _iter_py walked an .egg-info dir (kills L360 egg-info guard)"); ok = False
+    finally:
+        __import__('shutil').rmtree(dI, ignore_errors=True)
+
+    # main() --sarif path: the SARIF must land at the path AFTER --sarif (argv.index+1). +1 -> -1 would
+    # write to the scan-dir arg instead, so the requested file would never appear.
+    dS = _tf2.mkdtemp(prefix="cpS_")
+    try:
+        write(dS, "m.py", "def f():\n    try:\n        pass\n    except:\n        return True\n")
+        sp = _os2.path.join(dS, "out.sarif")
+        try:
+            main([dS, "--sarif", sp])
+        except SystemExit:
+            pass
+        if not _os2.path.exists(sp):
+            print("FAIL: --sarif did not write to the path after the flag (kills L792 index+1)"); ok = False
+    finally:
+        __import__('shutil').rmtree(dS, ignore_errors=True)
 
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
