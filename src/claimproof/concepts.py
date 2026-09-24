@@ -231,6 +231,65 @@ def selftest() -> int:
         shutil.rmtree(d1, ignore_errors=True)
         shutil.rmtree(d2, ignore_errors=True)
 
+        # --- mutation-hardening additions (concepts.py survivors) ---
+        # L72/L75/L88: has_if init/set + "has_if and raise" guard
+        raise_only_src = (
+            "def only_raises(x):\n"
+            "    raise ValueError('bad')\n"
+        )
+        fn_ro = ast.parse(raise_only_src).body[0]
+        if classify_function(fn_ro) is not None:
+            print("FAIL: unconditional raise wrongly classified ->", classify_function(fn_ro)); ok = False
+
+        guarded_raise_src = (
+            "def only_guarded_raise(x):\n"
+            "    if not x:\n"
+            "        raise ValueError('bad')\n"
+        )
+        fn_gr = ast.parse(guarded_raise_src).body[0]
+        if classify_function(fn_gr) != "gate":
+            print("FAIL: if-guarded raise should classify as gate ->", classify_function(fn_gr)); ok = False
+
+        # L105: assert AND exit_nonzero -> gate, never test
+        gate_assert_src = (
+            "import sys\n"
+            "def gate_with_assert(x):\n"
+            "    assert x is not None\n"
+            "    if not x:\n"
+            "        sys.exit(1)\n"
+            "    return True\n"
+        )
+        fn_ga = ast.parse(gate_assert_src).body[1]
+        if classify_function(fn_ga) != "gate":
+            print("FAIL: assert+exit_nonzero should classify as gate, not test ->", classify_function(fn_ga)); ok = False
+
+        # L86: sys.exit(None) (explicit) must NOT count as a failing exit
+        exit_none_src = (
+            "import sys\n"
+            "def maybe_exit_none(x):\n"
+            "    if not x:\n"
+            "        sys.exit(None)\n"
+            "    return True\n"
+        )
+        fn_en = ast.parse(exit_none_src).body[1]
+        if classify_function(fn_en) is not None:
+            print("FAIL: sys.exit(None) should not count as a failing gate ->", classify_function(fn_en)); ok = False
+
+        # L118: a claim-like word in a string too long (>=120 chars) must NOT be captured
+        long_claim_src = "x = " + repr("done " * 30) + "\n"
+        claims_long = _claim_strings(ast.parse(long_claim_src))
+        if claims_long:
+            print("FAIL: over-length claim-like string wrongly captured ->", claims_long); ok = False
+
+        short_claim_src = "y = 'all tests pass'\n"
+        claims_short = _claim_strings(ast.parse(short_claim_src))
+        if not any("all tests pass" in c.lower() for c in claims_short):
+            print("FAIL: short claim string not captured"); ok = False
+
+        # L58: to_json must be sort_keys=True (top-level "examples" < "labels" alphabetically)
+        cm_json = ConceptMap().to_json()
+        if cm_json.index('"examples"') > cm_json.index('"labels"'):
+            print("FAIL: to_json is not sort_keys=True (examples should precede labels)"); ok = False
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
