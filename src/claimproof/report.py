@@ -45,8 +45,19 @@ def _plugin_gate_classes():
                 out.append(ep.load())
             except Exception as exc:
                 plugin_errors.append((getattr(ep, "name", str(ep)), repr(exc)))
-    except Exception:
-        pass
+    except Exception as exc:
+        # Announce, never swallow. This was `pass`, so if entry-point discovery itself
+        # failed -- a broken installed distribution, an unreadable metadata directory --
+        # EVERY plugin gate silently failed to load and `check` still reported on the
+        # built-ins alone, looking exactly like a project with no plugins. The two
+        # handlers above already record into `plugin_errors`; this one did not, which is
+        # the only reason the failure was invisible.
+        #
+        # Found 2026-09-26 by claimproof's own multi-method scan pointed at this repo
+        # (`silent-swallow`, high severity). Discovery is still not aborted -- a missing
+        # plugin must not take down the built-in gates -- but the failure is now on the
+        # record that callers already read.
+        plugin_errors.append(("<entry-point discovery>", repr(exc)))
     for mod in list(pkgutil.iter_modules()):
         if not mod.name.startswith("claimproof_plugin_"):
             continue
@@ -101,8 +112,26 @@ def check(text, root=None):
         try:
             for f in gate.inspect(text):
                 out.append((name, f))
-        except Exception:
-            continue
+        except Exception as exc:
+            # A crashing gate must not read as a clean one. This used to be a bare
+            # `continue`, so a gate that raised -- a broken plugin, a bad config, a
+            # regex blowing up on unusual input -- was skipped in silence and `check`
+            # still printed "nothing flagged". Found 2026-09-26 by claimproof's own
+            # multi-method scan pointed at this repo (`silent-swallow` at this line),
+            # which is the whole argument of the library turned on itself: a checker
+            # that cannot look must never report clean (the same law as `ci.UNKNOWN`
+            # and `basis.ABSENT`).
+            #
+            # It still does not abort the run, deliberately: one broken gate taking
+            # down every other gate's findings is how a checker gets uninstalled. The
+            # failure becomes a FINDING instead, so it is visible in text, JSON and
+            # SARIF alike, and the exit code is non-zero exactly as any other finding
+            # makes it.
+            out.append((name, Finding(
+                message=("gate raised %s: %s -- it could not judge this text, so its "
+                         "silence is not evidence of anything"
+                         % (type(exc).__name__, str(exc)[:160])),
+                line=0, excerpt="")))
     return out
 
 

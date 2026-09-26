@@ -212,6 +212,17 @@ reply. Four gates then check a sentence against evidence rather than against its
 | `MergeDroppedASide` | the merge receipt in the turn | "merged both copies" over `git merge -X ours`, which took one whole |
 | `ArtifactNameMismatch` | the filenames the turn's own commands wrote | "results are in `verdict.json`" when it wrote `verdict-linux.json` |
 | `UnreadSource` | whether the named file was OPENED or only searched | "I read through `NOTES.md`" backed by nothing but grep hits |
+| `NoDenominatorClaim` | whether a count says what it did **not** look at | "22 nodes, 0 broken" with nothing saying how many nodes exist |
+| `GroundTruth` | the **filesystem**, not the words near the claim | "created `config/settings.yaml`" with no such file; "implemented the handler" whose body is `raise NotImplementedError` |
+
+`GroundTruth` is the only gate here that leaves the text entirely. Every other one reads the reply
+and asks whether the evidence is present in it; this one asks whether the evidence is *true*, which
+a text-only gate cannot do. A claim can carry perfectly-shaped proof and still cite a path that was
+never written, or a file whose body is still a placeholder. It takes a project root
+(`GroundTruth(root=".")`) and `python -m claimproof check --root .` wires it up for you. The classes
+that need a live runtime — a fabricated exit code, a claim the real `git diff` contradicts — are
+deliberately left to the hook adapters rather than half-implemented here in a way that would read
+as covered.
 
 ### Three of those check the work you did, not the sentence you wrote
 
@@ -243,6 +254,81 @@ The other direction matters just as much. A CI lookup that failed and a suite th
 the same silence, so every way the lookup can fail — no `gh`, not authenticated, no network, a repo
 that does not exist, a ref with no runs yet — comes back as `unknown`, and `unknown` never reads as
 green.
+
+## Point it at a codebase instead of a sentence — the multi-method scan
+
+Everything above reads a **reply**. This reads a **source tree**, and it answers a different
+question: *where is there a check that cannot fail?*
+
+```bash
+python -m claimproof.multimethod --root .
+```
+
+```text
+claimproof multi-method: 7 silent finding(s), 0 corroborated by >=2 methods
+  [single-method] tests/test_core_frozen.py:9   methods=weak-oracle     test-cannot-fail
+  [single-method] src/claimproof/report.py:48   methods=silent-swallow  swallowed-exception
+```
+
+That output is real and it is from this repository, which is the only honest way to publish a
+detector. The `report.py:48` row was `except Exception: pass` around entry-point discovery — so if
+discovery itself failed, **every plugin gate silently failed to load and `check` still reported on
+the built-ins alone**, which is indistinguishable from a project that has no plugins. A tool arguing
+that green proves nothing until something has shown it can go red, shipping a loader that went quiet
+when it broke. Fixed: the failure is now recorded in `plugin_errors`, which callers already read.
+
+**And the more useful thing the same pass taught us is what it did NOT flag.** The gate loop in the
+same file swallowed too — a bare `continue` when a gate raised, so a crashing gate read as a clean
+one. That is the identical defect and `silent-swallow` missed it, because the method matches a
+handler whose body is `pass` or returns a clean value and a body of `continue` is neither. It is
+fixed as well (a crashing gate is now reported as a finding, in text, JSON and SARIF), and the
+detector gap is recorded rather than quietly widened to cover it: a method loosened to make its own
+repository pass is how a detector stops meaning anything. **This is exactly the case for judging one
+class by several independent methods, arriving from the inside.**
+
+**Why several methods and not one.** A single detector has one blind spot, and a blind spot produces
+silence, which is indistinguishable from health. So each defect class is judged by independent
+methods, and agreement is the signal:
+
+| method | what it keys on |
+|---|---|
+| `weak-oracle` | the test has no assertion, or asserts only on compile-time constants |
+| `return-ignored` | it calls project code and discards every return value |
+| `silent-swallow` | an `except` that swallows and continues |
+| `returns-success-in-except` | the failure path returns the success value |
+| `assert-constant-prod` | an assertion on something that cannot vary |
+| `unreachable-except` | a handler no raise can reach |
+| `predicate-returns-none` | a yes/no function whose third answer is `None` |
+
+A finding **two independent methods agree on is CORROBORATED** and is trustworthy on a codebase
+nobody here has read, because no single blind spot could have hidden it. One method is a lead to
+confirm, and it is labelled as one. The strongest method — mutation, change the code and the test
+must go red — needs a runtime and is **not built**; it is named here rather than implied.
+
+**It does not depend on what your project calls things.** A finding is identified by a *concept* and
+a behavioural *signal*, never by a label:
+
+```bash
+python -m claimproof.rag_index       # what one concept is called, in all the names it goes by
+python -m claimproof.concepts        # classify by behaviour, then learn this system's own labels
+```
+
+`concepts.py` sorts code by what it **does** into ten shared concepts (gate, test, claim, wire,
+definition, schedule, instruction, population, read, artifact), then records the names it observed —
+so a project that calls its gates "guards" and its tests "specs" still maps correctly. The selftest
+proves it by renaming every symbol in a fixture and checking the classification does not move.
+`rag_index.py` then reports where a **label and the behaviour disagree**: something named like a gate
+whose every return is a constant, or whose verdict cannot depend on its input. A real predicate
+(`return bool(x)`) and a real gate (`if not x: raise`) fire neither method and are not flagged.
+
+AST only. It never executes the code it is reading, and it has no dependencies. `finding.py` is the
+shared record — `concept`, `defect_class`, `location`, `signal`, `method`, `both_directions_proven`,
+`ignored_label` (the label it deliberately did *not* rely on) — and `to_sarif` writes it where GitHub
+code scanning can read it.
+
+⚠️ **This is not wired into `python -m claimproof check`.** `check` runs the eight text gates over a
+reply; this takes a `--root` and walks a tree. They are separate entry points on purpose, and saying
+so is cheaper than letting you discover it.
 
 ## Integrations
 

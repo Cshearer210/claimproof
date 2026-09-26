@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-# CALLED BY: claimproof.report (the `check` subcommand) and the FULL-CIRCLE-OPTIMIZATION pipeline.
+# CALLED BY: its own entry point -- `python -m claimproof.multimethod --root <tree>` -- and the
+#            portfolio pipeline that chains the four repos.
+#            CORRECTED 2026-09-26: this line used to claim "claimproof.report (the `check`
+#            subcommand)", and report.py does not import this module at all. `check` runs the eight
+#            TEXT gates over a reply; this scans a SOURCE TREE, a different question with a different
+#            input. A CALLED-BY comment naming a caller that does not exist is worse than none: it is
+#            exactly what somebody greps to decide whether the code is wired.
 # FIRES WHEN: claimproof scans a target for SILENT defects -- runs several independent methods per
 #             class so one catches what another misses (Chris, 2026-09-23: corroboration is the point).
 """claimproof's multi-method silent-defect engine.

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-# CALLED BY: claimproof's `check` (indexing stage) and the FULL-CIRCLE-OPTIMIZATION pipeline.
+# CALLED BY: its own entry point -- `python -m claimproof.rag_index` -- and the portfolio pipeline's
+#            indexing stage.
+#            CORRECTED 2026-09-26: this line used to claim claimproof's `check` ran it as an
+#            "indexing stage". It does not; report.py never imports this module. Same correction as
+#            multimethod.py, and the same reason a false CALLED-BY is worse than no CALLED-BY.
 # FIRES WHEN: indexing a downloaded system -- learns how it labels concepts, then reports where a
 #             LABEL and the BEHAVIOUR disagree (Chris's Telegram indexer table, 2026-09-23).
 """claimproof's RAG-style indexer.
