@@ -80,11 +80,23 @@ def _func_signals(fn: ast.AST) -> set[str]:
         elif isinstance(node, ast.Call):
             tgt = node.func
             dotted = _dotted(tgt)
-            if dotted.endswith("exit"):                     # sys.exit / os._exit / exit
-                arg0 = node.args[0] if node.args else None
-                # nonzero or non-constant exit code = a gate signalling failure
-                if arg0 is None or not (isinstance(arg0, ast.Constant) and arg0.value in (0, None)):
-                    sig.add("exit_nonzero")
+            # UNDRIFTED 2026-09-26: this was `dotted.endswith("exit")`, which matched ANY call
+            # whose dotted name ends in those four letters -- `graceful_exit()`, `on_exit()`,
+            # `cleanup_and_exit()`, `runner.exit()` -- so an ordinary shutdown helper was read as a
+            # gate signalling failure and misclassified. The same defect also treated a bare
+            # `exit()` with no arguments as a nonzero exit, when `exit()` is exit(0), a success.
+            #
+            # Both were already fixed in the full-circle-optimization copy of this file and never
+            # ported back. That is the copy-instead-of-extend failure the repo's own laws name:
+            # one shared contract, two versions, the fix living in only one of them. Measured
+            # 2026-09-26 by hashing the two files -- 28 lines and 3,819 bytes apart.
+            if dotted in ("sys.exit", "os._exit", "os.abort", "exit"):   # real exits only
+                if node.args:
+                    arg0 = node.args[0]
+                    # nonzero or non-constant exit code = a gate signalling failure
+                    if not (isinstance(arg0, ast.Constant) and arg0.value in (0, None)):
+                        sig.add("exit_nonzero")
+                # a bare exit() carries no code, which is exit(0) -- success, not a gate signal
     if has_if and "raise" in sig:
         sig.add("guarded_raise")
     return sig
@@ -290,6 +302,73 @@ def selftest() -> int:
         cm_json = ConceptMap().to_json()
         if cm_json.index('"examples"') > cm_json.index('"labels"'):
             print("FAIL: to_json is not sort_keys=True (examples should precede labels)"); ok = False
+
+        # --- GUARD CASES FOR THE 2026-09-26 UNDRIFT. Without these the fix silently regresses,
+        # and a regression here is invisible: it over-classifies, and an over-firing detector
+        # reads as a discovery rather than as a bug.
+        #
+        # A call whose name merely ENDS in "exit" is not an exit. This is the case the old
+        # `dotted.endswith("exit")` got wrong, and neither copy of this file had a guard for it.
+        not_really_exit_src = (
+            "def shutdown(x):\n"
+            "    if not x:\n"
+            "        graceful_exit()\n"
+            "    return True\n"
+        )
+        fn_nre = ast.parse(not_really_exit_src).body[0]
+        if classify_function(fn_nre) is not None:
+            print("FAIL: graceful_exit() is not an exit and must not classify as a gate ->",
+                  classify_function(fn_nre)); ok = False
+
+        method_exit_src = (
+            "def stop(runner):\n"
+            "    if runner:\n"
+            "        runner.exit()\n"
+            "    return True\n"
+        )
+        fn_me = ast.parse(method_exit_src).body[0]
+        if classify_function(fn_me) is not None:
+            print("FAIL: runner.exit() is a method call, not a process exit ->",
+                  classify_function(fn_me)); ok = False
+
+        # A bare exit() carries no code, so it is exit(0): success, not a gate signal.
+        bare_exit_src = (
+            "def done(x):\n"
+            "    if x:\n"
+            "        exit()\n"
+            "    return True\n"
+        )
+        fn_be = ast.parse(bare_exit_src).body[0]
+        if classify_function(fn_be) is not None:
+            print("FAIL: bare exit() is exit(0) and must not classify as a gate ->",
+                  classify_function(fn_be)); ok = False
+
+        # MUST-FIRE control: a real failing exit still classifies, so the three guards above
+        # cannot be satisfied by a detector that simply stopped looking.
+        real_exit_src = (
+            "import sys\n"
+            "def guard(x):\n"
+            "    if not x:\n"
+            "        sys.exit(2)\n"
+            "    return True\n"
+        )
+        fn_re = ast.parse(real_exit_src).body[1]
+        if classify_function(fn_re) != "gate":
+            print("FAIL: sys.exit(2) must still classify as a gate ->",
+                  classify_function(fn_re)); ok = False
+
+        # ported from the full-circle copy: an `if` with no raise/assert/exit is not a gate.
+        # Kills the mutant that flips `has_if and "raise" in sig` to `or`.
+        if_only_src = (
+            "def pick(x):\n"
+            "    if x:\n"
+            "        return 1\n"
+            "    return 0\n"
+        )
+        fn_io = ast.parse(if_only_src).body[0]
+        if classify_function(fn_io) is not None:
+            print("FAIL: an if-only function (no raise) must not classify ->",
+                  classify_function(fn_io)); ok = False
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
