@@ -52,13 +52,18 @@ __all__ = ["GroundTruth"]
 # placeholder" reported as PASSING. That matrix exists because of a previous instance of this same
 # class -- `ci.yml` says so: "a checker whose paths only existed on Linux: on Windows it scanned
 # nothing, reported CLEAN, and exited 0 for months."
+# ⚠ AND THE TILDE IS NOT OPTIONAL EITHER, which the first attempt at this fix got wrong.
+# Windows hands out 8.3 SHORT NAMES, and a tilde sits in the MIDDLE of the directory name:
+# measured off the CI log, the runner's temp directory is `...\Users\RUNNER~1\AppData\Local\Temp\...`.
+# A character class of `[\w.-]` breaks the chain at that tilde, so the drive-letter fix alone still
+# captured nothing and windows stayed red on the same case. `os.path.expanduser` only expands a
+# LEADING tilde, so carrying it in the class costs nothing and a real short name resolves.
 _PATH = re.compile(
     r"[`'\"]?("
     r"(?:[A-Za-z]:)?"                 # optional Windows drive, C:
     r"(?:[\\/])?"                     # optional leading separator -- POSIX /abs, or C:\
-    r"(?:~[\\/])?"                    # optional ~/ or ~\
-    r"(?:[\w.-]+[\\/])*"              # directories, EITHER separator
-    r"[\w.-]+\.[A-Za-z0-9]{1,6}"      # basename.ext
+    r"(?:[\w.~-]+[\\/])*"             # directories, EITHER separator, tilde allowed (8.3 names)
+    r"[\w.~-]+\.[A-Za-z0-9]{1,6}"     # basename.ext
     r")[`'\"]?")
 # a line that ASSERTS an artifact was PRODUCED. Deliberately only strong production verbs -- a bare
 # "see X" or "in X" is a reference, not a claim of production, and flagging it is crying wolf (the

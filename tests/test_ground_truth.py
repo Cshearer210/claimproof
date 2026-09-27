@@ -28,6 +28,14 @@ def test_a_cited_path_resolves_whichever_separator_it_was_written_with():
     posix = "/work/proj/src/handler.py"
     assert [m.group(1) for m in _PATH.finditer("Implemented it in %s." % posix)] == [posix]
 
+    # THE 8.3 SHORT NAME, taken verbatim from the shape a GitHub Windows runner actually hands out.
+    # The tilde sits MID-NAME, so a character class without it breaks the directory chain and the
+    # whole path collapses -- which is precisely how the first attempt at this fix still left every
+    # windows job red on the same case.
+    short = r"C:\Users\RUNNER~1\AppData\Local\Temp\cpS_zioxve92\handler.py"  # synthetic-path: CI runner shape, not a person's machine
+    assert [m.group(1) for m in _PATH.finditer("Implemented it in %s." % short)] == [short], \
+        "an 8.3 short name (RUNNER~1) must not break the path"
+
     # ...and resolution normalises the separator, so a foreign one still finds the real file
     with tempfile.TemporaryDirectory() as d:
         os.makedirs(os.path.join(d, "sub"))
