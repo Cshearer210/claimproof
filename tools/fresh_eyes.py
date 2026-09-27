@@ -107,8 +107,18 @@ def act_readme(py: Path, room: Path) -> None:
     for i, (body, want_exit) in enumerate(runnable, 1):
         script = work / f"block_{i}.py"
         script.write_text(body, encoding="utf-8")
+        # ⛔ stdin=DEVNULL, AND IT IS NOT A DETAIL. One README block reads stdin (the
+        # `UnbackedClaims` example pipes a reply in). Without this the child INHERITS whoever ran
+        # this tool: on a CI runner that is /dev/null, so the read gets EOF at once and the block
+        # finishes; in a terminal, or any session holding an open pipe on stdin, it never closes and
+        # the block sits at 0% CPU until the 300-second timeout. Measured 2026-09-27: wall 303s,
+        # cpu 0%, machine load 1.88 on 16 cores -- blocked, not slow.
+        #
+        # ⭐ So this tool passed in CI and hung for five minutes for anyone who ran it themselves.
+        # That is the "works on the machine that wrote it" failure `fresh_eyes` exists to catch,
+        # occurring inside `fresh_eyes`. DEVNULL makes the answer the same for everyone.
         r = subprocess.run([str(py), str(script)], cwd=str(work), capture_output=True,
-                           text=True, timeout=300)
+                           text=True, timeout=300, stdin=subprocess.DEVNULL)
         first = body.strip().splitlines()[0][:56]
         if not say(r.returncode == want_exit, f"README block {i} runs: {first}",
                    f"exit {r.returncode}, wanted {want_exit}"):
