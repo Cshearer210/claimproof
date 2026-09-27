@@ -11,6 +11,8 @@ def test_path_for_sanitises_a_traversal_session_id():
     # the traversal is defeated by removing the SEPARATORS -- leftover dots in a filename
     # cannot escape a directory without a "/".
     assert "/" not in base and os.sep not in base
+    # path-id: ok -- path_for returns a real filesystem path that gets OPENED, so the platform's own
+    # separator is the correct expectation here. This is the half of the rule that is NOT a defect.
     assert p == os.path.join(evidence.store_dir(), base)
 
 

@@ -42,6 +42,8 @@ def test_a_cited_path_resolves_whichever_separator_it_was_written_with():
         with open(os.path.join(d, "sub", "h.py"), "w") as fh:
             fh.write("def h():\n    raise NotImplementedError\n")
         g = GroundTruth(root=d)
+        # path-id: ok -- os.sep is READ here to pick the OTHER platform's separator on purpose. This
+        # line IS the portability test, so the separator appearing in it is the point, not a defect.
         foreign = "sub\\h.py" if os.sep == "/" else "sub/h.py"
         assert g.inspect("Implemented the handler in %s." % foreign), \
             "a path written with the other separator must still resolve, and flag"
