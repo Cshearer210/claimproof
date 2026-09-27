@@ -813,6 +813,20 @@ That applies to changes here as much as to gates you write with it.
   ([#3](https://github.com/Cshearer210/claimproof/pull/3)) as real evidence, each with the
   must-flag and must-pass pair CONTRIBUTING.md requires.
 
+### Ideas taken from other people's work
+
+Not code contributions — methods that came from somewhere else and are named so anyone can go
+back to the original rather than to this description of it.
+
+- **[Branchpoint](https://github.com/hippoley/CausalRAG)**, by [@hippoley](https://github.com/hippoley)
+  — *frozen world, one variable, first divergence*. The instinct when two runs disagree is to
+  compare their **end states**, which tells you only that they differ. Branchpoint's framing is to
+  freeze everything else, change exactly one thing, and find the **first step where the two
+  trajectories part** — which tells you *where* the disagreement was born rather than that it
+  exists. That is the method behind `~/Tools/frozen_world.py` in the author's own system, and the
+  distinction between end-state comparison and trajectory divergence is theirs, not ours. Their
+  repo also asks a question this one does not: what a *causal* retrieval graph should return.
+
 ## License
 
 MIT. See [CHANGELOG.md](https://github.com/Cshearer210/claimproof/blob/main/CHANGELOG.md) for what changed and [SECURITY.md](https://github.com/Cshearer210/claimproof/blob/main/SECURITY.md) for what
