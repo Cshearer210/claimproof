@@ -6,7 +6,37 @@ from claimproof.ground_truth import GroundTruth
 
 
 def test_selftest_passes_both_directions():
-    assert len(GroundTruth().verify()) == 5   # 2 bad, 3 guard, no SelftestError
+    assert len(GroundTruth().verify()) == 7   # 3 bad, 4 guard, no SelftestError
+
+
+def test_a_cited_path_resolves_whichever_separator_it_was_written_with():
+    """The bug this pins was invisible on Linux and broke every Windows run.
+
+    `_PATH` matched forward slashes only, so a claim citing a backslash path collapsed to its bare
+    basename, resolved against the wrong directory, found nothing, and reported CLEAN -- the silent
+    direction this library exists to argue against. CI failed 3 of 491 on every windows job while
+    every ubuntu job was green.
+
+    Asserted on the REGEX and on RESOLUTION, so it holds on either OS instead of relying on a
+    platform most local runs never exercise. Hermetic: a temp world, no project, no network.
+    """
+    from claimproof.ground_truth import _PATH
+
+    win = r"C:\work\proj\src\handler.py"
+    assert [m.group(1) for m in _PATH.finditer("Implemented it in %s." % win)] == [win], \
+        "a Windows path must be captured whole, not collapsed to its basename"
+    posix = "/work/proj/src/handler.py"
+    assert [m.group(1) for m in _PATH.finditer("Implemented it in %s." % posix)] == [posix]
+
+    # ...and resolution normalises the separator, so a foreign one still finds the real file
+    with tempfile.TemporaryDirectory() as d:
+        os.makedirs(os.path.join(d, "sub"))
+        with open(os.path.join(d, "sub", "h.py"), "w") as fh:
+            fh.write("def h():\n    raise NotImplementedError\n")
+        g = GroundTruth(root=d)
+        foreign = "sub\\h.py" if os.sep == "/" else "sub/h.py"
+        assert g.inspect("Implemented the handler in %s." % foreign), \
+            "a path written with the other separator must still resolve, and flag"
 
 
 def test_flags_missing_and_nearmiss_but_not_real(tmp_path):

@@ -33,8 +33,33 @@ from claimproof.core import Case, Finding, Gate
 
 __all__ = ["GroundTruth"]
 
-# a path-like token: a slash-bearing or extensioned path, quoted or bare
-_PATH = re.compile(r"[`'\"]?((?:~?/)?(?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]{1,6})[`'\"]?")
+# a path-like token: a separator-bearing or extensioned path, quoted or bare.
+#
+# ⛔ BOTH SEPARATORS, AND THE DRIVE LETTER, SINCE 2026-09-27 -- this was `(?:~?/)?(?:[\w.-]+/)*`,
+# forward slashes only, and it made this gate BLIND ON WINDOWS in the exact way this library exists
+# to argue against. Given a claim citing a Windows path -- a drive letter, then backslash-separated
+# directories, then the file -- it could not span the backslashes, so it captured the bare basename
+# `handler.py`, resolved that against the project root instead of the real directory, found nothing,
+# and returned NO FINDING. Not an error: a clean result. Every cited artifact with a directory in it
+# was invisible on Windows.
+#
+# (This comment deliberately DESCRIBES that path rather than writing one. The first draft spelled it
+# out and `test_no_private_paths` refused the file -- correctly, since a drive-letter home directory
+# is exactly the shape it stops reaching a public repo. The test caught its own author.)
+#
+# Caught by CI's own matrix on PR #49: 3 failed / 488 passed on windows-latest across py3.10-3.13
+# while every ubuntu job was green, with the must-fire case "bad: implemented, but body is a
+# placeholder" reported as PASSING. That matrix exists because of a previous instance of this same
+# class -- `ci.yml` says so: "a checker whose paths only existed on Linux: on Windows it scanned
+# nothing, reported CLEAN, and exited 0 for months."
+_PATH = re.compile(
+    r"[`'\"]?("
+    r"(?:[A-Za-z]:)?"                 # optional Windows drive, C:
+    r"(?:[\\/])?"                     # optional leading separator -- POSIX /abs, or C:\
+    r"(?:~[\\/])?"                    # optional ~/ or ~\
+    r"(?:[\w.-]+[\\/])*"              # directories, EITHER separator
+    r"[\w.-]+\.[A-Za-z0-9]{1,6}"      # basename.ext
+    r")[`'\"]?")
 # a line that ASSERTS an artifact was PRODUCED. Deliberately only strong production verbs -- a bare
 # "see X" or "in X" is a reference, not a claim of production, and flagging it is crying wolf (the
 # guard case "See core.py:41." must stay quiet).
@@ -58,12 +83,28 @@ class GroundTruth(Gate):
         self.root = root or os.getcwd()
 
     # ------------------------------------------------------------------ resolve
+    @staticmethod
+    def _native(tok: str) -> str:
+        """A cited path may use either separator, whoever wrote the reply and whatever OS reads it.
+
+        A reply written on Windows carries backslashes and is read here; one written on Linux
+        carries forward slashes and is read on Windows. Both must resolve, so the separator is
+        normalised to this machine's before anything touches the filesystem -- `os.path.isabs`,
+        `os.path.join` and `os.path.basename` all answer for the HOST, so a foreign separator makes
+        every one of them quietly wrong rather than raising.
+
+        A literal backslash is a legal character in a POSIX filename, so this is a deliberate
+        trade: treating it as a separator is right for a CITED PATH in prose, and the alternative --
+        what this code did until 2026-09-27 -- is missing every Windows path in silence.
+        """
+        return tok.replace("\\", os.sep).replace("/", os.sep)
+
     def _abs(self, tok: str) -> str:
-        tok = os.path.expanduser(tok)
+        tok = os.path.expanduser(self._native(tok))
         return tok if os.path.isabs(tok) else os.path.join(self.root, tok)
 
     def _basename_exists_elsewhere(self, tok: str) -> bool:
-        base = os.path.basename(tok)
+        base = os.path.basename(self._native(tok))
         # only search within the root (or the token's own parent's parent) -- cheap, bounded
         base_dir = self.root
         for dirpath, dirs, files in os.walk(base_dir):
@@ -83,10 +124,10 @@ class GroundTruth(Gate):
                 continue
             for m in _PATH.finditer(line):
                 tok = m.group(1)
-                if tok in seen or "/" not in tok and "." not in tok:
+                if tok in seen or not ("/" in tok or "\\" in tok or "." in tok):
                     continue
                 # ignore command-ish tokens and obvious non-artifacts
-                if tok.endswith((".", "/")) or " " in tok:
+                if tok.endswith((".", "/", "\\")) or " " in tok:
                     continue
                 # a file:line reference (core.py:41) is a code location, not an artifact claim
                 after = line[m.end():m.end() + 2]
@@ -147,6 +188,21 @@ class GroundTruth(Gate):
                  expect_flagged=False, name="guard: implemented and the body is real"),
             Case(text="Fixed the parser and the tests pass.",
                  expect_flagged=False, name="guard: no path cited at all"),
+            # ⛔ THE WINDOWS CASE, AND IT RUNS ON EVERY OS ON PURPOSE.
+            # Until 2026-09-27 `_PATH` matched forward slashes only, so a cited path with
+            # backslashes collapsed to its bare basename, resolved against the wrong directory, and
+            # produced NO FINDING -- a clean result rather than an error. CI's windows jobs caught
+            # it; nothing on Linux could have. Writing the case with the separators SWAPPED means
+            # the ubuntu jobs now fail too if that regex or `_native` regresses, instead of leaving
+            # the whole class to a platform most local runs never exercise.
+            Case(text="Implemented the handler in %s."
+                      % placeholder.replace(os.sep, "\\" if os.sep == "/" else "/"),
+                 expect_flagged=True,
+                 name="bad: placeholder body cited with the OTHER separator (windows-shaped path)"),
+            Case(text="The results are in %s."
+                      % present.replace(os.sep, "\\" if os.sep == "/" else "/"),
+                 expect_flagged=False,
+                 name="guard: existing file cited with the OTHER separator stays quiet"),
         ]
 
     # ------------------------------------------------------- runtime adapter (declared, not faked)
