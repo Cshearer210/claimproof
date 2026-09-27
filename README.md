@@ -20,8 +20,17 @@ purpose to find out which. `pip install claimproof[dbt]` gets both.
 
 ```bash
 pip install claimproof
-python -m claimproof.demo
+claimproof doctor     # verify THIS install actually works, before you trust it
+claimproof            # the 30-second demo
 ```
+
+`claimproof doctor` is here because this library's whole argument is that a fluent claim and a
+correct one feel identical, and that you should not have to take either on trust — so it cannot ask
+to be trusted on its word either. It checks the installed package is real, that every name it
+publishes resolves, that the installed version is not a stale copy shadowing newer source, that gate
+discovery is complete, and that **every gate it publishes is proven in both directions** — made to
+fire on a case that must fire, and to stay quiet on a guard case. A gate never made to fail is
+indistinguishable from one that cannot. It exits non-zero if any of that is untrue.
 
 ![An unbacked claim is refused; the same claim with the test result attached is allowed; honest uncertainty is left alone](https://raw.githubusercontent.com/Cshearer210/claimproof/main/assets/demo.svg)
 

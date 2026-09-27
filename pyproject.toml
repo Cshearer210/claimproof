@@ -35,6 +35,13 @@ crewai = ["crewai==1.15.14"]
 # packages/deadcanary, and installs on its own too.
 dbt = ["deadcanary>=0.1"]
 
+# ⭐ THE CONSOLE SCRIPT. Added 2026-09-27: this installed cleanly and left a stranger with nothing to
+# type -- you had to already know to say `python -m claimproof`. Measured across all four of these
+# repos the same day: not one of them installed a command. `python -m claimproof ...` is unchanged
+# and calls the same `main`, so nothing that already used it breaks.
+[project.scripts]
+claimproof = "claimproof.__main__:main"
+
 [project.urls]
 Homepage = "https://github.com/Cshearer210/claimproof"
 Issues = "https://github.com/Cshearer210/claimproof/issues"
