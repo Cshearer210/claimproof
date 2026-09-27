@@ -47,6 +47,22 @@ except ImportError:                                  # run directly for --selfte
 _TEST_FILE = ("test_", "_test")
 
 
+def _rel(path: str, root: str) -> str:
+    """A finding's location, RELATIVE and always forward-slashed.
+
+    ⛔ WHY NOT `os.path.relpath` ALONE, measured on CI 2026-09-27: on Windows it returns
+    `pkg\\test_rel.py`, and every reader of a location -- the selftest's own lookup table, the
+    SARIF `uri`, a human comparing two runs -- assumes `pkg/test_rel.py`. The selftest keyed its
+    expectations by forward slash, so `by.get("pkg/test_rel.py")` returned None on Windows and the
+    case "relative-import (level>0) call must corroborate" failed there and only there.
+
+    A location is an IDENTIFIER, not a filesystem path: it is compared, keyed and published, never
+    opened. SARIF requires `/` in a uri regardless of platform, so forward slash is the correct
+    answer rather than a convenience for the test. One definition, three call sites.
+    """
+    return os.path.relpath(path, root).replace(os.sep, "/").replace("\\", "/")
+
+
 def _is_test_file(rel: str) -> bool:
     base = os.path.basename(rel)
     return base.startswith("test_") or base[:-3].endswith("_test")
@@ -119,7 +135,7 @@ def _collectable_tests(root: str):
             if rp in seen:                                # dedupe symlinked mirrors (by-kind/, etc.)
                 continue
             seen.add(rp)
-            rel = os.path.relpath(path, root)
+            rel = _rel(path, root)
             try:
                 tree = ast.parse(open(path, encoding="utf-8", errors="replace").read())
             except (SyntaxError, ValueError, OSError):
@@ -236,7 +252,7 @@ def _handlers(root: str):
             if rp in seen:
                 continue
             seen.add(rp)
-            rel = os.path.relpath(os.path.join(dirpath, fn), root)
+            rel = _rel(os.path.join(dirpath, fn), root)
             try:
                 tree = ast.parse(open(os.path.join(dirpath, fn), encoding="utf-8", errors="replace").read())
             except (SyntaxError, ValueError, OSError):
@@ -371,7 +387,7 @@ def _iter_py(root):
             if rp in seen:
                 continue
             seen.add(rp)
-            rel = os.path.relpath(os.path.join(dp, f), root)
+            rel = _rel(os.path.join(dp, f), root)
             try:
                 yield rel, ast.parse(open(os.path.join(dp, f), encoding="utf-8", errors="replace").read())
             except (SyntaxError, ValueError, OSError):
