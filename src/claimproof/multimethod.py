@@ -60,7 +60,8 @@ def _rel(path: str, root: str) -> str:
     opened. SARIF requires `/` in a uri regardless of platform, so forward slash is the correct
     answer rather than a convenience for the test. One definition, three call sites.
     """
-    return os.path.relpath(path, root).replace(os.sep, "/").replace("\\", "/")
+    from claimproof import concepts as _c      # one definition, many readers
+    return _c.rel_id(path, root)
 
 
 def _is_test_file(rel: str) -> bool:

@@ -61,7 +61,7 @@ def gate_label_mismatches(root: str) -> list[Finding]:
             if rp in seen:
                 continue
             seen.add(rp)
-            rel = os.path.relpath(path, root)
+            rel = concepts.rel_id(path, root)
             try:
                 tree = ast.parse(open(path, encoding="utf-8", errors="replace").read())
             except (SyntaxError, ValueError, OSError):

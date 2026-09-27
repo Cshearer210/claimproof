@@ -41,6 +41,27 @@ _CLAIM_WORDS = ("done", "complete", "finished", "all pass", "passes", "tests pas
                 "success", "shipped", "ready")
 
 
+def rel_id(path: str, root: str) -> str:
+    """A path used as an IDENTIFIER: relative to `root`, and always forward-slashed.
+
+    ⛔ WHY THIS IS NOT `os.path.relpath`, and it cost three CI rounds on 2026-09-27. On Windows
+    relpath returns `pkg\\test_rel.py`, and anything that KEYS, COMPARES or PUBLISHES that string
+    assumes `pkg/test_rel.py`. claimproof's own multi-method selftest keyed its expectations by
+    forward slash, so a lookup returned None on Windows and only on Windows -- the test failed
+    there while every Linux run stayed green.
+
+    THE DISTINCTION THAT DECIDES WHICH TO USE: a path you are about to OPEN is a filesystem path
+    and belongs to the platform -- use `os.path.join`/`relpath` and leave it alone. A path you
+    store, key, diff, or write into SARIF is an IDENTIFIER, and an identifier that changes shape
+    per platform breaks every reader at once. SARIF requires `/` in a uri regardless of platform,
+    so forward slash is the correct answer rather than a convenience for the tests.
+
+    Lives here because `concepts.py` is the contract these repos share, so the definition travels
+    with it instead of being re-typed per module (nothing-ships-unwired.md 13-15).
+    """
+    return os.path.relpath(path, root).replace(os.sep, "/").replace("\\", "/")
+
+
 @dataclass
 class ConceptMap:
     """How ONE target system labels each concept, learned from behaviour."""
@@ -143,7 +164,7 @@ def build_label_map(root: str) -> ConceptMap:  # nopop: walks an arbitrary TARGE
             if not fn.endswith(".py"):
                 continue
             path = os.path.join(dirpath, fn)
-            rel = os.path.relpath(path, root)
+            rel = rel_id(path, root)
             try:
                 src = open(path, encoding="utf-8", errors="replace").read()
                 tree = ast.parse(src)
