@@ -79,6 +79,32 @@ def selftest() -> None:
     assert receipt(bad.command, bad.returncode).startswith("[claimproof:exit] 3 "), bad
 
     assert "\n" not in receipt("a\n  b", 0), "a receipt must be exactly one line"
+    # Kills: bool const True->False @L27 (frozen=True on Ran)
+    import dataclasses
+    try:
+        good.command = "tampered"
+    except dataclasses.FrozenInstanceError:
+        pass
+    else:
+        raise AssertionError("Ran must be frozen (@dataclass(frozen=True))")
+
+    # Kills: bool Or->flip @L63 (stderr=proc.stderr or "")
+    # The existing `bad` fixture never writes to stderr, so give one that does.
+    loud = run([sys.executable, "-c",
+                "import sys; sys.stderr.write('boo'); raise SystemExit(4)"], echo=False)
+    assert loud.returncode == 4 and not loud.ok, loud
+    assert loud.stderr == "boo", loud
+
+    # Kills: bool const True->False @L47 (echo=True default) and
+    #        arith flip @L61 (receipt(...) + "\n" written to stderr)
+    # Call run() WITHOUT passing echo at all, so the default is what fires,
+    # and check the exact bytes that land on stderr.
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stderr(buf):
+        echoed = run([sys.executable, "-c", "print('x')"])
+    assert echoed.ok, echoed
+    assert buf.getvalue() == receipt(echoed.command, echoed.returncode) + "\n", buf.getvalue()
     print("capture: selftest PASS (3 checks)")
 
 

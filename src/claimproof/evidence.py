@@ -125,6 +125,15 @@ def selftest() -> None:
 
     clear(s); clear(big)
     assert read(s) == [], "clear must actually remove it"
+    # a falsy session (None) still normalises through the "unknown" fallback --
+    # kills the mutant that flips `session or "unknown"` into `session and "unknown"`,
+    # which would let str(None) == "None" slip past the second fallback untouched
+    assert path_for(None) == os.path.join(store_dir(), "unknown.receipts"), path_for(None)
+
+    # a real, non-empty session id is used as-is and never silently replaced --
+    # kills the mutant that flips the trailing `... or "unknown"` into `... and "unknown"`,
+    # which would discard every real id in favour of the fallback
+    assert path_for("myid") == os.path.join(store_dir(), "myid.receipts"), path_for("myid")
     print("evidence: selftest PASS (5 checks)")
 
 

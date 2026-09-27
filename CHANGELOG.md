@@ -6,6 +6,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **`claimproof check` -- machine-readable output for CI.** `--format text|json|sarif`; SARIF
+  drops into GitHub code scanning. `--root DIR` also runs the ground-truth checks against the
+  real repo. A `.claimproof.json` `{select,ignore}` chooses which gates run; a line
+  `# claimproof: allow <Gate>` silences one on a reply; gates are discovered from the
+  `claimproof.gates` entry point and `claimproof_plugin_*` modules, so others add a gate
+  without forking.
+- **`GroundTruth` gate -- check a claim against reality, not just the words near it.** Flags a
+  cited artifact claimed created but absent (file-not-actually-written), a near-miss path
+  (slightly-wrong-filename), and an 'implemented' claim whose named file is still a placeholder
+  (todo-left-behind). Hermetic both-directions selftest; the exit-code/git/re-measure classes
+  are declared as the runtime adapter (`runtime_findings`) rather than faked.
 - **Three gates ported from tools that caught real incidents**, each shipping with its own
   must-fire cases, guard cases, and fixtures:
   - `MergeDroppedASide` — a claim that two sides were combined, next to a receipt that took one
