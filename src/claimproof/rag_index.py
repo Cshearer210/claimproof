@@ -15,7 +15,7 @@ It does two things Chris asked for:
   2. Reports LABEL-vs-BEHAVIOUR mismatches -- the silent class "labeled a gate but it doesn't gate /
      reports clean without looking." Two independent methods, so the corroborated ones are trustworthy
      on an unfamiliar system:
-        constant-verdict  every return is a constant -> the verdict is fixed regardless of input
+        constant-verdict  every return yields the SAME literal -> the verdict is fixed
         input-ignored     no parameter is ever used  -> the verdict cannot depend on the input
 
 A real predicate (`return bool(x)`) and a real gate (`if not x: raise`) fire NEITHER method, so they
@@ -48,6 +48,42 @@ def _params(fn):
     return [n for n in names if n != "self"]
 
 
+def _literal_key(ret):
+    """A hashable identity for a returned literal, or None when the value is computed.
+
+    Keyed on (type name, repr) and NOT on the value itself, because in Python `True == 1` and the
+    two hash alike -- so a gate returning True on one path and 1 on another would otherwise look
+    like a single fixed verdict when it is really two-valued.
+    """
+    v = ret.value
+    if v is None:                                 # a bare `return` -- the literal None
+        return ("NoneType", "None")
+    if isinstance(v, ast.Constant):
+        return (type(v.value).__name__, repr(v.value))
+    return None
+
+
+def _verdict_is_fixed(rets):
+    """True only when every return yields the SAME literal, so the verdict cannot vary at all.
+
+    CORRECTED 2026-09-27 -- this was an OVER-FIRE. The test used to be "every return is a
+    literal", which flagged a THREE-VALUED gate (`return 2` for CANNOT TELL, `1` for fail, `0`
+    for clean) as a gate that cannot fail. That is the exact shape verify-before-claiming.md
+    law 10 REQUIRES, so flagging it was crying wolf, and over-firing is worse than a gap: a
+    detector that flags the correct shape teaches everybody to ignore it.
+
+    A function that returns one of several distinct literals chosen by branching HAS a verdict
+    that varies. Only one distinct literal across every path means the verdict is fixed.
+    """
+    keys = set()
+    for r in rets:
+        k = _literal_key(r)
+        if k is None:
+            return False                          # a computed return -- the verdict is not fixed
+        keys.add(k)
+    return len(keys) <= 1
+
+
 def gate_label_mismatches(root: str) -> list[Finding]:
     out = []
     seen = set()
@@ -78,8 +114,7 @@ def gate_label_mismatches(root: str) -> list[Finding]:
                     continue                                  # it CAN signal failure -> a real gate
                 params = _params(node)
                 rets = [n for n in ast.walk(node) if isinstance(n, ast.Return)]
-                const_verdict = bool(rets) and all(
-                    r.value is None or isinstance(r.value, ast.Constant) for r in rets)
+                const_verdict = bool(rets) and _verdict_is_fixed(rets)
                 used = any(isinstance(n, ast.Name) and n.id in params for n in ast.walk(node))
                 input_ignored = bool(params) and not used
                 idk = "gatelabel:%s:%s" % (rel, node.name)
@@ -87,9 +122,9 @@ def gate_label_mismatches(root: str) -> list[Finding]:
                 if const_verdict:
                     out.append(Finding(
                         concept="gate", defect_class="labeled-gate-that-cannot-fail", location=loc,
-                        signal="every return is a constant; the verdict is fixed",
-                        evidence="%s is named like a gate but returns a constant regardless of input"
-                                 % node.name,
+                        signal="every return yields the same literal; the verdict is fixed",
+                        evidence="%s is named like a gate but returns the same literal on every "
+                                 "path, regardless of input" % node.name,
                         method="constant-verdict", repo="claimproof", severity="high",
                         confidence=0.7, both_directions_proven=True, ignored_label=node.name,
                         extra={"id_key": idk}))
@@ -213,6 +248,45 @@ def selftest() -> int:
             print("FAIL: input-ignored finding must set both_directions_proven=True ->", ii); ok = False
     finally:
         _sh4.rmtree(d4, ignore_errors=True)
+
+    # OVER-FIRE REPAIR, proven in BOTH directions (carrot-sandbox row `fc-three-valued`,
+    # 2026-09-27). GUARD: a three-valued gate -- 2 = CANNOT TELL, 1 = fail, 0 = clean -- is the
+    # shape verify-before-claiming.md law 10 requires, and every one of its returns is a literal.
+    # It must NOT fire constant-verdict. MUST FIRE: collapse the same function to one literal and
+    # the verdict really is fixed, so the method must still catch it -- otherwise the repair would
+    # have disabled the detector instead of correcting it.
+    import tempfile as _tf5, shutil as _sh5
+    d5 = _tf5.mkdtemp(prefix="rag_tri_")
+    try:
+        write(d5, "tri.py",
+              "def freshness_gate(rows):\n"
+              "    if not rows:\n"
+              "        return 2\n"
+              "    if max(r['age_h'] for r in rows) > 36:\n"
+              "        return 2\n"
+              "    if [r for r in rows if r['score'] < r['floor']]:\n"
+              "        return 1\n"
+              "    return 0\n")
+        cv = [f for f in raw_findings(d5) if f.method == "constant-verdict"]
+        if cv:
+            print("FAIL: a three-valued gate (0/1/2) must not fire constant-verdict ->", cv); ok = False
+        write(d5, "tri.py",
+              "def freshness_gate(rows):\n"
+              "    if not rows:\n"
+              "        return 0\n"
+              "    if max(r['age_h'] for r in rows) > 36:\n"
+              "        return 0\n"
+              "    return 0\n")
+        cv = [f for f in raw_findings(d5) if f.method == "constant-verdict"]
+        if len(cv) != 1:
+            print("FAIL: collapsed to one literal, constant-verdict must fire ->", cv); ok = False
+        # True == 1 in Python and the two hash alike; a gate returning both is still two-valued.
+        write(d5, "tri.py", "def check_two(v):\n    if v:\n        return True\n    return 1\n")
+        cv = [f for f in raw_findings(d5) if f.method == "constant-verdict"]
+        if cv:
+            print("FAIL: True and 1 are two distinct verdicts, not one ->", cv); ok = False
+    finally:
+        _sh5.rmtree(d5, ignore_errors=True)
 
     print("selftest", "PASS" if ok else "FAIL")
     return 0 if ok else 1
