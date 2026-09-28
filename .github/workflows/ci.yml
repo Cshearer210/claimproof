@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# ⛔ LEAST PRIVILEGE, SET EXPLICITLY. Without this block GitHub hands every job a token with
+# WRITE access to this repository, so any dependency that runs during a build -- a test plugin, a
+# transitive package -- could push a commit. Nothing here needs to write anything.
+permissions:
+  contents: read
+
 jobs:
   test:
     # Both operating systems on purpose. The worst defect this library exists to
@@ -22,9 +28,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -72,9 +78,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
 
@@ -191,9 +197,9 @@ jobs:
     # Dependency-free on purpose: it reads `git ls-files` and nothing else, so it
     # cannot go red for a reason unrelated to what it checks.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
 
@@ -214,9 +220,9 @@ jobs:
     # it executes what the README actually tells a newcomer to type. The two
     # fail independently, because documentation rots on its own schedule.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
 
@@ -244,9 +250,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -284,8 +290,8 @@ jobs:
       run:
         working-directory: packages/deadcanary
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with: { python-version: "3.12" }
       - run: pip install -e .[dbt]
       - name: build the demo warehouse
@@ -330,8 +336,8 @@ jobs:
       run:
         working-directory: packages/deadcanary
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with: { python-version: "3.12" }
       - run: pip install -e .[dbt]
       - run: python tools/readme_runs.py --selftest
@@ -341,3 +347,25 @@ jobs:
       # and a demonstration at once.
       - name: python -m deadcanary.demo works for someone with nothing set up
         run: python -m deadcanary.demo
+
+  security:
+    # ⛔ A DEPENDENCY AUDIT, RUN ON EVERY PUSH. A tool whose job is finding defects that hide is
+    # not allowed to ship with a known-vulnerable dependency chain; and the honest place to learn
+    # that is here, on every change, rather than from whoever downloads it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+      - name: Install this package and the auditor
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pip-audit
+      - name: Audit the installed dependency chain
+        # ⛔ NO `--strict`, AND THE REASON IS NOT LAXITY. `--strict` fails the run when
+        # pip-audit cannot RESOLVE a package on PyPI, and this package is not published -- so the
+        # job went red reporting "dependency not found on PyPI" as though it were an advisory.
+        # An actual vulnerability still exits non-zero without the flag, which is the property
+        # this job exists for.
+        run: python -m pip_audit --progress-spinner off
