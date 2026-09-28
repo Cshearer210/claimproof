@@ -6,7 +6,10 @@ from claimproof.ground_truth import GroundTruth
 
 
 def test_selftest_passes_both_directions():
-    assert len(GroundTruth().verify()) == 7   # 3 bad, 4 guard, no SelftestError
+    # 6 bad, 7 guard, no SelftestError. The count is asserted exactly rather than as a floor so
+    # that a case QUIETLY LOST is a failure -- a gate with fewer cases than it had is the shape
+    # this library exists to catch. It grew from 7 when wrong-copy-edited was added.
+    assert len(GroundTruth().verify()) == 13
 
 
 def test_a_cited_path_resolves_whichever_separator_it_was_written_with():
