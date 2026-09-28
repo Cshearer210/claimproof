@@ -191,6 +191,15 @@ def selftest() -> int:
     print("readme_runs selftest\n")
     ok = True
 
+    # ⛔ WHERE THE AMBIENT INSTALL LIVES, CAPTURED BEFORE ANYTHING RUNS. The point of the check
+    # at the end of this function is that running it must not MOVE this -- the first version of
+    # run_quickstart() used the ambient python for `pip install -e .`, which repointed the
+    # developer's own editable install at a temp copy that was then deleted. Comparing the
+    # location before and after is the only way to test that; see the note down there for what
+    # was wrong with the previous attempt.
+    import importlib.metadata as _md
+    _where_at_start = str(_md.distribution("deadcanary").locate_file(""))
+
     run, unmarked = blocks(f"{RUN}\n```bash\necho hi\n```\n")
     ok &= say(run == ["echo hi\n"] and not unmarked, "a marked block is collected")
 
@@ -233,11 +242,20 @@ def selftest() -> int:
         ok &= say(code == 3, "a genuinely failing command is still a failure")
 
     # The environment this check runs in must be exactly as it was afterwards.
-    import importlib.metadata as _md
-    where_before = _md.distribution("deadcanary").locate_file("")
-    ok &= say("Temp" not in str(where_before) and "tmp" not in str(where_before).lower(),
-              "the installed package is not pointing at a temp directory",
-              str(where_before)[-60:])
+    #
+    # ⛔ THIS USED TO ASK WHETHER THE INSTALL PATH CONTAINED "tmp", AND THAT WAS WRONG IN A WAY
+    # THAT ONLY SHOWS UP SOMEWHERE ELSE. The property being tested is "running this check did not
+    # move the ambient install". The old line tested "the ambient install is not under a temp
+    # directory" -- a different claim, and a false one for every perfectly good environment that
+    # lives in one: a CI sandbox that builds its venv under /tmp, a container, a scratch checkout.
+    # Measured 2026-09-28: the step passed on a GitHub runner and failed in a temp-dir venv, so
+    # the same commit was green and red at once and the tool looked unreliable rather than the
+    # assertion looking wrong. A control must select on the property it is actually testing.
+    where_after = str(_md.distribution("deadcanary").locate_file(""))
+    ok &= say(where_after == _where_at_start,
+              "this check did not move the ambient install",
+              ("was %s, now %s" % (_where_at_start[-34:], where_after[-34:]))
+              if where_after != _where_at_start else where_after[-60:])
 
     before = len(FAILURES)
     say(False, "a deliberately failed check is recorded")
