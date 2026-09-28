@@ -23,13 +23,14 @@ import re
 
 from claimproof.core import Finding
 from claimproof.gates import (UnbackedClaims, ExitCodeMismatch, UnbackedTestCount, GitDiffUnbacked,
-                              CIStatusUnbacked, ArtifactNameMismatch, MergeDroppedASide, UnreadSource)
+                              CIStatusUnbacked, ArtifactNameMismatch, MergeDroppedASide, UnreadSource,
+                              CountWithNoRun, ScopeHedge)
 from claimproof.ground_truth import GroundTruth
 
 __all__ = ["all_gates", "check", "to_text", "to_json", "to_sarif", "plugin_errors"]
 
 _BUILTIN = (UnbackedClaims, ExitCodeMismatch, UnbackedTestCount, GitDiffUnbacked, CIStatusUnbacked,
-            ArtifactNameMismatch, MergeDroppedASide, UnreadSource)
+            ArtifactNameMismatch, MergeDroppedASide, UnreadSource, CountWithNoRun, ScopeHedge)
 plugin_errors: list = []
 
 
