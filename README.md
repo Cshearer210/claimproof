@@ -8,6 +8,17 @@
 **claimproof stops an AI coding agent from ending its turn saying "done" until it shows proof a
 machine can check.**
 
+## See it work
+
+![claimproof rejecting a gate that only looks tested](https://raw.githubusercontent.com/Cshearer210/claimproof/main/assets/demo.gif)
+
+The middle beat is the argument of the whole library: a gate that has never been made to fail is
+indistinguishable from one that *cannot* fail, and `claimproof audit` rejects the second kind
+live — on a real module holding one honestly-tested gate and one that only looks tested.
+
+Every line on screen is the real output of a command that really ran, with its real exit code.
+[Full quality MP4](assets/demo.mp4).
+
 Agents report work as finished when it isn't — not by lying, but because a fluent summary and a
 correct one feel identical from the inside, and nothing in the loop is checking. This runs at the
 runtime layer, before the turn can end.
