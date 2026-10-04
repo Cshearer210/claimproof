@@ -19,6 +19,22 @@ live — on a real module holding one honestly-tested gate and one that only loo
 Every line on screen is the real output of a command that really ran, with its real exit code.
 [Full quality MP4](assets/demo.mp4).
 
+**509 tests pass** (plus 2 skipped, both needing dbt installed) — measured 2026-10-04, and
+reproducible by anyone in about fifteen seconds:
+
+```bash
+python3 -m pytest -q        # 509 passed, 2 skipped
+claimproof doctor           # 5 checks, and it exits non-zero if any of them is untrue
+```
+
+The suite is large for a library this size on purpose: **every gate in it has a test that makes it
+FAIL**, because this whole package exists to say that a gate nobody has ever seen refuse is
+indistinguishable from one that cannot refuse. A test suite for it that only proved the happy path
+would be the exact defect it detects.
+
+That count is checked against the real suite rather than trusted: if the number here and the number
+the suite reports ever disagree, the pre-ship gate refuses the push.
+
 Agents report work as finished when it isn't — not by lying, but because a fluent summary and a
 correct one feel identical from the inside, and nothing in the loop is checking. This runs at the
 runtime layer, before the turn can end.
