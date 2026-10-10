@@ -19,11 +19,11 @@ live — on a real module holding one honestly-tested gate and one that only loo
 Every line on screen is the real output of a command that really ran, with its real exit code.
 [Full quality MP4](assets/demo.mp4).
 
-**509 tests pass** (plus 2 skipped, both needing dbt installed) — measured 2026-10-04, and
+**535 tests pass** (plus 2 skipped, both needing dbt installed) — measured 2026-10-10, and
 reproducible by anyone in about fifteen seconds:
 
 ```bash
-python3 -m pytest -q        # 509 passed, 2 skipped
+python3 -m pytest -q        # 535 passed, 2 skipped
 claimproof doctor           # 5 checks, and it exits non-zero if any of them is untrue
 ```
 
@@ -569,6 +569,140 @@ It drops into the live-state harness, so the whole thing is one exit code:
 ```python
 h.check("claims", "Every closed claim still rests on the evidence it cited")(basis.as_check())
 ```
+
+### Which version of which repository — the candidate binding
+
+A digest proves a file had some content. It does not say **which version of which repository**
+that content belonged to, so a receipt handed to anyone who was not in the room cannot be
+replayed. Bind it:
+
+<!-- fresh-eyes: illustration -->
+```python
+from claimproof.basis import ClaimBasis, Candidate
+
+basis = ClaimBasis("claims.json", candidate=Candidate.discover())
+basis.record("auth refactor done", evidence=["src/auth.py", "tests/test_auth.py"])
+
+print(basis.export("auth-refactor-done"))
+```
+
+```json
+{
+  "schema_version": "claimproof.basis/v0",
+  "claim": {"id": "auth-refactor-done", "state": "HOLDS"},
+  "evidence": [{"ref": "src/auth.py", "digest": "7e4f919c16b0b188", "kind": "file"}],
+  "candidate": {"repository": "you/yourrepo", "identity": "abc123…", "identity_kind": "git-commit"}
+}
+```
+
+Or from the command line, where a release pipeline that knows what it is building can say so
+instead of letting git guess:
+
+```bash
+python -m claimproof.basis --export auth-refactor-done \
+    --candidate-repo you/yourrepo --candidate-id "$GITHUB_SHA"
+```
+
+Five things it will not bend on, and each is a way a receipt lies quietly:
+
+- **An export with no candidate is refused, not warned about.** A digest with nowhere to point is
+  the exact gap this closes, so emitting one would recreate the problem in a new format.
+- **A claim exports the candidate it was *recorded* on, never today's.** One store accumulates
+  claims made at different commits. Stamping them all with the commit you happen to be standing
+  on is a binding to a tree nobody measured — a confident wrong answer, and worse than refusing.
+- **A dirty working tree is a different candidate and is labelled one.** `identity_kind` becomes
+  `git-commit-dirty` and the diff is fingerprinted into the identity, because the thing you
+  measured was the commit *plus* uncommitted changes, and the bare SHA names a tree that never
+  existed.
+- **`identity` is opaque on purpose.** A commit is the common case and not the only one — a
+  generated snapshot and a container digest are candidates too, and demanding 40 hex characters
+  would quietly exclude them. `identity_kind` tells a reader what sort of thing it is holding.
+- **The state is re-measured at export time, never read back from the store.** A stored verdict
+  is a verdict about the past, and whoever reads the payload is asking about now. `UNKNOWN`
+  exports as `UNKNOWN`: "I could not check" must never arrive as "I checked and it holds".
+
+The wire contract is a real file, shipped **inside the wheel** so a plain `pip install` is enough
+to read it — `claimproof.basis.schema()` returns it, and
+[`src/claimproof/schemas/claimproof.basis.v0.json`](src/claimproof/schemas/claimproof.basis.v0.json)
+is the file. A consumer validates against it instead of inferring the shape from a sample. Adding
+a field is allowed and will not break a reader; removing or renaming one bumps `schema_version`.
+The producer holds that promise with a test, so drift fails here rather than silently rotting a
+consumer's frozen fixture.
+
+`from_export()` reads a payload back, because a contract only one side can speak is one neither
+side can test.
+
+**What this deliberately does not do.** It does not bind `[claimproof:exit]` runtime receipts.
+Those are same-turn and session-local, they have no candidate and never did, and giving one a
+candidate would make it outlive the only question it can honestly answer. It carries no
+BASE→HEAD semantics, no "fix verified" and no merge recommendation — a producer that asserts what
+a reviewer should conclude has stopped being evidence.
+
+### Which version of which repository — the candidate binding
+
+A digest proves a file had some content. It does not say **which version of which repository**
+that content belonged to, so a receipt handed to anyone who was not in the room cannot be
+replayed. Bind it:
+
+<!-- fresh-eyes: illustration -->
+```python
+from claimproof.basis import ClaimBasis, Candidate
+
+basis = ClaimBasis("claims.json", candidate=Candidate.discover())
+basis.record("auth refactor done", evidence=["src/auth.py", "tests/test_auth.py"])
+
+print(basis.export("auth-refactor-done"))
+```
+
+```json
+{
+  "schema_version": "claimproof.basis/v0",
+  "claim": {"id": "auth-refactor-done", "state": "HOLDS"},
+  "evidence": [{"ref": "src/auth.py", "digest": "7e4f919c16b0b188", "kind": "file"}],
+  "candidate": {"repository": "you/yourepo", "identity": "abc123…", "identity_kind": "git-commit"}
+}
+```
+
+Or from the command line, where a release pipeline that knows what it is building can say so
+instead of letting git guess:
+
+```bash
+python -m claimproof.basis --export auth-refactor-done \
+    --candidate-repo you/yourepo --candidate-id "$GITHUB_SHA"
+```
+
+Five things it will not bend on, and each is a way a receipt lies quietly:
+
+- **An export with no candidate is refused, not warned about.** A digest with nowhere to point is
+  the exact gap this closes, so producing one would recreate the problem in a new format.
+- **A claim exports the candidate it was *recorded* on, never today's.** One store accumulates
+  claims made at different commits. Stamping them all with the commit you happen to be standing
+  on is a binding to a tree nobody measured — a confident wrong answer, and worse than refusing.
+- **A dirty working tree is a different candidate and is labelled one.** `identity_kind` becomes
+  `git-commit-dirty` and the diff is fingerprinted into the identity, because the thing you
+  measured was the commit *plus* uncommitted changes and the bare SHA names a tree that never
+  existed.
+- **`identity` is opaque on purpose.** A commit is the common case and not the only one — a
+  generated snapshot and a container digest are candidates too, and demanding 40 hex characters
+  would quietly exclude them. `identity_kind` tells a reader what sort of thing it is holding.
+- **The state is re-measured at export time, never read back from the store.** A stored verdict
+  is a verdict about the past, and whoever is reading the payload is asking about now. `UNKNOWN`
+  exports as `UNKNOWN`: "I could not check" must never arrive as "I checked and it holds".
+
+The wire contract is a real file — [`schemas/claimproof.basis.v0.json`](schemas/claimproof.basis.v0.json)
+— so a consumer validates against it instead of inferring the shape from a sample. Adding a field
+is allowed and will not break a reader; removing or renaming one bumps `schema_version`. The
+producer holds that promise with a test, so drift fails here rather than silently rotting a
+consumer's frozen fixture.
+
+`from_export()` reads a payload back, because a contract only one side can speak is one neither
+side can test.
+
+**What this deliberately does not do.** It does not bind `[claimproof:exit]` runtime receipts.
+Those are same-turn and session-local, they have no candidate and never did, and giving one a
+candidate would make it outlive the only question it can honestly answer. It also carries no
+BASE→HEAD semantics, no "fix verified", and no merge recommendation — a producer that asserts
+what a reviewer should conclude has stopped being evidence.
 
 ## The same question, asked of your data — `deadcanary`
 
